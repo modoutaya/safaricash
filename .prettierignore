@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+coverage
+playwright-report
+test-results
+.husky
+.claude
+_bmad
+_bmad-output
+docs/project-brief.md
+package-lock.json

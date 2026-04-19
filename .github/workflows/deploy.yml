@@ -1,0 +1,27 @@
+# Cloudflare Pages preview + production deploy.
+#
+# INTENTIONAL PLACEHOLDER — Story 1.1 (Project Bootstrap) only stages the file.
+# This workflow is intentionally disabled until:
+#   - the Cloudflare API token (`CLOUDFLARE_API_TOKEN`) and account ID
+#     (`CLOUDFLARE_ACCOUNT_ID`) are provisioned in repo secrets
+#   - the Cloudflare Pages project is created and named (currently expected:
+#     `safaricash`)
+#   - Story 1.2 (Supabase Foundation) has wired the production env vars so
+#     the build does not deploy a half-configured artefact
+#
+# Wiring this workflow on is tracked as a follow-up in the EPIC-1 sprint.
+# When activated, replicate the lint + typecheck + test gates from ci.yml and
+# add the deploy step using `cloudflare/pages-action` (or `wrangler pages deploy`).
+
+name: Deploy (placeholder — disabled)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  noop:
+    name: Placeholder — see file header
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notice
+        run: echo "Cloudflare Pages deploy is intentionally disabled. See workflow header for activation criteria."
