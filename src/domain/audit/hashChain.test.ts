@@ -65,6 +65,34 @@ describe("canonicalJsonStringify", () => {
   it("escapes string values per JSON.stringify rules", () => {
     expect(canonicalJsonStringify({ s: 'a"b\\c' })).toBe('{"s":"a\\"b\\\\c"}');
   });
+
+  it("preserves emoji bytes (no surrogate-pair escaping)", () => {
+    expect(canonicalJsonStringify({ name: "Mama 😀" })).toBe('{"name":"Mama 😀"}');
+  });
+
+  it("preserves U+2028 / U+2029 line separators (legal in JSON since ES2019)", () => {
+    expect(canonicalJsonStringify({ s: "line1\u2028line2" })).toBe('{"s":"line1\u2028line2"}');
+  });
+
+  it("escapes control characters per JSON spec", () => {
+    expect(canonicalJsonStringify({ s: "\u0000\u0001" })).toBe('{"s":"\\u0000\\u0001"}');
+  });
+
+  it("preserves integer numbers without decimal", () => {
+    expect(canonicalJsonStringify({ n: 500 })).toBe('{"n":500}');
+    expect(canonicalJsonStringify({ n: 0 })).toBe('{"n":0}');
+    expect(canonicalJsonStringify({ n: -1 })).toBe('{"n":-1}');
+  });
+
+  it("throws on bigint (no SQL ↔ JS bigint canonical form)", () => {
+    expect(() => canonicalJsonStringify({ n: 1n })).toThrow(/bigint/i);
+  });
+
+  it("throws on non-finite numbers (NaN, Infinity, -Infinity)", () => {
+    expect(() => canonicalJsonStringify(NaN)).toThrow(/non-finite/i);
+    expect(() => canonicalJsonStringify(Infinity)).toThrow(/non-finite/i);
+    expect(() => canonicalJsonStringify(-Infinity)).toThrow(/non-finite/i);
+  });
 });
 
 describe("serializeForHash", () => {
@@ -90,6 +118,10 @@ describe("serializeForHash", () => {
     expect(out[1]).toBe(0x02);
     expect(out[2]).toBe(0x03);
     expect(out[3]).toBe(0x1f);
+  });
+
+  it("throws on empty Uint8Array prevHash (must use null for chain genesis)", () => {
+    expect(() => serializeForHash(new Uint8Array(0), baseEvent)).toThrow(/genesis/i);
   });
 });
 
@@ -163,6 +195,17 @@ describe("toCanonicalTimestamp", () => {
     expect(toCanonicalTimestamp("2026-04-19T05:14:23.123456+0000")).toBe(
       "2026-04-19T05:14:23.123456Z",
     );
+  });
+
+  it("accepts +00 short form (RFC 3339)", () => {
+    expect(toCanonicalTimestamp("2026-04-19T05:14:23.123456+00")).toBe(
+      "2026-04-19T05:14:23.123456Z",
+    );
+  });
+
+  it("throws on non-UTC offset (must NOT silently treat as UTC)", () => {
+    expect(() => toCanonicalTimestamp("2026-04-19T05:14:23.123456-05:00")).toThrow(/UTC/i);
+    expect(() => toCanonicalTimestamp("2026-04-19T05:14:23.123456+02:00")).toThrow(/UTC/i);
   });
 
   it("throws on garbage input", () => {

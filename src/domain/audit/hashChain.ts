@@ -16,10 +16,22 @@ function encodeUtf8(text: string): Uint8Array {
 
 /**
  * Canonical JSON: keys sorted alphabetically at every depth, no
- * whitespace, identical to Postgres `jsonb::text` output for the
- * canonical jsonb storage form.
+ * whitespace, identical to `public.canonical_jsonb()` SQL helper output
+ * (which the audit_emit() trigger uses to feed the hash). Throws on inputs
+ * that can't round-trip cleanly between SQL and TS so a future caller doesn't
+ * silently break the chain.
  */
 export function canonicalJsonStringify(value: unknown): string {
+  if (typeof value === "bigint") {
+    throw new Error(
+      "canonicalJsonStringify: bigint is not supported (Postgres jsonb has no native bigint serialisation matching JS BigInt)",
+    );
+  }
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    throw new Error(
+      "canonicalJsonStringify: non-finite number (NaN/Infinity/-Infinity) is not valid JSON",
+    );
+  }
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value);
   }
@@ -59,6 +71,14 @@ function concatBytes(parts: Uint8Array[]): Uint8Array {
  * `prev_hash` is empty bytes when null.
  */
 export function serializeForHash(prevHash: Uint8Array | null, event: AuditEvent): Uint8Array {
+  // An empty Uint8Array is API-ambiguous (bytes-equal to a null prevHash
+  // serialisation), so reject it. Callers must pass null explicitly for
+  // chain-genesis rows.
+  if (prevHash !== null && prevHash.length === 0) {
+    throw new Error(
+      "serializeForHash: prevHash must be null for chain genesis, not an empty Uint8Array",
+    );
+  }
   const delim = new Uint8Array([FIELD_DELIMITER]);
   const fields: Uint8Array[] = [
     prevHash ?? new Uint8Array(0),
@@ -114,11 +134,21 @@ export async function computeEntryHash(
  * the trigger output and chain verification will spuriously fail.
  */
 export function toCanonicalTimestamp(pgIso: string): string {
+  // Accept: trailing Z, '+00', '+0000', '+00:00' (all UTC). Reject any
+  // non-UTC offset — silently dropping the offset would falsely advertise
+  // canonical UTC and cause a hash mismatch on verify (the trigger only
+  // emits UTC).
   const m = pgIso.match(
-    /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(?:Z|[+-]\d{2}:?\d{2})?$/,
+    /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}(?::?\d{2})?)?$/,
   );
   if (!m) {
     throw new Error(`toCanonicalTimestamp: not a recognised ISO 8601 timestamp: ${pgIso}`);
+  }
+  const offset = m[3];
+  if (offset !== undefined && offset !== "Z" && !/^\+00(?::?00)?$/.test(offset)) {
+    throw new Error(
+      `toCanonicalTimestamp: timestamp must be UTC (Z or +00). Got offset '${offset}' in '${pgIso}'.`,
+    );
   }
   const fraction = (m[2] ?? "").padEnd(6, "0").slice(0, 6);
   return `${m[1]}.${fraction}Z`;

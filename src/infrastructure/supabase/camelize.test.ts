@@ -81,4 +81,10 @@ describe("decamelize", () => {
     };
     expect(decamelize(camelize(original))).toEqual(original);
   });
+
+  it("handles consecutive uppercase letters (initialisms)", () => {
+    expect(decamelize({ htmlURL: "x" })).toEqual({ html_url: "x" });
+    expect(decamelize({ userIdAPI: 1 })).toEqual({ user_id_api: 1 });
+    expect(decamelize({ iso8601: "2026" })).toEqual({ iso8601: "2026" });
+  });
 });

@@ -503,6 +503,7 @@ export type Database = {
       };
     };
     Functions: {
+      canonical_jsonb: { Args: { j: Json }; Returns: string };
       show_limit: { Args: never; Returns: number };
       show_trgm: { Args: { "": string }; Returns: string[] };
       vault_decrypt: { Args: { secret_id: string }; Returns: string };

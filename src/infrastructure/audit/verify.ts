@@ -28,6 +28,12 @@ function decodeHexBytea(hex: string | null): Uint8Array | null {
   // Postgres `bytea` over PostgREST returns `\x...` hex string by default.
   const cleaned = hex.startsWith("\\x") ? hex.slice(2) : hex;
   if (cleaned.length === 0) return new Uint8Array(0);
+  if (cleaned.length % 2 !== 0) {
+    throw new Error(`decodeHexBytea: odd-length hex string (${cleaned.length} chars)`);
+  }
+  if (!/^[0-9a-fA-F]+$/.test(cleaned)) {
+    throw new Error(`decodeHexBytea: non-hex characters in input`);
+  }
   const out = new Uint8Array(cleaned.length / 2);
   for (let i = 0; i < out.length; i++) {
     out[i] = parseInt(cleaned.substring(i * 2, i * 2 + 2), 16);
@@ -59,11 +65,17 @@ export async function verifyCollectorChain(collectorId: string): Promise<VerifyR
       source: "online" | "offline_reconciled";
       payload: Record<string, unknown>;
     }>(dbRow);
+    const entryHash = decodeHexBytea(dbRow.entry_hash);
+    if (entryHash === null) {
+      throw new Error(
+        `verifyCollectorChain: audit row ${dbRow.event_id} has null entry_hash (column is NOT NULL — schema corruption?)`,
+      );
+    }
     return {
       ...camel,
       timestamp: toCanonicalTimestamp(camel.timestamp),
       prevHash: decodeHexBytea(dbRow.prev_hash),
-      entryHash: decodeHexBytea(dbRow.entry_hash) ?? new Uint8Array(0),
+      entryHash,
     };
   });
 

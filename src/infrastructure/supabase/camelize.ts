@@ -12,11 +12,17 @@ function isPlainObject(value: unknown): value is Plain {
 }
 
 function snakeToCamel(key: string): string {
-  return key.replace(/_([a-z0-9])/g, (_, ch: string) => ch.toUpperCase());
+  return key.replace(/_+([a-z0-9])/g, (_, ch: string) => ch.toUpperCase());
 }
 
 function camelToSnake(key: string): string {
-  return key.replace(/([A-Z])/g, "_$1").toLowerCase();
+  // Insert underscore between (lowercase|digit)→Upper boundaries AND
+  // between consecutive Caps when the next is followed by lowercase
+  // (so `htmlURL` → `html_url`, `URLPath` → `url_path`, `userIdAPI` → `user_id_api`).
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .toLowerCase();
 }
 
 function transformKeys<T>(value: unknown, transform: (key: string) => string): T {

@@ -21,6 +21,34 @@ alter table public.audit_log
   check (event_type ~ '^[a-z][a-z_]*\.[a-z][a-z_]*$');
 
 -- ---------------------------------------------------------------------------
+-- Hash length defense-in-depth.
+-- SHA-256 always produces exactly 32 bytes; null prev_hash is genesis only.
+-- Without these checks, a hand-inserted row with entry_hash = '\x' (empty)
+-- would collapse with the genesis prev_hash convention (also empty bytes
+-- via coalesce in the trigger).
+-- ---------------------------------------------------------------------------
+
+alter table public.audit_log
+  add constraint audit_log_entry_hash_length_chk
+  check (octet_length(entry_hash) = 32);
+
+alter table public.audit_log
+  add constraint audit_log_prev_hash_length_chk
+  check (prev_hash is null or octet_length(prev_hash) = 32);
+
+-- ---------------------------------------------------------------------------
+-- actor must be either the literal 'system' (trigger / service-role / cron)
+-- or a UUID v4 string (auth.uid() result). Locks down semantic widening.
+-- ---------------------------------------------------------------------------
+
+alter table public.audit_log
+  add constraint audit_log_actor_format_chk
+  check (
+    actor = 'system'
+    or actor ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+  );
+
+-- ---------------------------------------------------------------------------
 -- Indexes
 -- ---------------------------------------------------------------------------
 

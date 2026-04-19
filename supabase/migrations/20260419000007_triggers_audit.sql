@@ -50,7 +50,7 @@ create extension if not exists "pgcrypto" with schema "extensions";
 create or replace function public.canonical_jsonb(j jsonb)
 returns text
 language plpgsql
-immutable
+stable
 set search_path = public, pg_temp
 as $$
 declare
@@ -124,7 +124,10 @@ declare
   v_iso_ts       text;
 begin
   v_op           := tg_op;
-  v_timestamp    := now();
+  -- clock_timestamp() (NOT now()) — the latter is transaction-stable, so a
+  -- multi-row INSERT in one statement would produce identical timestamps and
+  -- non-deterministic chain ordering when the verifier walks ASC.
+  v_timestamp    := clock_timestamp();
   v_event_id     := gen_random_uuid();
   v_entity_table := tg_table_name::text;
 
@@ -148,6 +151,12 @@ begin
     when v_entity_table = 'members'      and v_op = 'UPDATE' then 'member.updated'
     when v_entity_table = 'members'      and v_op = 'DELETE' then 'member.deleted'
     when v_entity_table = 'cycles'       and v_op = 'INSERT' then 'cycle.started'
+    -- cycle.settled is a status-aware UPDATE: NEW.status = 'settled' AND
+    -- OLD.status was something other. Generic UPDATE falls through to
+    -- cycle.updated. Architecture event-naming table requires this distinction.
+    when v_entity_table = 'cycles'       and v_op = 'UPDATE'
+         and (v_payload->>'status') = 'settled'
+         and (to_jsonb(old)->>'status') <> 'settled'   then 'cycle.settled'
     when v_entity_table = 'cycles'       and v_op = 'UPDATE' then 'cycle.updated'
     when v_entity_table = 'cycles'       and v_op = 'DELETE' then 'cycle.deleted'
     when v_entity_table = 'transactions' and v_op = 'INSERT' then 'transaction.committed'
@@ -173,7 +182,11 @@ begin
 
   -- Per-collector chain serialization lock — prevents two concurrent INSERTs
   -- for the same collector from forking the chain by reading the same prev_hash.
-  perform pg_advisory_xact_lock(hashtextextended('safaricash.audit_chain.' || v_collector_id::text, 0));
+  -- The 2-arg form (class_id, key) namespaces under SafariCash's reserved
+  -- class_id 0x5AFA so we don't collide with other extensions/code that also
+  -- use advisory locks. The 32-bit key is derived from a hash of the
+  -- collector_id (collision negligible at MVP scale; revisit at >10k collectors).
+  perform pg_advisory_xact_lock(0x5AFA, hashtext(v_collector_id::text));
 
   select entry_hash into v_prev_hash
   from public.audit_log

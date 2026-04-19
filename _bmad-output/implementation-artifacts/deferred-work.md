@@ -1,5 +1,17 @@
 # Deferred Work
 
+## Deferred from: code review of 1-2-supabase-foundation (2026-04-19)
+
+- **Audit-chain gap detection** — `verifyChain` accepts contiguous-but-incomplete chains (an insider with DB write access could DELETE a row + relink the next row's prev_hash and the chain still verifies). Mitigation: per-collector monotonic sequence column on audit_log. Heavy lift; revisit as a dedicated "audit-log integrity hardening" story (likely Epic 1.x or 9.x). [src/domain/audit/verify.ts]
+- **Vault row cleanup on member deletion** — DELETE on members leaves orphan `vault.secrets` rows. Story 10.4 (saver-anonymisation Edge Function) owns the cleanup pattern (decrypt-then-delete-secret-then-delete-row). Add to that story's spec.
+- **Audit payload contains encrypted UUIDs not plaintext — Vault row swap attack vector** — A DBA who swaps two `vault.secrets` rows leaves the audit chain valid while changing the historical meaning of every audit row referencing those secrets. Mitigations are non-trivial (re-introduce plaintext into another table, OR add a separate `audit_log_secret_witness` table, OR accept). Document in ADR-001 as MVP limitation; revisit if a real attack vector emerges. [docs/ADR/001-supabase-vault.md]
+- **Hardcoded event_type CASE in trigger** — Future taxonomy changes (new event types, status-aware mappings beyond `cycle.settled`) require a trigger function rewrite + brief lock. Revisit by extracting to a lookup table when a 3rd new event type lands. [supabase/migrations/20260419000007_triggers_audit.sql]
+- **Forensic actor disambiguation** — `actor = 'system'` currently covers trigger writes, Supabase Studio ops, AND any breached service-role usage. Mitigation: future Edge Functions set a session-local GUC `app.actor` and trigger reads it. Defer to Story 1.3 (re-auth Edge Function) where the GUC pattern can be wired alongside other actor metadata.
+- **Migration 0004 is dead weight** — only does an index existence check. Reflects spec-mandated 7-file split; cosmetic. No action needed unless the file split is amended in architecture.md.
+- **`hashtextextended` advisory lock collision threshold** — At >10k collectors the 32-bit hash space hits ~50% birthday collision probability. Negligible at MVP (<100 collectors). Add a note to `docs/RUNBOOK.md` when it's created (Story 1.1 follow-up) and switch to a 64-bit lock id derived from collector_id when collector count nears 10k. [supabase/migrations/20260419000007_triggers_audit.sql]
+
+
+
 Tracks issues raised in code reviews that were judged real but not actionable now. Each entry should be revisited when the trigger condition fires.
 
 ## Deferred from: code review of 1-1-project-bootstrap (2026-04-19)

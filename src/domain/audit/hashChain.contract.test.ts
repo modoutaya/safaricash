@@ -20,6 +20,17 @@ const SUPABASE_URL = process.env["SUPABASE_TEST_URL"] ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env["SUPABASE_TEST_SERVICE_ROLE_KEY"] ?? "";
 const RUN_CONTRACT = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY);
 
+// In CI this contract test MUST run — the SQL ↔ TS canonical-byte parity
+// gate cannot be silently skipped. Failing loudly forces the workflow to be
+// fixed instead of letting a future canonicalisation drift slip through.
+if (process.env["CI"] === "true" && !RUN_CONTRACT) {
+  throw new Error(
+    "CI=true but SUPABASE_TEST_URL / SUPABASE_TEST_SERVICE_ROLE_KEY are not set. " +
+      "The SQL ↔ TS hash-chain parity contract test cannot be skipped in CI. " +
+      "Wire the local Supabase stack in .github/workflows/ci.yml.",
+  );
+}
+
 function decodeHexBytea(hex: string | null | undefined): Uint8Array | null {
   if (!hex) return null;
   const cleaned = hex.startsWith("\\x") ? hex.slice(2) : hex;

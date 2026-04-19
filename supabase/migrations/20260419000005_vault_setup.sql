@@ -33,6 +33,26 @@
 create extension if not exists "supabase_vault" with schema "vault" cascade;
 
 -- ---------------------------------------------------------------------------
+-- Defensive guard: this migration ALTERs members + transactions, dropping
+-- plaintext columns and adding NOT NULL encrypted replacements. Re-running
+-- against a non-empty table would silently break the schema (ADD COLUMN ...
+-- NOT NULL fails when rows exist). Refuse to run rather than partially apply.
+-- ---------------------------------------------------------------------------
+
+do $$
+begin
+  if exists (select 1 from public.members limit 1) then
+    raise exception
+      'Migration 0005 cannot run against a non-empty members table. Backfill name_encrypted/phone_number_encrypted in a separate migration first.';
+  end if;
+  if exists (select 1 from public.transactions limit 1) then
+    raise exception
+      'Migration 0005 cannot run against a non-empty transactions table. Backfill amount_encrypted in a separate migration first.';
+  end if;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- Encryption / decryption helpers (SECURITY DEFINER → run as function owner so
 -- the caller does not need direct GRANTs on the vault schema).
 -- ---------------------------------------------------------------------------
@@ -82,8 +102,16 @@ $$;
 comment on function public.vault_decrypt(uuid) is
   'SECURITY DEFINER wrapper around vault.decrypted_secrets. Returns plaintext for a given secret_id. Authenticated callers can only see secret_ids that already live in their RLS-protected rows, so leak surface is bounded by RLS on the calling table; uuid v4 enumeration is not a realistic threat at MVP scale.';
 
+-- vault_decrypt is intentionally NOT granted to `authenticated`. If it were,
+-- any logged-in user could call it directly via PostgREST RPC with an
+-- arbitrary secret_id and bypass the RLS-on-the-owning-table check that
+-- normally bounds which secret_ids they can see. The decryption views
+-- (members_decrypted / transactions_decrypted) call this function and run
+-- under SECURITY DEFINER context, so authenticated reads through the views
+-- still resolve plaintext correctly.
 revoke execute on function public.vault_decrypt(uuid) from public;
-grant execute on function public.vault_decrypt(uuid) to authenticated, service_role;
+revoke execute on function public.vault_decrypt(uuid) from authenticated;
+grant execute on function public.vault_decrypt(uuid) to service_role;
 
 -- ---------------------------------------------------------------------------
 -- members: replace plaintext name + phone_number with encrypted columns.
@@ -155,7 +183,11 @@ select
   t.member_id,
   t.cycle_id,
   t.kind,
-  public.vault_decrypt(t.amount_encrypted)::numeric(12, 0) as amount,
+  -- nullif() guards against an empty-string plaintext escaping the app
+  -- boundary (positivity check moved to Zod, but defensive for the view).
+  -- Without nullif, a single bad row would throw `invalid input syntax for
+  -- type numeric` and break the view for *every* read.
+  nullif(public.vault_decrypt(t.amount_encrypted), '')::numeric(12, 0) as amount,
   t.cycle_day,
   t.source,
   t.created_at,

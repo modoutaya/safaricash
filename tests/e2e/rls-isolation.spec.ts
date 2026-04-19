@@ -21,6 +21,19 @@ const SUPABASE_URL = process.env["SUPABASE_TEST_URL"] ?? "http://127.0.0.1:54321
 const SUPABASE_ANON_KEY = process.env["SUPABASE_TEST_ANON_KEY"] ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env["SUPABASE_TEST_SERVICE_ROLE_KEY"] ?? "";
 
+// In CI this gate MUST run — silently skipping defeats the NFR-S5 release
+// gate the story exists to install. The CI workflow starts a local Supabase
+// stack and passes the well-known anon/service-role keys via env. If those
+// vars are missing in CI, fail loudly so the workflow is fixed instead of
+// silently letting an RLS regression through.
+if (process.env["CI"] === "true" && (!SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY)) {
+  throw new Error(
+    "CI=true but SUPABASE_TEST_ANON_KEY / SUPABASE_TEST_SERVICE_ROLE_KEY are not set. " +
+      "The RLS isolation release gate cannot be skipped in CI. " +
+      "Wire the local Supabase stack in .github/workflows/ci.yml.",
+  );
+}
+
 type SeededCollector = {
   email: string;
   password: string;
@@ -49,9 +62,10 @@ async function seedCollector(
   const userId = authData.user.id;
 
   // Insert the public.users profile row (collector role).
-  const phone = `+22177000${Math.floor(Math.random() * 10000)
-    .toString()
-    .padStart(4, "0")}`;
+  // Wider entropy than 4 random digits to avoid UNIQUE collisions under
+  // CI parallelism / retry. crypto.randomUUID returns 32 hex chars; first 9
+  // give us 36 bits of entropy fitting a +221 mobile number length.
+  const phone = `+22177${crypto.randomUUID().replace(/-/g, "").slice(0, 9)}`;
   const { error: usersError } = await serviceClient.from("users").insert({
     id: userId,
     phone_number: phone,
@@ -62,12 +76,18 @@ async function seedCollector(
   // Seed 3 members (using vault_encrypt RPC for the encrypted columns).
   const memberIds: string[] = [];
   for (let i = 0; i < 3; i++) {
-    const { data: nameSecret } = await serviceClient.rpc("vault_encrypt", {
+    const { data: nameSecret, error: nameSecretErr } = await serviceClient.rpc("vault_encrypt", {
       plaintext: `Member ${label}-${i + 1}`,
     });
-    const { data: phoneSecret } = await serviceClient.rpc("vault_encrypt", {
+    if (nameSecretErr || !nameSecret) {
+      throw new Error(`vault_encrypt(name) returned no secret_id: ${nameSecretErr?.message}`);
+    }
+    const { data: phoneSecret, error: phoneSecretErr } = await serviceClient.rpc("vault_encrypt", {
       plaintext: `+221770111${i}${i}${i}${i}`,
     });
+    if (phoneSecretErr || !phoneSecret) {
+      throw new Error(`vault_encrypt(phone) returned no secret_id: ${phoneSecretErr?.message}`);
+    }
     const { data: member, error } = await serviceClient
       .from("members")
       .insert({
@@ -170,13 +190,23 @@ test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
     });
     expect(signInErr).toBeNull();
 
-    for (const table of ["members", "cycles", "transactions", "sms_queue", "disputes"] as const) {
+    for (const table of ["members", "cycles", "transactions"] as const) {
       const { data, error } = await clientA.from(table).select("collector_id");
       expect(error, `select ${table}: ${error?.message}`).toBeNull();
-      expect(data ?? []).toEqual(
-        (data ?? []).filter((row) => row.collector_id === collectorA.userId),
-      );
-      // Stronger assertion: every row's collector_id matches A.
+      // Non-tautological assertion: the seed inserted 3 rows per collector
+      // for these tables. If RLS were misconfigured to return ZERO rows,
+      // the previous "filter == data" check would pass vacuously. Confirm
+      // we actually got our rows back.
+      expect(data!.length, `${table}: expected exactly 3 rows for collector A`).toBe(3);
+      for (const row of data!) {
+        expect(row.collector_id).toBe(collectorA.userId);
+      }
+    }
+    // sms_queue and disputes weren't seeded by this test — assert empty
+    // (RLS still applies; collector A should see 0 of B's hypothetical rows).
+    for (const table of ["sms_queue", "disputes"] as const) {
+      const { data, error } = await clientA.from(table).select("collector_id");
+      expect(error, `select ${table}: ${error?.message}`).toBeNull();
       for (const row of data ?? []) {
         expect(row.collector_id).toBe(collectorA.userId);
       }
@@ -265,8 +295,14 @@ test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
       entry_hash: "\\x00",
     });
 
-    // PostgREST returns an error (revoked + no policy). Accept either an explicit
-    // error response or — if Supabase silently no-ops — a follow-up SELECT count check.
+    // PostgREST returns an error (REVOKE + no policy). Even if it didn't
+    // (Supabase silently no-op), confirm zero rows landed via a service-role
+    // count query — this is the binding gate.
     expect(error).not.toBeNull();
+    const { count } = await serviceClient
+      .from("audit_log")
+      .select("*", { count: "exact", head: true })
+      .eq("event_id", "00000000-0000-4000-8000-000000000099");
+    expect(count, "audit_log INSERT must NOT have landed").toBe(0);
   });
 });

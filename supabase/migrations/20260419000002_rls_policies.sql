@@ -108,3 +108,33 @@ create policy audit_log_collector_select
   for select
   to authenticated
   using (collector_id = auth.uid());
+
+-- ---------------------------------------------------------------------------
+-- Explicit anon deny — defense in depth.
+-- Supabase's default GRANTs to `anon` may exist on base tables. Even if a
+-- policy granting only to `authenticated` covers writes, an `anon` SELECT
+-- without a matching policy can return zero rows silently — but a future
+-- migration that broadens grants would be silently dangerous. Lock anon out
+-- explicitly on every user-owned table.
+-- ---------------------------------------------------------------------------
+
+create policy users_no_anon
+  on public.users for all to anon using (false) with check (false);
+
+create policy members_no_anon
+  on public.members for all to anon using (false) with check (false);
+
+create policy cycles_no_anon
+  on public.cycles for all to anon using (false) with check (false);
+
+create policy transactions_no_anon
+  on public.transactions for all to anon using (false) with check (false);
+
+create policy sms_queue_no_anon
+  on public.sms_queue for all to anon using (false) with check (false);
+
+create policy disputes_no_anon
+  on public.disputes for all to anon using (false) with check (false);
+
+create policy audit_log_no_anon
+  on public.audit_log for all to anon using (false) with check (false);
