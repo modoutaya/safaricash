@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-19
-# touched: 1-3-reauth-edge-function → ready-for-dev (2026-04-19)
+# touched: 1-3-reauth-edge-function → review (2026-04-19)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -47,7 +47,7 @@ development_status:
   epic-1: in-progress
   1-1-project-bootstrap: done
   1-2-supabase-foundation: done
-  1-3-reauth-edge-function: ready-for-dev
+  1-3-reauth-edge-function: review
   1-4-rate-limit-middleware: backlog
   1-5-phone-otp-signin: backlog
   1-6-session-management: backlog

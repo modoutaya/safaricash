@@ -237,6 +237,62 @@ export type Database = {
           },
         ];
       };
+      reauth_challenges: {
+        Row: {
+          attempts: number;
+          collector_id: string;
+          confirmation_expires_at: string | null;
+          confirmation_token: string | null;
+          confirmation_used: boolean;
+          created_at: string;
+          expires_at: string;
+          id: string;
+          intended_op: Database["public"]["Enums"]["reauth_intended_op_enum"];
+          lockout_until: string | null;
+          otp_hash: string;
+          status: Database["public"]["Enums"]["reauth_challenge_status_enum"];
+          updated_at: string;
+        };
+        Insert: {
+          attempts?: number;
+          collector_id: string;
+          confirmation_expires_at?: string | null;
+          confirmation_token?: string | null;
+          confirmation_used?: boolean;
+          created_at?: string;
+          expires_at: string;
+          id?: string;
+          intended_op: Database["public"]["Enums"]["reauth_intended_op_enum"];
+          lockout_until?: string | null;
+          otp_hash: string;
+          status?: Database["public"]["Enums"]["reauth_challenge_status_enum"];
+          updated_at?: string;
+        };
+        Update: {
+          attempts?: number;
+          collector_id?: string;
+          confirmation_expires_at?: string | null;
+          confirmation_token?: string | null;
+          confirmation_used?: boolean;
+          created_at?: string;
+          expires_at?: string;
+          id?: string;
+          intended_op?: Database["public"]["Enums"]["reauth_intended_op_enum"];
+          lockout_until?: string | null;
+          otp_hash?: string;
+          status?: Database["public"]["Enums"]["reauth_challenge_status_enum"];
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "reauth_challenges_collector_id_fkey";
+            columns: ["collector_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       sms_queue: {
         Row: {
           attempts: number;
@@ -504,6 +560,7 @@ export type Database = {
     };
     Functions: {
       canonical_jsonb: { Args: { j: Json }; Returns: string };
+      get_reauth_otp_hmac_key: { Args: never; Returns: string };
       show_limit: { Args: never; Returns: number };
       show_trgm: { Args: { "": string }; Returns: string[] };
       vault_decrypt: { Args: { secret_id: string }; Returns: string };
@@ -514,6 +571,8 @@ export type Database = {
       disputes_status_enum: "open" | "resolved" | "dismissed";
       disputes_via_enum: "receipt_url" | "support_email" | "support_phone";
       members_status_enum: "active" | "paused" | "completed" | "deleted";
+      reauth_challenge_status_enum: "pending" | "verified" | "failed" | "locked" | "expired";
+      reauth_intended_op_enum: "cycle_settlement" | "member_delete" | "csv_export" | "sms_resend";
       sms_queue_status_enum: "queued" | "sent" | "delivered" | "failed" | "abandoned";
       transactions_kind_enum: "contribution" | "rattrapage" | "advance";
       transactions_source_enum: "online" | "offline_reconciled";
@@ -650,6 +709,8 @@ export const Constants = {
       disputes_status_enum: ["open", "resolved", "dismissed"],
       disputes_via_enum: ["receipt_url", "support_email", "support_phone"],
       members_status_enum: ["active", "paused", "completed", "deleted"],
+      reauth_challenge_status_enum: ["pending", "verified", "failed", "locked", "expired"],
+      reauth_intended_op_enum: ["cycle_settlement", "member_delete", "csv_export", "sms_resend"],
       sms_queue_status_enum: ["queued", "sent", "delivered", "failed", "abandoned"],
       transactions_kind_enum: ["contribution", "rattrapage", "advance"],
       transactions_source_enum: ["online", "offline_reconciled"],

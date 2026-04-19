@@ -1,0 +1,25 @@
+{
+  "reauth": {
+    "title": "Vérification de sécurité",
+    "subtitle": "Pour {operation}, nous vérifions que c'est bien vous.",
+    "subtitle_op": {
+      "cycle_settlement": "clôturer ce cycle",
+      "member_delete": "supprimer ce membre",
+      "csv_export": "exporter ces données",
+      "sms_resend": "renvoyer ce reçu"
+    },
+    "otp_label": "Code à 6 chiffres reçu par SMS",
+    "sending": "Envoi du code…",
+    "verifying": "Vérification du code…",
+    "resend_cta": "Renvoyer le code",
+    "resend_cooldown": "Renvoyer dans {seconds} s",
+    "error": {
+      "invalid": "Code incorrect",
+      "expired": "Code expiré — Renvoyer le code",
+      "locked": "Trop de tentatives. Réessayez dans {minutes} minutes.",
+      "delivery_failed": "Envoi du code échoué — retenter",
+      "network": "Pas de réseau — vérifiez votre connexion"
+    },
+    "support_after_lockout": "Si le problème persiste, appelez le {founder_phone}"
+  }
+}

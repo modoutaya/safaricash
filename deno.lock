@@ -1,0 +1,97 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@std/assert@1": "1.0.19",
+    "jsr:@std/internal@^1.0.12": "1.0.12",
+    "jsr:@supabase/functions-js@^0.0.0-automated": "0.0.0-jsr-test.1",
+    "jsr:@supabase/supabase-js@2": "2.103.3"
+  },
+  "jsr": {
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.12": {
+      "integrity": "972a634fd5bc34b242024402972cd5143eac68d8dffaca5eaa4dba30ce17b027"
+    },
+    "@supabase/functions-js@0.0.0-jsr-test.1": {
+      "integrity": "b1b37924af1f0011b4753201e1585a37b030e996c6682492e02575eb27d902b2"
+    },
+    "@supabase/supabase-js@2.103.3": {
+      "integrity": "ce80c9b9d987808a73d6f645ce5fc458a3dfe4620b52e591995abcd5eeb3a36d",
+      "dependencies": [
+        "jsr:@supabase/functions-js"
+      ]
+    }
+  },
+  "remote": {
+    "https://deno.land/x/zod@v3.23.8/ZodError.ts": "528da200fbe995157b9ae91498b103c4ef482217a5c086249507ac850bd78f52",
+    "https://deno.land/x/zod@v3.23.8/errors.ts": "5285922d2be9700cc0c70c95e4858952b07ae193aa0224be3cbd5cd5567eabef",
+    "https://deno.land/x/zod@v3.23.8/external.ts": "a6cfbd61e9e097d5f42f8a7ed6f92f93f51ff927d29c9fbaec04f03cbce130fe",
+    "https://deno.land/x/zod@v3.23.8/helpers/enumUtil.ts": "54efc393cc9860e687d8b81ff52e980def00fa67377ad0bf8b3104f8a5bf698c",
+    "https://deno.land/x/zod@v3.23.8/helpers/errorUtil.ts": "7a77328240be7b847af6de9189963bd9f79cab32bbc61502a9db4fe6683e2ea7",
+    "https://deno.land/x/zod@v3.23.8/helpers/parseUtil.ts": "c14814d167cc286972b6e094df88d7d982572a08424b7cd50f862036b6fcaa77",
+    "https://deno.land/x/zod@v3.23.8/helpers/partialUtil.ts": "998c2fe79795257d4d1cf10361e74492f3b7d852f61057c7c08ac0a46488b7e7",
+    "https://deno.land/x/zod@v3.23.8/helpers/typeAliases.ts": "0fda31a063c6736fc3cf9090dd94865c811dfff4f3cb8707b932bf937c6f2c3e",
+    "https://deno.land/x/zod@v3.23.8/helpers/util.ts": "30c273131661ca5dc973f2cfb196fa23caf3a43e224cdde7a683b72e101a31fc",
+    "https://deno.land/x/zod@v3.23.8/index.ts": "d27aabd973613985574bc31f39e45cb5d856aa122ef094a9f38a463b8ef1a268",
+    "https://deno.land/x/zod@v3.23.8/locales/en.ts": "a7a25cd23563ccb5e0eed214d9b31846305ddbcdb9c5c8f508b108943366ab4c",
+    "https://deno.land/x/zod@v3.23.8/mod.ts": "ec6e2b1255c1a350b80188f97bd0a6bac45801bb46fc48f50b9763aa66046039",
+    "https://deno.land/x/zod@v3.23.8/types.ts": "1b172c90782b1eaa837100ebb6abd726d79d6c1ec336350c8e851e0fd706bf5c"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@axe-core/playwright@^4.11.2",
+        "npm:@hookform/resolvers@^5.2.2",
+        "npm:@playwright/test@^1.59.1",
+        "npm:@radix-ui/react-slot@^1.2.4",
+        "npm:@supabase/supabase-js@^2.103.3",
+        "npm:@tanstack/react-query@^5.99.1",
+        "npm:@testing-library/jest-dom@^6.9.1",
+        "npm:@testing-library/react@^16.3.2",
+        "npm:@types/node@^20.14.0",
+        "npm:@types/react-dom@^18.3.1",
+        "npm:@types/react@^18.3.12",
+        "npm:@typescript-eslint/eslint-plugin@^8.58.2",
+        "npm:@typescript-eslint/parser@^8.58.2",
+        "npm:@vitejs/plugin-react@^4.3.4",
+        "npm:autoprefixer@^10.4.20",
+        "npm:axe-core@^4.11.3",
+        "npm:class-variance-authority@~0.7.1",
+        "npm:clsx@^2.1.1",
+        "npm:eslint-config-prettier@^10.1.8",
+        "npm:eslint-import-resolver-typescript@^4.4.4",
+        "npm:eslint-plugin-import@^2.32.0",
+        "npm:eslint-plugin-jsx-a11y@^6.10.2",
+        "npm:eslint-plugin-react-hooks@^7.1.1",
+        "npm:eslint-plugin-react@^7.37.5",
+        "npm:eslint@^8.57.1",
+        "npm:framer-motion@^12.38.0",
+        "npm:husky@^9.1.7",
+        "npm:jest-axe@10",
+        "npm:jsdom@^29.0.2",
+        "npm:lint-staged@^16.4.0",
+        "npm:lucide-react@^1.8.0",
+        "npm:postcss@^8.4.49",
+        "npm:prettier@^3.8.3",
+        "npm:react-dom@^18.3.1",
+        "npm:react-hook-form@^7.72.1",
+        "npm:react-router-dom@^7.14.1",
+        "npm:react@^18.3.1",
+        "npm:sonner@^2.0.7",
+        "npm:supabase@^2.92.1",
+        "npm:tailwind-merge@^3.5.0",
+        "npm:tailwindcss-animate@^1.0.7",
+        "npm:tailwindcss@^3.4.17",
+        "npm:typescript@^5.6.3",
+        "npm:vite-plugin-pwa@^1.2.0",
+        "npm:vite@^5.4.11",
+        "npm:vitest@^4.1.4",
+        "npm:zod@^4.3.6"
+      ]
+    }
+  }
+}

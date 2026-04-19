@@ -98,6 +98,20 @@ jobs:
           SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ env.SUPABASE_LOCAL_SERVICE_ROLE_KEY }}
         run: npx playwright test
 
+      # ----- Edge Function tests (Deno) — Story 1.3 onward.
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v2.x
+
+      - name: Edge Function tests (Deno + RLS-bound HMAC + lockout gates)
+        env:
+          SUPABASE_TEST_URL: http://127.0.0.1:54321
+          SUPABASE_TEST_ANON_KEY: ${{ env.SUPABASE_LOCAL_ANON_KEY }}
+          SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ env.SUPABASE_LOCAL_SERVICE_ROLE_KEY }}
+          TERMII_API_KEY: mock-key-not-used-in-tests
+        run: npm run test:edge
+
       - name: Stop local Supabase stack
         if: always()
         run: npx supabase stop --no-backup || true

@@ -14,6 +14,14 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     css: true,
-    exclude: ["node_modules", "dist", "tests/e2e", "playwright-report", "test-results"],
+    exclude: [
+      "node_modules",
+      "dist",
+      "tests/e2e",
+      "playwright-report",
+      "test-results",
+      // Edge Function tests run on Deno via `npm run test:edge`
+      "supabase/functions/**",
+    ],
   },
 });

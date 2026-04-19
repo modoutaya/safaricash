@@ -17,6 +17,7 @@
     "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
+    "test:edge": "./scripts/run-edge-tests.sh",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
