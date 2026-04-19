@@ -11,7 +11,7 @@
 // clone running `npm test` without .env.local).
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import type { AuditEvent, AuditEntityTable } from "@/domain/audit/event";
 import { bytesEqual, computeEntryHash, toCanonicalTimestamp } from "@/domain/audit/hashChain";
@@ -43,8 +43,14 @@ function decodeHexBytea(hex: string | null | undefined): Uint8Array | null {
 }
 
 describe.runIf(RUN_CONTRACT)("hashChain SQL ↔ TS parity contract", () => {
-  const service: SupabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
+  // Lazy-init: vitest may still execute this describe body to register tests
+  // even when the predicate is false. Defer createClient until the test
+  // actually runs so missing env doesn't throw at module-load time.
+  let service: SupabaseClient;
+  beforeAll(() => {
+    service = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
   });
 
   it("recomputes the trigger-emitted entry_hash for a fresh member.created event", async () => {

@@ -1,0 +1,42 @@
+# SafariCash Story 1.4 — rate-limit middleware Worker.
+# Sits between the React PWA and Supabase Edge Functions; enforces FR49 +
+# NFR-S9 (100 req/min/collector on /functions/v1/*).
+#
+# Deploy: wrangler deploy --config workers/rate-limit/wrangler.toml
+# Local:  wrangler dev    --config workers/rate-limit/wrangler.toml
+
+name = "safaricash-rate-limit"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+# nodejs_compat is NOT required — the worker only uses Web standard APIs
+# (fetch, Request/Response, atob, crypto.subtle). Keeps cold start minimal.
+
+# KV namespace binding for the sliding-window counter. The actual ID is
+# operator-provisioned per environment via:
+#   wrangler kv namespace create RATE_LIMIT_KV
+# Paste the resulting id below (or use --env to keep prod/staging separate).
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+# Placeholder ID — operator runs the following on first deploy and replaces:
+#   wrangler kv namespace create RATE_LIMIT_KV
+# `wrangler dev` uses a separate `preview_id` (Miniflare local) so `wrangler dev`
+# works out of the box without a real Cloudflare account.
+id = "0000000000000000000000000000000000000000000000000000000000000000"
+preview_id = "1111111111111111111111111111111111111111111111111111111111111111"
+
+# Runtime env vars. Override per-environment via wrangler secret put.
+[vars]
+# Default rate-limit ceiling. NFR-S9 says "adjust based on pilot observation"
+# so this is a runtime config, not a hardcoded constant. Override:
+#   wrangler secret put RATE_LIMIT_PER_MINUTE
+RATE_LIMIT_PER_MINUTE = "100"
+
+# Target Supabase project URL — the worker proxies all incoming requests
+# here. Operator MUST override per-environment (dev/staging/prod):
+#   wrangler secret put SUPABASE_PROJECT_URL
+SUPABASE_PROJECT_URL = "https://example.supabase.co"
+
+# Smaller observability + reliability footprint:
+[observability]
+enabled = true
+head_sampling_rate = 1.0

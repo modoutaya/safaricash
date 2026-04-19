@@ -1,4 +1,7 @@
 {
+  "errors": {
+    "rate_limited": "Limite atteinte — patientez {seconds} s avant de réessayer."
+  },
   "reauth": {
     "title": "Vérification de sécurité",
     "subtitle": "Pour {operation}, nous vérifions que c'est bien vous.",

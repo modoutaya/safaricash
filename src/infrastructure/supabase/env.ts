@@ -5,6 +5,16 @@ const envSchema = z.object({
   VITE_SUPABASE_ANON_KEY: z
     .string()
     .min(20, "VITE_SUPABASE_ANON_KEY looks too short to be a real Supabase JWT"),
+  // Story 1.4 — optional Cloudflare Worker rate-limit gateway.
+  // When set, /functions/v1/* calls go through the worker (which proxies
+  // to VITE_SUPABASE_URL after enforcing 100 req/min/collector).
+  // When unset (dev convenience), calls go direct to Supabase — NO rate
+  // limit enforced. Production MUST set this in Cloudflare Pages env.
+  VITE_SUPABASE_FUNCTIONS_GATEWAY_URL: z
+    .string()
+    .url("VITE_SUPABASE_FUNCTIONS_GATEWAY_URL must be a valid URL")
+    .optional()
+    .or(z.literal("")),
 });
 
 export class SupabaseEnvError extends Error {
@@ -18,6 +28,7 @@ function loadEnv(): z.infer<typeof envSchema> {
   const parsed = envSchema.safeParse({
     VITE_SUPABASE_URL: import.meta.env["VITE_SUPABASE_URL"],
     VITE_SUPABASE_ANON_KEY: import.meta.env["VITE_SUPABASE_ANON_KEY"],
+    VITE_SUPABASE_FUNCTIONS_GATEWAY_URL: import.meta.env["VITE_SUPABASE_FUNCTIONS_GATEWAY_URL"],
   });
   if (!parsed.success) {
     const issues = parsed.error.issues

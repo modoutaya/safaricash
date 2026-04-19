@@ -45,6 +45,7 @@
     "packageJson": {
       "dependencies": [
         "npm:@axe-core/playwright@^4.11.2",
+        "npm:@cloudflare/workers-types@^4.20260418.1",
         "npm:@hookform/resolvers@^5.2.2",
         "npm:@playwright/test@^1.59.1",
         "npm:@radix-ui/react-slot@^1.2.4",
@@ -90,6 +91,7 @@
         "npm:vite-plugin-pwa@^1.2.0",
         "npm:vite@^5.4.11",
         "npm:vitest@^4.1.4",
+        "npm:wrangler@^4.83.0",
         "npm:zod@^4.3.6"
       ]
     }
