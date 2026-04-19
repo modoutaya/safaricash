@@ -4,6 +4,7 @@
 // ops queries and a future RUNBOOK procedure.
 
 import type { AuditLogRow } from "@/domain/audit/event";
+import { toCanonicalTimestamp } from "@/domain/audit/hashChain";
 import { verifyChain, type VerifyResult } from "@/domain/audit/verify";
 import { camelize } from "@/infrastructure/supabase/camelize";
 import { supabase } from "@/infrastructure/supabase/client";
@@ -60,6 +61,7 @@ export async function verifyCollectorChain(collectorId: string): Promise<VerifyR
     }>(dbRow);
     return {
       ...camel,
+      timestamp: toCanonicalTimestamp(camel.timestamp),
       prevHash: decodeHexBytea(dbRow.prev_hash),
       entryHash: decodeHexBytea(dbRow.entry_hash) ?? new Uint8Array(0),
     };

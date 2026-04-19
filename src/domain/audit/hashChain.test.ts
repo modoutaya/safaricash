@@ -6,6 +6,7 @@ import {
   canonicalJsonStringify,
   computeEntryHash,
   serializeForHash,
+  toCanonicalTimestamp,
 } from "@/domain/audit/hashChain";
 import { verifyChain } from "@/domain/audit/verify";
 
@@ -128,6 +129,44 @@ describe("computeEntryHash", () => {
     const h1 = await computeEntryHash(null, makeEvent({ payload: { a: 1, b: 2 } }));
     const h2 = await computeEntryHash(null, makeEvent({ payload: { b: 2, a: 1 } }));
     expect(bytesEqual(h1, h2)).toBe(true);
+  });
+});
+
+describe("toCanonicalTimestamp", () => {
+  it("preserves microsecond precision from PostgREST +00:00 form", () => {
+    expect(toCanonicalTimestamp("2026-04-19T05:14:23.123456+00:00")).toBe(
+      "2026-04-19T05:14:23.123456Z",
+    );
+  });
+
+  it("pads short fractional seconds to microseconds", () => {
+    expect(toCanonicalTimestamp("2026-04-19T05:14:23.123+00:00")).toBe(
+      "2026-04-19T05:14:23.123000Z",
+    );
+  });
+
+  it("synthesises .000000 when fractional seconds absent", () => {
+    expect(toCanonicalTimestamp("2026-04-19T05:14:23+00:00")).toBe("2026-04-19T05:14:23.000000Z");
+  });
+
+  it("accepts trailing Z and re-canonicalises", () => {
+    expect(toCanonicalTimestamp("2026-04-19T05:14:23.123456Z")).toBe("2026-04-19T05:14:23.123456Z");
+  });
+
+  it("truncates beyond-microsecond precision", () => {
+    expect(toCanonicalTimestamp("2026-04-19T05:14:23.1234567+00:00")).toBe(
+      "2026-04-19T05:14:23.123456Z",
+    );
+  });
+
+  it("handles +0000 offset (no colon)", () => {
+    expect(toCanonicalTimestamp("2026-04-19T05:14:23.123456+0000")).toBe(
+      "2026-04-19T05:14:23.123456Z",
+    );
+  });
+
+  it("throws on garbage input", () => {
+    expect(() => toCanonicalTimestamp("not a timestamp")).toThrow();
   });
 });
 

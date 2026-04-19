@@ -26,9 +26,69 @@
 --
 -- See: architecture.md § Communication Patterns → Event payload structure.
 
--- pgcrypto is required for digest(). Already created by 0001 init for
--- gen_random_uuid(); re-asserting here is harmless.
-create extension if not exists "pgcrypto";
+-- pgcrypto is required for digest(). On Supabase, extensions live in the
+-- `extensions` schema, not in `public` — so the trigger function below
+-- references `extensions.digest()` and includes `extensions` in its
+-- search_path.
+create extension if not exists "pgcrypto" with schema "extensions";
+
+-- ---------------------------------------------------------------------------
+-- canonical_jsonb(jsonb) → text
+--
+-- Produces a deterministic, JS-compatible canonical JSON string from a jsonb
+-- value:
+--   - Object keys sorted alphabetically (recursive).
+--   - No whitespace (compact form, unlike jsonb::text which emits ", " and ": ").
+--   - Scalars use jsonb's native text form, which matches JSON.stringify
+--     for our payloads (uuid/text → quoted string, numeric → number, etc.).
+--
+-- This is the SQL counterpart of canonicalJsonStringify() in
+-- src/domain/audit/hashChain.ts. The contract test asserts byte-equality
+-- between the two implementations.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.canonical_jsonb(j jsonb)
+returns text
+language plpgsql
+immutable
+set search_path = public, pg_temp
+as $$
+declare
+  result text;
+  jt text;
+begin
+  if j is null then
+    return 'null';
+  end if;
+  jt := jsonb_typeof(j);
+  if jt = 'object' then
+    select coalesce(
+      '{' || string_agg(
+        to_json(key)::text || ':' || public.canonical_jsonb(value),
+        ',' order by key
+      ) || '}',
+      '{}'
+    ) into result
+    from jsonb_each(j);
+    return result;
+  elsif jt = 'array' then
+    select coalesce(
+      '[' || string_agg(
+        public.canonical_jsonb(elem),
+        ',' order by ord
+      ) || ']',
+      '[]'
+    ) into result
+    from jsonb_array_elements(j) with ordinality as arr(elem, ord);
+    return result;
+  else
+    return j::text;
+  end if;
+end;
+$$;
+
+comment on function public.canonical_jsonb(jsonb) is
+  'Deterministic canonical JSON serialiser matching src/domain/audit/hashChain.ts canonicalJsonStringify(). Used by audit_emit() to hash the payload identically on both sides.';
 
 -- ---------------------------------------------------------------------------
 -- audit_emit() — single trigger function reused for members / cycles /
@@ -39,7 +99,7 @@ create or replace function public.audit_emit()
 returns trigger
 language plpgsql
 security definer
-set search_path = public, pg_temp
+set search_path = public, extensions, pg_temp
 as $$
 declare
   -- Canonical event fields
@@ -136,9 +196,9 @@ begin
     convert_to(v_iso_ts, 'UTF8')                  || v_delim ||
     convert_to(v_actor, 'UTF8')                   || v_delim ||
     convert_to(v_source, 'UTF8')                  || v_delim ||
-    convert_to(v_payload::text, 'UTF8');
+    convert_to(public.canonical_jsonb(v_payload), 'UTF8');
 
-  v_entry_hash := digest(v_serialized, 'sha256');
+  v_entry_hash := extensions.digest(v_serialized, 'sha256');
 
   insert into public.audit_log (
     event_id, event_type, collector_id, entity_id, entity_table,

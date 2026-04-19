@@ -4,5 +4,6 @@ export {
   canonicalJsonStringify,
   computeEntryHash,
   serializeForHash,
+  toCanonicalTimestamp,
 } from "@/domain/audit/hashChain";
 export { verifyChain, type VerifyBreakReason, type VerifyResult } from "@/domain/audit/verify";

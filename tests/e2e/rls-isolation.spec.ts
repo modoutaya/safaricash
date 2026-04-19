@@ -127,6 +127,13 @@ async function seedCollector(
 }
 
 test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
+  // Tests share seeded collector accounts via beforeAll/afterAll. Must run
+  // serially in a single worker so the seed is created once and torn down
+  // once — `fullyParallel: true` in playwright.config.ts would otherwise
+  // re-run beforeAll per test in separate workers and race on auth user
+  // creation.
+  test.describe.configure({ mode: "serial" });
+
   test.skip(
     !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROLE_KEY,
     "SUPABASE_TEST_ANON_KEY + SUPABASE_TEST_SERVICE_ROLE_KEY required (set via .env.local for local Supabase, or in CI secrets)",

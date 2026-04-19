@@ -102,6 +102,28 @@ export async function computeEntryHash(
   return new Uint8Array(digest);
 }
 
+/**
+ * Converts a Postgres/PostgREST ISO 8601 timestamp (e.g.
+ * `"2026-04-19T05:14:23.123456+00:00"` or `"2026-04-19T05:14:23+00:00"`)
+ * to the canonical UTC form the audit trigger hashes:
+ * `YYYY-MM-DDTHH:MM:SS.uuuuuuZ` — always microsecond precision, always
+ * trailing `Z`. Preserves microseconds (JS `Date` would drop them).
+ *
+ * MUST be called on `auditLogRow.timestamp` before passing it to
+ * `computeEntryHash` / `verifyChain`, otherwise hashes will diverge from
+ * the trigger output and chain verification will spuriously fail.
+ */
+export function toCanonicalTimestamp(pgIso: string): string {
+  const m = pgIso.match(
+    /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(?:Z|[+-]\d{2}:?\d{2})?$/,
+  );
+  if (!m) {
+    throw new Error(`toCanonicalTimestamp: not a recognised ISO 8601 timestamp: ${pgIso}`);
+  }
+  const fraction = (m[2] ?? "").padEnd(6, "0").slice(0, 6);
+  return `${m[1]}.${fraction}Z`;
+}
+
 /** Constant-time-ish byte equality (length-bounded). */
 export function bytesEqual(a: Uint8Array | null, b: Uint8Array | null): boolean {
   if (a === null && b === null) return true;
