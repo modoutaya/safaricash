@@ -1,0 +1,17 @@
+# Deferred Work
+
+Tracks issues raised in code reviews that were judged real but not actionable now. Each entry should be revisited when the trigger condition fires.
+
+## Deferred from: code review of 1-1-project-bootstrap (2026-04-19)
+
+- **Cloudflare Pages preview deploy URL on every PR (AC #4 of Story 1.1)** — `deploy.yml` currently a `workflow_dispatch`-only placeholder. Reason: Cloudflare API token + Pages project not yet provisioned — câblage reporté à une story dédiée (candidates: new "1.1b Cloudflare wiring" or fold into Story 1.8 CI pipeline gates). When activated: provision `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` secrets, create the Pages project, replicate ci.yml gates, deploy via `cloudflare/pages-action`. Story 1.1 AC #4 was formally amended on 2026-04-19 to scope the preview-deploy gate to that follow-up story. [.github/workflows/deploy.yml]
+- **shadcn `cssVariables: false` will break future `npx shadcn add`** — generated components reference `hsl(var(--primary))` which doesn't exist. Fix when first new shadcn component is added: either flip `cssVariables: true` and define `:root` vars in `globals.css`, or post-process the generated component to use Tailwind tokens directly. [components.json]
+- **Button `size: sm` h-9 (36 px) violates NFR-A2 44×44 touch target** — only matters when `size=sm` is consumed. Decide in the first story that uses it: either drop the variant or raise to h-11. [src/components/ui/button.tsx]
+- **Button uses `rounded-md` (12 px) but UX spec says buttons 14-16 px** — change to `rounded-lg` (16 px) or add a dedicated `rounded-button: 14px` token in the next component-touching story. [src/components/ui/button.tsx]
+- **Destructive button `text-white` on `#E24B4A` ≈ 3.0:1 contrast — fails AA body-text** — large-text rule may apply (button is 15 px font-semibold). Audit when destructive button first ships in a real flow (e.g. delete-member confirmation, Story 2.6). Likely fix: use `text-destructive-foreground` (`#712B13`) instead of `text-white`. [src/components/ui/button.tsx]
+- **Zod 4 / @hookform/resolvers 5 / RHF 7 cross-version compat unverified** — no forms wired yet. Verify in the first form-using story (Story 1.5 phone-OTP login likely). If incompatible, downgrade Zod to ^3.23 or upgrade resolvers. [package.json]
+- **`tsconfig.json` `types: ["vitest/globals", "@testing-library/jest-dom"]` polluting non-test src** — affects IntelliSense; surfaces if production code accidentally imports test globals. Move test types to a tests-only tsconfig or use triple-slash refs in `vitest.setup.ts`. [tsconfig.json]
+- **`tsconfig.node.json` not referenced from root `tsconfig.json`** — IntelliSense works but `tsc --noEmit` does not type-check `vite.config.ts` / `vitest.config.ts` / `playwright.config.ts`. Revisit if a config-file type error escapes CI. [tsconfig.json, tsconfig.node.json]
+- **`lint-staged` glob `*.{ts,tsx}` is broader than ESLint's effective surface** — staging `vite.config.ts` triggers a no-op lint pass. Narrow to `src/**/*.{ts,tsx}` and `tests/**/*.{ts,tsx}` at next ESLint config touch. [package.json]
+- **`.husky/commit-msg` (conventional-commits validator) missing per architecture tree** — requires a commit-msg hook + a conventional-commits parser (e.g. `@commitlint/cli`). Schedule as a follow-up story (Story 1.1b or in Story 1.8 CI gates).
+- **`public/favicon.ico` missing per architecture tree** — `favicon.svg` covers most browsers. Add `.ico` only if a deployment target without SVG support emerges.

@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "SafariCash — Mobile-first PWA for collector-led tontine cycles",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -11,7 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "prepare": "husky"

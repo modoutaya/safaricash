@@ -1,0 +1,6 @@
+# SafariCash — collector PWA + public receipt URL surface.
+# Public crawl is welcome on the receipt URL pages (/r/:token); the rest
+# of the app is auth-gated and will not respond meaningfully to crawlers.
+
+User-agent: *
+Disallow:

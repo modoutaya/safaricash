@@ -6,13 +6,16 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build-and-test:
-    name: Lint • Typecheck • Unit tests • E2E
+    name: Lint • Typecheck • Unit tests • Build • E2E
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -29,10 +32,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint (ESLint + Prettier check)
-        run: |
-          npm run lint
-          npx prettier --check .
+      - name: Lint (ESLint, max warnings 0)
+        run: npm run lint
+
+      - name: Format check (Prettier)
+        run: npx prettier --check .
 
       - name: Type-check
         run: npx tsc --noEmit
@@ -40,8 +44,29 @@ jobs:
       - name: Unit tests (Vitest)
         run: npm run test -- --run
 
+      - name: Production build (validates AC #2)
+        run: npm run build
+
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: |
+          version=$(node -p "require('@playwright/test/package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (cache hit path)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: E2E tests (Playwright)
         run: npx playwright test
