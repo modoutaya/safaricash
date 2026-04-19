@@ -1,0 +1,140 @@
+# generated: 2026-04-19
+# last_updated: 2026-04-19
+# touched: 1-1-project-bootstrap → in-progress (2026-04-19)
+# project: SafariCash
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-04-19
+last_updated: 2026-04-19
+project: SafariCash
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1 — Collector Onboarding & Sign-In
+  epic-1: in-progress
+  1-1-project-bootstrap: in-progress
+  1-2-supabase-foundation: ready-for-dev
+  1-3-reauth-edge-function: backlog
+  1-4-rate-limit-middleware: backlog
+  1-5-phone-otp-signin: backlog
+  1-6-session-management: backlog
+  1-7-sign-out: backlog
+  1-8-ci-pipeline-gates: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2 — Member Lifecycle Management
+  epic-2: backlog
+  2-1-member-list-search: backlog
+  2-2-create-member-manual: backlog
+  2-3-contacts-bulk-import: backlog
+  2-4-member-profile-view: backlog
+  2-5-edit-member-impact-alert: backlog
+  2-6-delete-member-confirmation: backlog
+  2-7-restart-cycle: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3 — Cycle Engine & Progression
+  epic-3: backlog
+  3-1-cycle-invariants-adr: backlog
+  3-2-cycle-engine-pure-module: backlog
+  3-3-cycle-status-transitions: backlog
+  3-4-prevent-post-completion-contributions: backlog
+  3-5-cycles-ending-alerts: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4 — Daily Transaction Capture (Core)
+  epic-4: backlog
+  4-1-member-action-sheet-component: backlog
+  4-2-progressive-toast-component: backlog
+  4-3-record-contribution-online: backlog
+  4-4-record-rattrapage: backlog
+  4-5-undo-transaction-window: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5 — Emergency Advance Flow
+  epic-5: backlog
+  5-1-advance-simulation-panel: backlog
+  5-2-advance-situation-context: backlog
+  5-3-motive-saver-acknowledgment: backlog
+  5-4-commit-advance-transaction: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6 — Saver Trust Communications
+  epic-6: backlog
+  6-1-sms-dispatch-edge-function: backlog
+  6-2-sms-worker-termii-retry: backlog
+  6-3-sms-copy-templates: backlog
+  6-4-receipt-url-worker: backlog
+  6-5-first-sms-consent-optout: backlog
+  6-6-resend-cycle-history: backlog
+  6-7-per-transaction-receipt-share: backlog
+  6-8-whatsapp-secondary-delivery: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7 — Cycle Settlement Ceremony
+  epic-7: backlog
+  7-1-settlement-summary-card: backlog
+  7-2-envelope-handover-screen: backlog
+  7-3-settlement-initiation-computation: backlog
+  7-4-settlement-reauth-gate: backlog
+  7-5-cycle-settled-final-sms: backlog
+  epic-7-retrospective: optional
+
+  # Epic 8 — Offline Resilience
+  epic-8: backlog
+  8-1-connectivity-indicator: backlog
+  8-2-indexeddb-event-log: backlog
+  8-3-outbox-pattern-queue: backlog
+  8-4-reconciler-replay: backlog
+  8-5-stalled-sync-alert: backlog
+  8-6-offline-member-lookup-edit: backlog
+  epic-8-retrospective: optional
+
+  # Epic 9 — Dashboard & Activity Visibility
+  epic-9: backlog
+  9-1-dashboard-polled-stats: backlog
+  9-2-cycles-ending-dashboard-alerts: backlog
+  9-3-csv-export: backlog
+  epic-9-retrospective: optional
+
+  # Epic 10 — Saver Dispute Flow & Data Rights
+  epic-10: backlog
+  10-1-dispute-flag-surface: backlog
+  10-2-dispute-notify-edge-function: backlog
+  10-3-dispute-member-profile-banner: backlog
+  10-4-saver-anonymisation-edge-function: backlog
+  10-5-saver-optout-action: backlog
+  epic-10-retrospective: optional

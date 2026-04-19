@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafariCash — Maquettes Complètes</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f0f0ec;padding:2rem;line-height:1.4;}
+h1{font-size:28px;font-weight:700;color:#1D9E75;margin-bottom:8px;text-align:center;}
+.subtitle{font-size:16px;color:#085041;margin-bottom:3rem;text-align:center;font-weight:500;}
+.series-title{font-size:14px;font-weight:600;color:#085041;letter-spacing:0.08em;text-transform:uppercase;margin:3rem 0 1.5rem;padding-bottom:12px;border-bottom:2px solid #1D9E75;}
+.wrap{display:flex;gap:32px;flex-wrap:wrap;justify-content:center;align-items:flex-start;}
+.col{display:flex;flex-direction:column;align-items:center;gap:12px;}
+.lbl{font-size:11px;color:#085041;letter-spacing:0.08em;text-transform:uppercase;font-weight:600;text-align:center;}
+.phone{width:300px;border-radius:40px;border:8px solid #1a1a1a;background:#1a1a1a;overflow:hidden;box-shadow:0 20px 40px rgba(0,0,0,0.3);transition:transform 0.3s ease;}
+.phone:hover{transform:translateY(-5px);}
+.notch{height:32px;background:#111;display:flex;align-items:center;justify-content:center;}
+.notch-pill{width:90px;height:12px;background:#000;border-radius:6px;}
+.s{background:#fff;display:flex;flex-direction:column;min-height:600px;}
+
+/* Couleurs SafariCash */
+.bg-g{background:#E1F5EE;}.bg-amber{background:#FAEEDA;}.bg-red{background:#FAECE7;}.bg-blue{background:#E6F1FB;}
+.t-g{color:#085041;}.t-amber{color:#633806;}.t-red{color:#712B13;}.t-blue{color:#0C447C;}
+.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:8px;font-size:11px;font-weight:600;}
+
+/* Navigation */
+.bnav{display:flex;border-top:0.5px solid rgba(29,158,117,0.2);background:#fff;padding-bottom:6px;}
+.bt{flex:1;padding:12px 4px 8px;display:flex;flex-direction:column;align-items:center;gap:4px;border-top:3px solid transparent;transition:all 0.3s ease;}
+.bt.on{border-top:3px solid #1D9E75;}
+.bt svg{width:20px;height:20px;}
+.bt-lbl{font-size:10px;color:#aaa;font-weight:600;}
+.bt.on .bt-lbl{color:#1D9E75;}
+
+/* Headers */
+.topbar{background:linear-gradient(135deg, #1D9E75 0%, #16875F 100%);padding:24px 24px 20px;color:#fff;}
+.tb-back{font-size:14px;opacity:0.9;margin-bottom:10px;font-weight:500;}
+.tb-title{font-size:20px;font-weight:600;margin-bottom:2px;}
+.tb-sub{font-size:13px;opacity:0.85;margin-top:4px;}
+
+/* Dashboard hero */
+.dash-hero{background:linear-gradient(135deg, #1D9E75 0%, #16875F 100%);padding:24px 24px 28px;color:#fff;position:relative;overflow:hidden;}
+.dash-hero::before{content:'🦁';position:absolute;right:20px;top:50%;transform:translateY(-50%);font-size:80px;opacity:0.1;}
+.dash-welcome{font-size:16px;opacity:0.9;margin-bottom:8px;}
+.dash-title{font-size:24px;font-weight:700;margin-bottom:6px;}
+.dash-sub{font-size:13px;opacity:0.8;}
+.dash-stats{display:flex;gap:10px;margin-top:20px;}
+.dash-stat{flex:1;background:rgba(255,255,255,0.15);border-radius:12px;padding:14px 10px;text-align:center;backdrop-filter:blur(10px);}
+.dash-stat .v{font-size:20px;font-weight:700;color:#fff;margin-bottom:2px;}
+.dash-stat .l{font-size:10px;color:rgba(255,255,255,0.8);letter-spacing:0.5px;text-transform:uppercase;}
+
+/* Body */
+.body{flex:1;background:#F8F9F8;padding:18px;}
+.sh{font-size:12px;font-weight:600;color:#085041;margin-bottom:12px;letter-spacing:0.06em;}
+
+/* Quick Actions */
+.quick-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+.quick-btn{background:#1D9E75;color:#fff;border:none;border-radius:14px;padding:16px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.3s ease;display:flex;align-items:center;justify-content:center;gap:8px;}
+.quick-btn:hover{background:#16875F;transform:translateY(-2px);box-shadow:0 8px 20px rgba(29,158,117,0.3);}
+.quick-btn.secondary{background:#085041;}
+
+/* Alerts */
+.alert{background:#FAEEDA;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+.alert-icon{width:8px;height:8px;border-radius:50%;background:#854F0B;flex-shrink:0;}
+.alert-text{font-size:13px;color:#633806;flex:1;line-height:1.4;font-weight:500;}
+.alert-btn{background:#854F0B;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;white-space:nowrap;}
+
+/* Cards membres */
+.member-card{background:#fff;border-radius:16px;padding:16px;margin-bottom:12px;border:0.5px solid rgba(29,158,117,0.15);transition:all 0.3s ease;}
+.member-card:hover{border-color:#1D9E75;transform:translateY(-2px);box-shadow:0 8px 20px rgba(29,158,117,0.15);}
+.member-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.member-avatar{width:40px;height:40px;border-radius:50%;background:#E1F5EE;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#085041;}
+.member-info{flex:1;margin-left:12px;}
+.member-name{font-size:15px;font-weight:600;color:#111;margin-bottom:2px;}
+.member-amount{font-size:13px;color:#1D9E75;font-weight:600;}
+.member-status{font-size:11px;color:#666;margin-bottom:10px;}
+.progress-bar{height:6px;background:#F0FAF6;border-radius:3px;overflow:hidden;margin-bottom:8px;}
+.progress-fill{height:100%;background:linear-gradient(90deg, #1D9E75, #16875F);border-radius:3px;transition:width 0.5s ease;}
+.member-details{display:flex;justify-content:space-between;align-items:center;}
+.member-cycle{font-size:11px;color:#085041;font-weight:600;}
+.member-balance{font-size:13px;color:#1D9E75;font-weight:700;}
+
+/* Action buttons members */
+.member-actions{display:flex;gap:8px;margin-top:12px;}
+.action-btn-small{padding:6px 12px;border:none;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer;transition:all 0.3s ease;}
+.action-edit{background:#E6F1FB;color:#0C447C;}
+.action-edit:hover{background:#B5D4F4;}
+.action-delete{background:#FAECE7;color:#712B13;}
+.action-delete:hover{background:#F5C4B3;}
+
+/* Search */
+.search-box{width:100%;height:48px;border:1.5px solid #E1F5EE;border-radius:16px;padding:0 48px 0 16px;font-size:15px;color:#111;background:#fff url("data:image/svg+xml;charset=UTF-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23085041' stroke-width='2'><circle cx='11' cy='11' r='8'/><path d='m21 21-4.35-4.35'/></svg>") no-repeat right 16px center;background-size:18px;margin-bottom:20px;}
+.search-box:focus{outline:none;border-color:#1D9E75;}
+
+/* Status badges */
+.status-active{background:#E1F5EE;color:#085041;}
+.status-completed{background:#E6F1FB;color:#0C447C;}
+.status-pending{background:#FAEEDA;color:#633806;}
+.status-overdue{background:#FAECE7;color:#712B13;}
+
+/* Forms */
+.form-section{background:#fff;border-radius:16px;padding:20px;margin-bottom:16px;border:0.5px solid rgba(29,158,117,0.15);}
+.form-title{font-size:16px;font-weight:600;color:#085041;margin-bottom:16px;}
+.form-group{margin-bottom:16px;}
+.form-label{display:block;font-size:12px;font-weight:600;color:#085041;margin-bottom:6px;}
+.form-input{width:100%;height:48px;border:1.5px solid #E1F5EE;border-radius:12px;padding:0 16px;font-size:15px;color:#111;background:#fff;transition:border-color 0.3s ease;}
+.form-input:focus{outline:none;border-color:#1D9E75;}
+.form-select{appearance:none;background:url("data:image/svg+xml;charset=UTF-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231D9E75' stroke-width='2'><path d='M6 9l6 6 6-6'/></svg>") no-repeat right 16px center;background-size:16px;}
+
+/* Amount Display */
+.amount-display{background:linear-gradient(135deg, #E1F5EE 0%, #F0FAF6 100%);border:2px solid #1D9E75;border-radius:20px;padding:24px;text-align:center;margin:20px 0;position:relative;}
+.amount-display::before{content:'💰';position:absolute;top:16px;right:20px;font-size:20px;opacity:0.3;}
+.amount-value{font-size:32px;font-weight:800;color:#085041;margin-bottom:4px;}
+.amount-currency{font-size:16px;color:#1D9E75;font-weight:600;}
+.amount-label{font-size:12px;color:#085041;margin-top:8px;font-weight:500;}
+
+/* Buttons */
+.submit-btn{width:100%;height:52px;background:linear-gradient(135deg, #1D9E75 0%, #16875F 100%);color:#fff;border:none;border-radius:16px;font-size:16px;font-weight:700;cursor:pointer;transition:all 0.3s ease;margin-top:20px;}
+.submit-btn:hover{transform:translateY(-2px);box-shadow:0 12px 30px rgba(29,158,117,0.4);}
+.btn-secondary{background:#085041;margin-top:10px;}
+.btn-danger{background:#E24B4A;margin-top:10px;}
+
+/* Member Detail */
+.detail-hero{background:linear-gradient(135deg, #1D9E75 0%, #16875F 100%);padding:24px 24px 32px;color:#fff;position:relative;}
+.detail-back{font-size:14px;opacity:0.9;margin-bottom:16px;}
+.detail-avatar{width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;margin:0 auto 16px;}
+.detail-name{font-size:22px;font-weight:700;text-align:center;margin-bottom:4px;}
+.detail-phone{font-size:13px;opacity:0.8;text-align:center;margin-bottom:20px;}
+.detail-pills{display:flex;gap:10px;}
+.detail-pill{background:rgba(255,255,255,0.2);border-radius:10px;padding:12px;text-align:center;flex:1;}
+.detail-pill .pv{font-size:18px;font-weight:700;color:#fff;margin-bottom:2px;}
+.detail-pill .pl{font-size:10px;color:rgba(255,255,255,0.8);text-transform:uppercase;}
+
+/* Transaction History */
+.transaction-item{display:flex;align-items:center;padding:14px 0;border-bottom:0.5px solid #f0f0f0;}
+.transaction-item:last-child{border-bottom:none;}
+.transaction-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;margin-right:12px;}
+.transaction-icon.payment{background:#E1F5EE;color:#085041;}
+.transaction-icon.loan{background:#FAEEDA;color:#633806;}
+.transaction-info{flex:1;}
+.transaction-type{font-size:14px;font-weight:600;color:#111;margin-bottom:2px;}
+.transaction-date{font-size:11px;color:#666;}
+.transaction-amount{font-size:15px;font-weight:700;color:#1D9E75;}
+.transaction-amount.negative{color:#E24B4A;}
+
+/* Preview card */
+.preview-card{background:linear-gradient(135deg, #E1F5EE 0%, #F0FAF6 100%);border:2px solid #1D9E75;border-radius:16px;padding:20px;margin:20px 0;}
+.preview-title{font-size:14px;font-weight:600;color:#085041;margin-bottom:12px;}
+.preview-item{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.preview-label{font-size:12px;color:#085041;}
+.preview-value{font-size:13px;font-weight:600;color:#085041;}
+
+/* Currency input */
+.currency-input{position:relative;}
+.currency-label{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:13px;color:#085041;font-weight:600;pointer-events:none;}
+
+/* Danger zone */
+.danger-zone{background:#FAECE7;border:1px solid #F5C4B3;border-radius:16px;padding:20px;margin-top:20px;}
+.danger-title{font-size:14px;font-weight:600;color:#712B13;margin-bottom:8px;}
+.danger-text{font-size:12px;color:#712B13;margin-bottom:16px;line-height:1.4;}
+
+/* Validation */
+.validation-message{font-size:11px;color:#E24B4A;margin-top:4px;font-weight:500;}
+
+/* Floating Action Button */
+.fab{position:absolute;bottom:24px;right:24px;width:56px;height:56px;background:linear-gradient(135deg, #1D9E75 0%, #16875F 100%);border:none;border-radius:50%;color:#fff;font-size:24px;cursor:pointer;box-shadow:0 8px 20px rgba(29,158,117,0.4);transition:all 0.3s ease;}
+.fab:hover{transform:scale(1.1);}
+
+/* Notes */
+.note-section{background:linear-gradient(135deg, #E6F1FB 0%, #F0F9FF 100%);border:1px solid #B5D4F4;border-radius:16px;padding:20px;margin-top:3rem;text-align:center;}
+.note-title{font-size:16px;font-weight:700;color:#0C447C;margin-bottom:12px;}
+.note-text{font-size:13px;color:#0C447C;line-height:1.5;}
+.note-list{text-align:left;margin-top:16px;}
+.note-list li{margin-bottom:8px;font-size:12px;color:#0C447C;}
+
+@media (max-width: 768px) {
+  body{padding:1rem;}
+  .wrap{gap:20px;}
+  .phone{width:280px;}
+  h1{font-size:24px;}
+  .subtitle{font-size:14px;}
+}
+</style>
+</head>
+<body>
+<h1>🦁 SafariCash</h1>
+<p class="subtitle">Maquettes complètes - Système d'épargne personnelle pour collecteurs</p>
+
+<!-- ÉCRANS PRINCIPAUX -->
+<div class="series-title">1. Écrans principaux - Navigation quotidienne</div>
+<div class="wrap">
+
+<!-- DASHBOARD -->
+<div class="col">
+  <div class="lbl">Dashboard Principal</div>
+  <div class="phone">
+    <div class="notch"><div class="notch-pill"></div></div>
+    <div class="s">
+      <div class="dash-hero">
+        <div class="dash-welcome">Bonjour Collecteur 👋</div>
+        <div class="dash-title">SafariCash</div>
+        <div class="dash-sub">Votre activité aujourd'hui</div>
+        <div class="dash-stats">
+          <div class="dash-stat">
+            <div class="v">156</div>
+            <div class="l">Membres actifs</div>
+          </div>
+          <div class="dash-stat">
+            <div class="v">2.8M</div>
+            <div class="l">Collecté</div>
+          </div>
+          <div class="dash-stat">
+            <div class="v">140K</div>
+            <div class="l">Commission</div>
+          </div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="alert">
+          <div class="alert-icon"></div>
+          <div class="alert-text">3 cycles se terminent cette semaine</div>
+          <button class="alert-btn">Voir</button>
+        </div>
+        <div class="quick-actions">
+          <button class="quick-btn">💰 Cotisation</button>
+          <button class="quick-btn secondary">🏪 Prêt Express</button>
+        </div>
+        <div class="sh">Activité récente</div>
+        <div class="member-card">
+          <div class="member-top">
+            <div class="member-avatar">FD</div>
+            <div class="member-info">
+              <div class="member-name">Fatou Diallo</div>
+              <div class="member-amount">Cotisation • 5 000 FCFA</div>
+            </div>
+            <div style="text-align:right;font-size:11px;color:#085041;">14:32</div>
+          </div>
+        </div>
+        <div class="member-card">
+          <div class="member-top">
+            <div class="member-avatar">MK</div>
+            <div class="member-info">
+              <div class="member-name">Moussa Koné</div>
+              <div class="member-amount">Prêt • 50 000 FCFA</div>
+            </div>
+            <div style="text-align:right;font-size:11px;color:#E24B4A;">11:15</div>
+          </div>
+        </div>
+      </div>
+      <div class="bnav">
+        <div class="bt on">
+          <svg viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="3" width="6" height="6" rx="2" fill="#1D9E75"/>
+            <rect x="11" y="3" width="6" height="6" rx="2" fill="#1D9E75"/>
+            <rect x="3" y="11" width="6" height="6" rx="2" fill="#1D9E75"/>
+            <rect x="11" y="11" width="6" height="6" rx="2" fill="#1D9E75"/>
+          </svg>
+          <div class="bt-lbl">Dashboard</div>
+        </div>
+        <div class="bt">
+          <svg viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="8" r="3" stroke="#ccc" stroke-width="1.5"/>
+            <path d="M4 18c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#ccc" stroke-width="1.5"/>
+          </svg>
+          <div class="bt-lbl">Membres</div>
+        </div>
+        <div class="bt">
+          <svg viewBox="0 0 20 20" fill="none">
+            <path d="M4 10h12M4 6h12M4 14h8" stroke="#ccc" stroke-width="1.5"/>
+          </svg>
+          <div class="bt-lbl">Rapports</div>
+        </div>
+        <div class="bt">
+          <svg viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="3" stroke="#ccc" stroke-width="1.5"/>
+            <path d="M12 8l-2 2-2-2" stroke="#ccc" stroke-width="1.5"/>
+          </svg>
+          <div class="bt-lbl">Plus</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LISTE MEMBRES -->
+<div class="col">
+  <div class="lbl">Liste Membres</div>
+  <div class="phone">
+    <div class="notch"><div class="notch-pill"></div></div>
+    <div class="s">
+      <div class="topbar">
+        <div class="tb-title">Mes Membres</div>
+        <div class="tb-sub">156 comptes actifs</div>
+      </div>
+      <div class="body">
+        <input type="text" class="search-box" placeholder="Rechercher un membre...">
+
+        <div class="member-card">
+          <div class="member-top">
+            <div class="member-avatar">FD</div>
+            <div class="member-info">
+              <div class="member-name">Fatou Diallo</div>
+              <div class="member-amount">5 000 FCFA/jour</div>
+            </div>
+            <span class="badge status-active">Actif</span>
+          </div>
+          <div class="member-status">Jour 25/30 • Dernier paiement: aujourd'hui</div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:83%;"></div>
+          </div>
+          <div class="member-details">
+            <div class="member-cycle">Cycle se termine dans 5 jours</div>
+            <div class="member-balance">145 000 FCFA</div>
+          </div>
+        </div>
+
+        <div class="member-card">
+          <div class="member-top">
+            <div class="member-avatar">MK</div>
+            <div class="member-info">
+              <div class="member-name">Moussa Koné</div>
+              <div class="member-amount">10 000 FCFA/jour</div>
+            </div>
+            <span class="badge status-pending">Avance</span>
+          </div>
+          <div class="member-status">Jour 18/30 • Avance: 50 000 FCFA</div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:60%;"></div>
+          </div>
+          <div class="member-details">
+            <div class="member-cycle">12 jours restants</div>
+            <div class="member-balance">240 000 FCFA</div>
+          </div>
+        </div>
+
+        <div class="member-card">
+          <div class="member-top">
+            <div class="member-avatar">AB</div>
+            <div class="member-info">
+              <div class="member-name">Aminata Ba</div>
+              <div class="member-amount">7 500 FCFA/jour</div>
+            </div>
+            <span class="badge status-completed">Terminé</span>
+          </div>
+          <div class="member-status">Cycle terminé • Prêt pour remboursement</div>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width:100%;"></div>
+          </div>
+          <div class="member-details">
+            <div class="member-cycle">Payout prêt</div>
+            <div class="member-balance">217 500 FCFA</div>
+          </div>
+        </div>
+
+        <div class="fab">+</div>
+      </div>
+      <div class="bnav">
+        <div class="bt">
+          <svg viewBox="0 0 20 20" fill="none">
+            <rect x="3" y="3" width="6" height="6" rx="2" fill="#ccc"/>
+            <rect x="11" y="3" width="6" height="6" rx="2" fill="#ccc"/>
+            <rect x="3" y="11" width="6" height="6" rx="2" fill="#ccc"/>
+            <rect x="11" y="11" width="6" height="6" rx="2" fill="#ccc"/>
+          </svg>
+          <div class="bt-lbl">Dashboard</div>
+        </div>
+        <div class="bt on">
+          <svg viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="8" r="3" stroke="#1D9E75" stroke-width="1.5"/>
+            <path d="M4 18c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="#1D9E75" stroke-width="1.5"/>
+          </svg>
+          <div class="bt-lbl">Membres</div>
+        </div>
+        <div class="bt">
+          <svg viewBox="0 0 20 20" fill="none">
+            <path d="M4 10h12M4 6h12M4 14h8" stroke="#ccc" stroke-width="1.5"/>
+          </svg>
+          <div class="bt-lbl">Rapports</div>
+        </div>
+        <div class="bt">
+          <svg viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="3" stroke="#ccc" stroke-width="1.5"/>
+            <path d="M12 8l-2 2-2-2" stroke="#ccc" stroke-width="1.5"/>
+          </svg>
+          <div class="bt-lbl">Plus</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TRANSACTION -->
+<div class="col">
+  <div class="lbl">Nouvelle Transaction</div>
+  <div class="phone">
+    <div class="notch"><div class="notch-pill"></div></div>
+    <div class="s">
+      <div class="topbar">
+        <div class="tb-back">← Retour</div>
+        <div class="tb-title">Transaction</div>
+        <div class="tb-sub">Enregistrement rapide</div>
+      </div>
+      <div class="body">
+        <div class="form-section">
+          <div class="form-title">Détails de l'opération</div>
+
+          <div class="form-group">
+            <label class="form-label">Sélectionner le membre</label>
+            <select class="form-input form-select">
+              <option>Fatou Diallo (5 000 FCFA/j)</option>
+              <option>Moussa Koné (10 000 FCFA/j)</option>
+              <option>Aminata Ba (7 500 FCFA/j)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Type d'opération</label>
+            <select class="form-input form-select">
+              <option>💰 Cotisation journalière</option>
+              <option>🔄 Rattrapage (multiple)</option>
+              <option>🏪 Prêt/Avance</option>
+            </select>
+          </div>
+
+          <div class="amount-display">
+            <div class="amount-value">5 000</div>
+            <div class="amount-currency">FCFA</div>
+            <div class="amount-label">Montant suggéré pour ce membre</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Montant personnalisé (optionnel)</label>
+            <input type="number" class="form-input" placeholder="Entrer un montant différent...">
+          </div>
+
+          <button class="submit-btn">✅ Confirmer et Générer Reçu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PRÊT/AVANCE -->
+<div class="col">
+  <div class="lbl">Prêt Express</div>
+  <div class="phone">
+    <div class="notch"><div class="notch-pill"></div></div>
+    <div class="s">
+      <div class="topbar">
+        <div class="tb-back">← Retour</div>
+        <div class="tb-title">Prêt Express</div>
+        <div class="tb-sub">Avance sur cycle</div>
+      </div>
+      <div class="body">
+        <div class="form-section">
+          <div class="form-title">Sélection du membre</div>
+
+          <div class="form-group">
+            <label class="form-label">Membre bénéficiaire</label>
+            <select class="form-input form-select">
+              <option>Moussa Koné (10 000 FCFA/j)</option>
+              <option>Fatou Diallo (5 000 FCFA/j)</option>
+              <option>Aminata Ba (7 500 FCFA/j)</option>
+            </select>
+          </div>
+
+          <!-- Situation du membre -->
+          <div style="background:#E6F1FB;border:1px solid #B5D4F4;border-radius:12px;padding:16px;margin:16px 0;">
+            <div style="font-size:14px;font-weight:600;color:#0C447C;margin-bottom:8px;">📊 Situation actuelle</div>
+            <div class="preview-item">
+              <span style="font-size:12px;color:#0C447C;">Jour du cycle</span>
+              <span style="font-size:13px;font-weight:600;color:#0C447C;">18/30</span>
+            </div>
+            <div class="preview-item">
+              <span style="font-size:12px;color:#0C447C;">Déjà cotisé</span>
+              <span style="font-size:13px;font-weight:600;color:#0C447C;">180 000 FCFA</span>
+            </div>
+            <div class="preview-item">
+              <span style="font-size:12px;color:#0C447C;">Avances existantes</span>
+              <span style="font-size:13px;font-weight:600;color:#0C447C;">0 FCFA</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Montant du prêt</label>
+            <div class="currency-input">
+              <input type="number" class="form-input" placeholder="50000" value="75000">
+              <span class="currency-label">FCFA</span>
+            </div>
+          </div>
+
+          <!-- Suggestions rapides -->
+          <div style="margin-bottom:16px;">
+            <div style="font-size:12px;font-weight:600;color:#085041;margin-bottom:8px;">Montants suggérés</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+              <button style="padding:8px;border:1px solid #1D9E75;background:#E1F5EE;color:#085041;border-radius:8px;font-size:12px;font-weight:600;">50K</button>
+              <button style="padding:8px;border:1px solid #1D9E75;background:#E1F5EE;color:#085041;border-radius:8px;font-size:12px;font-weight:600;">100K</button>
+              <button style="padding:8px;border:1px solid #1D9E75;background:#E1F5EE;color:#085041;border-radius:8px;font-size:12px;font-weight:600;">150K</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Simulation automatique -->
+        <div class="preview-card">
+          <div class="preview-title">🔮 Impact sur le solde final</div>
+          <div class="preview-item">
+            <span class="preview-label">Total cycle prévu</span>
+            <span class="preview-value">300 000 FCFA</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Commission collecteur</span>
+            <span class="preview-value">- 10 000 FCFA</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Prêt accordé</span>
+            <span class="preview-value" style="color:#E24B4A;">- 75 000 FCFA</span>
+          </div>
+          <div style="border-top:1px solid #1D9E75;margin:12px 0;padding-top:8px;">
+            <div class="preview-item">
+              <span class="preview-label" style="font-weight:700;">Solde final membre</span>
+              <span class="preview-value" style="font-weight:700;color:#1D9E75;">215 000 FCFA</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alerte de sécurité -->
+        <div style="background:#FAEEDA;border:1px solid #854F0B;border-radius:12px;padding:14px;margin:16px 0;">
+          <div style="font-size:12px;font-weight:600;color:#633806;margin-bottom:6px;">⚠️ Vérification importante</div>
+          <div style="font-size:11px;color:#633806;line-height:1.4;">
+            Ce prêt sera automatiquement déduit du solde final. Assurez-vous que le membre comprend les conditions.
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Motif du prêt (optionnel)</label>
+          <input type="text" class="form-input" placeholder="Ex: Urgence familiale, investissement...">
+        </div>
+
+        <button class="submit-btn">🏪 Accorder le Prêt</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROFIL MEMBRE -->
+<div class="col">
+  <div class="lbl">Profil Membre Détaillé</div>
+  <div class="phone">
+    <div class="notch"><div class="notch-pill"></div></div>
+    <div class="s">
+      <div class="detail-hero">
+        <div class="detail-back">← Fatou Diallo</div>
+        <div class="detail-avatar">FD</div>
+        <div class="detail-name">Fatou Diallo</div>
+        <div class="detail-phone">+221 77 123 45 67</div>
+        <div class="detail-pills">
+          <div class="detail-pill">
+            <div class="pv">125K</div>
+            <div class="pl">Cotisé</div>
+          </div>
+          <div class="detail-pill">
+            <div class="pv">25/30</div>
+            <div class="pl">Jours</div>
+          </div>
+          <div class="detail-pill">
+            <div class="pv">0K</div>
+            <div class="pl">Avances</div>
+          </div>
+          <div class="detail-pill">
+            <div class="pv">145K</div>
+            <div class="pl">Solde</div>
+          </div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="form-section">
+          <div class="form-title">Actions rapides</div>
+          <div class="quick-actions">
+            <button class="quick-btn">💰 Cotisation</button>
+            <button class="quick-btn secondary">🏪 Prêt</button>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-title">Historique des transactions</div>
+
+          <div class="transaction-item">
+            <div class="transaction-icon payment">💰</div>
+            <div class="transaction-info">
+              <div class="transaction-type">Cotisation journalière</div>
+              <div class="transaction-date">Aujourd'hui, 14:32</div>
+            </div>
+            <div class="transaction-amount">+5 000</div>
+          </div>
+
+          <div class="transaction-item">
+            <div class="transaction-icon payment">💰</div>
+            <div class="transaction-info">
+              <div class="transaction-type">Cotisation journalière</div>
+              <div class="transaction-date">Hier, 16:15</div>
+            </div>
+            <div class="transaction-amount">+5 000</div>
+          </div>
+
+          <div class="transaction-item">
+            <div class="transaction-icon payment">🔄</div>
+            <div class="transaction-info">
+              <div class="transaction-type">Rattrapage (2 jours)</div>
+              <div class="transaction-date">23 avril, 09:30</div>
+            </div>
+            <div class="transaction-amount">+10 000</div>
+          </div>
+
+          <div class="transaction-item">
+            <div class="transaction-icon payment">💰</div>
+            <div class="transaction-info">
+              <div class="transaction-type">Cotisation journalière</div>
+              <div class="transaction-date">22 avril, 11:45</div>
+            </div>
+            <div class="transaction-amount">+5 000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- GESTION MEMBRES -->
+<div class="series-title">2. Gestion des membres - CRUD complet</div>
+<div class="wrap">
+
+<!-- LISTE AVEC ACTIONS -->
+<div class="col">
+  <div class="lbl">Liste avec Actions</div>
+  <div class="phone">
+    <div class="notch"><div class="notch-pill"></div></div>
+    <div class="s">
+      <div class="topbar">
+        <div class="tb-title">Mes Membres</div>
+        <div class="tb-sub">156 comptes • Gestion complète</div>
+      </div>
+      <div class="body">
+        <div class="member-card">
+          <div class="member-top">
+            <div class="member-avatar">FD</div>
+            <div class="member-info">
+              <div class="member-name">Fatou Diallo</div>
+              <div class="member-amount">5 000 FCFA/jour</div>
+            </div>
+          </div>
+          <div class="member-status">Actif • Jour 25/30</div>
+          <div class="member-actions">
+            <button class="action-btn-small action-edit">✏️ Modifier</button>
+            <button class="action-btn-small action-delete">🗑️ Supprimer</button>
+          </div>
+        </div>
+
+        <div class="member-card">
+          <div class="member-top">
+            <div class="member-avatar">MK</div>
+            <div class="member-info">
+              <div class="member-name">Moussa Koné</div>
+              <div class="member-amount">10 000 FCFA/jour</div>
+            </div>
+          </div>
+          <div class="member-status">Actif • Jour 18/30</div>
+          <div class="member-actions">
+            <button class="action-btn-small action-edit">✏️ Modifier</button>
+            <button class="action-btn-small action-delete">🗑️ Supprimer</button>
+          </div>
+        </div>
+
+        <div class="member-card">
+          <div class="member-top">
+            <div class="member-avatar">AB</div>
+            <div class="member-info">
+              <div class="member-name">Aminata Ba</div>
+              <div class="member-amount">7 500 FCFA/jour</div>
+            </div>
+          </div>
+          <div class="member-status">Terminé • Prêt pour payout</div>
+          <div class="member-actions">
+            <button class="action-btn-small action-edit">✏️ Modifier</button>
+            <button class="action-btn-small action-delete">🗑️ Supprimer</button>
+          </div>
+        </div>
+
+        <div class="fab">+</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- AJOUTER NOUVEAU MEMBRE -->
+<div class="col">
+  <div class="lbl">Ajouter Membre</div>
+  <div class="phone">
+    <div class="notch"><div class="notch-pill"></div></div>
+    <div class="s">
+      <div class="topbar">
+        <div class="tb-back">✕ Annuler</div>
+        <div class="tb-title">Nouveau Membre</div>
+        <div class="tb-sub">Enregistrement rapide</div>
+      </div>
+      <div class="body">
+        <div class="form-section">
+          <div class="form-title">Informations personnelles</div>
+
+          <div class="form-group">
+            <label class="form-label">Nom complet *</label>
+            <input type="text" class="form-input" placeholder="Ex: Fatou Diallo" value="Mariam Sow">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Téléphone (optionnel)</label>
+            <input type="tel" class="form-input" placeholder="+221 77 XXX XX XX" value="+221 76 234 56 78">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Cotisation journalière *</label>
+            <div class="currency-input">
+              <input type="number" class="form-input" placeholder="5000" value="8000">
+              <span class="currency-label">FCFA</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Date de début du cycle</label>
+            <input type="date" class="form-input" value="2024-04-25">
+          </div>
+        </div>
+
+        <div class="preview-card">
+          <div class="preview-title">📋 Récapitulatif</div>
+          <div class="preview-item">
+            <span class="preview-label">Membre</span>
+            <span class="preview-value">Mariam Sow</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Cotisation</span>
+            <span class="preview-value">8 000 FCFA/jour</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Total cycle</span>
+            <span class="preview-value">240 000 FCFA</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Commission</span>
+            <span class="preview-value">8 000 FCFA</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Remboursement</span>
+            <span class="preview-value">232 000 FCFA</span>
+          </div>
+        </div>
+
+        <button class="submit-btn">✅ Ajouter ce Membre</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODIFIER MEMBRE -->
+<div class="col">
+  <div class="lbl">Modifier Membre</div>
+  <div class="phone">
+    <div class="notch"><div class="notch-pill"></div></div>
+    <div class="s">
+      <div class="topbar">
+        <div class="tb-back">← Fatou Diallo</div>
+        <div class="tb-title">Modifier Membre</div>
+        <div class="tb-sub">Mise à jour des informations</div>
+      </div>
+      <div class="body">
+        <div class="form-section">
+          <div class="form-title">Informations actuelles</div>
+
+          <div class="form-group">
+            <label class="form-label">Nom complet</label>
+            <input type="text" class="form-input" value="Fatou Diallo">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Téléphone</label>
+            <input type="tel" class="form-input" value="+221 77 123 45 67">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Cotisation journalière</label>
+            <div class="currency-input">
+              <input type="number" class="form-input" value="5000">
+              <span class="currency-label">FCFA</span>
+            </div>
+            <div class="validation-message">⚠️ Attention: Modifier la cotisation affectera les calculs futurs</div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-title">Statut du cycle actuel</div>
+          <div class="preview-item">
+            <span class="preview-label">Progression</span>
+            <span class="preview-value">Jour 25/30</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Cotisé</span>
+            <span class="preview-value">125 000 FCFA</span>
+          </div>
+          <div class="preview-item">
+            <span class="preview-label">Avances</span>
+            <span class="preview-value">0 FCFA</span>
+          </div>
+        </div>
+
+        <button class="submit-btn">💾 Sauvegarder Modifications</button>
+        <button class="btn-secondary submit-btn">🔄 Redémarrer Cycle</button>
+
+        <div class="danger-zone">
+          <div class="danger-title">⚠️ Zone de danger</div>
+          <div class="danger-text">La suppression de ce membre effacera définitivement toutes ses données et transactions.</div>
+          <button class="btn-danger submit-btn">🗑️ Supprimer Définitivement</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRMATION SUPPRESSION -->
+<div class="col">
+  <div class="lbl">Confirmation Suppression</div>
+  <div class="phone">
+    <div class="notch"><div class="notch-pill"></div></div>
+    <div class="s">
+      <div class="topbar" style="background:#E24B4A;">
+        <div class="tb-back">← Annuler</div>
+        <div class="tb-title">⚠️ Confirmation</div>
+        <div class="tb-sub">Action irréversible</div>
+      </div>
+      <div class="body">
+        <div class="form-section" style="border-color:#FAECE7;background:#FEF3F2;">
+          <div class="form-title" style="color:#712B13;">Supprimer ce membre ?</div>
+
+          <div style="text-align:center;margin:20px 0;">
+            <div class="member-avatar" style="background:#FAECE7;color:#712B13;margin:0 auto 16px;width:60px;height:60px;font-size:20px;">FD</div>
+            <div style="font-size:18px;font-weight:700;color:#712B13;margin-bottom:4px;">Fatou Diallo</div>
+            <div style="font-size:13px;color:#712B13;">5 000 FCFA/jour • Jour 25/30</div>
+          </div>
+
+          <div class="preview-card" style="background:#FAECE7;border-color:#E24B4A;">
+            <div class="preview-title" style="color:#712B13;">📋 Données à supprimer</div>
+            <div class="preview-item">
+              <span class="preview-label" style="color:#712B13;">Transactions</span>
+              <span class="preview-value" style="color:#712B13;">25 enregistrements</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label" style="color:#712B13;">Montant cotisé</span>
+              <span class="preview-value" style="color:#712B13;">125 000 FCFA</span>
+            </div>
+            <div class="preview-item">
+              <span class="preview-label" style="color:#712B13;">Historique</span>
+              <span class="preview-value" style="color:#712B13;">Effacé</span>
+            </div>
+          </div>
+
+          <div style="background:#FEF3F2;border:1px solid #E24B4A;border-radius:12px;padding:16px;margin:16px 0;">
+            <div style="font-size:12px;color:#712B13;font-weight:600;margin-bottom:8px;">⚠️ Cette action est irréversible</div>
+            <div style="font-size:11px;color:#712B13;line-height:1.4;">Toutes les données de ce membre seront définitivement supprimées. Aucune récupération ne sera possible.</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" style="color:#712B13;">Tapez "SUPPRIMER" pour confirmer</label>
+            <input type="text" class="form-input" placeholder="SUPPRIMER" style="border-color:#E24B4A;text-transform:uppercase;">
+          </div>
+
+          <button class="btn-danger submit-btn">🗑️ Supprimer Définitivement</button>
+          <button class="btn-secondary submit-btn">← Annuler</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- INFORMATIONS TECHNIQUES -->
+<div class="note-section">
+  <div class="note-title">📋 Informations Techniques - SafariCash</div>
+  <div class="note-text">
+    <strong>Système d'épargne personnelle pour collecteurs</strong><br>
+    Chaque membre a son compte séparé avec calcul individuel des cycles de 30 jours calendaires.
+  </div>
+  <div class="note-list">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;margin-top:20px;">
+      <div>
+        <strong>🎯 Fonctionnalités Core :</strong>
+        <li>Gestion de 150+ membres individuels</li>
+        <li>Cotisations journalières avec rattrapage</li>
+        <li>Prêts/avances sans intérêts</li>
+        <li>Calcul automatique des soldes finaux</li>
+        <li>Génération de reçus électroniques</li>
+      </div>
+      <div>
+        <strong>💰 Logique Métier :</strong>
+        <li>Cycle = 30 jours calendaires fixes</li>
+        <li>Commission = 1 jour de cotisation</li>
+        <li>Remboursement = Total - Commission - Avances</li>
+        <li>Données séparées par membre</li>
+        <li>Pas de mélange entre comptes</li>
+      </div>
+      <div>
+        <strong>📱 Interface :</strong>
+        <li>PWA installable (smartphone/tablette)</li>
+        <li>Design mobile-first optimisé</li>
+        <li>Navigation à 4 onglets principaux</li>
+        <li>Actions rapides (2-3 taps max)</li>
+        <li>Stockage local + synchronisation cloud</li>
+      </div>
+      <div>
+        <strong>🛠️ Workflow Utilisateur :</strong>
+        <li><strong>Dashboard</strong> → Vue d'ensemble quotidienne</li>
+        <li><strong>Membres</strong> → Gestion complète CRUD</li>
+        <li><strong>Transaction</strong> → Enregistrement rapide</li>
+        <li><strong>Profil</strong> → Détails + historique membre</li>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
