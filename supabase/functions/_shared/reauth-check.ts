@@ -21,12 +21,18 @@ export type ConsumeResult = { ok: true } | { ok: false; problem: Problem };
  *   - the row's collector_id matches `collectorId`
  *   - the row's intended_op matches `intendedOp`
  *   - confirmation_used is false
- *   - now() < confirmation_expires_at
+ *   - clock_timestamp() < confirmation_expires_at  (DB clock — CODE REVIEW H8 fix)
  *
  * Returns ok:true on success; ok:false with a generic problem otherwise.
  *
- * MUST be called with a service-role Supabase client — RLS would otherwise
- * gate the UPDATE.
+ * Delegates to the SECURITY DEFINER RPC `public.reauth_consume_confirmation`
+ * (migration 0008) so the expiry check uses Postgres `clock_timestamp()`
+ * instead of the JS `new Date()` clock — eliminates a clock-skew bypass
+ * where an Edge Function instance lagging behind the DB by seconds could
+ * accept already-expired tokens (or reject still-valid ones).
+ *
+ * MUST be called with a service-role Supabase client — the RPC is REVOKE'd
+ * from authenticated/anon.
  */
 export async function consumeConfirmation(
   supabase: SupabaseClient,
@@ -34,18 +40,11 @@ export async function consumeConfirmation(
   intendedOp: IntendedOp,
   confirmationToken: string,
 ): Promise<ConsumeResult> {
-  // Single statement, atomic on the row. Returns the id if all conditions
-  // matched and the row was updated; null otherwise.
-  const { data, error } = await supabase
-    .from("reauth_challenges")
-    .update({ confirmation_used: true })
-    .eq("confirmation_token", confirmationToken)
-    .eq("collector_id", collectorId)
-    .eq("intended_op", intendedOp)
-    .eq("confirmation_used", false)
-    .gt("confirmation_expires_at", new Date().toISOString())
-    .select("id")
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("reauth_consume_confirmation", {
+    p_token: confirmationToken,
+    p_collector_id: collectorId,
+    p_intended_op: intendedOp,
+  });
 
   if (error) {
     return {
@@ -53,7 +52,7 @@ export async function consumeConfirmation(
       problem: problem("internal_unexpected", `consumeConfirmation: ${error.message}`),
     };
   }
-  if (!data) {
+  if (data !== true) {
     return {
       ok: false,
       problem: problem(

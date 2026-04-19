@@ -393,7 +393,7 @@ Deno.test({
 });
 
 Deno.test({
-  name: "(h) issue: Termii failure rolls back the row (no audit emission)",
+  name: "(h) issue: Termii failure marks row as expired (NOT deleted) — cooldown still applies",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -408,13 +408,6 @@ Deno.test({
         }),
     });
     try {
-      // Snapshot row count BEFORE the failed issue.
-      const { count: before } = await service
-        .from("reauth_challenges")
-        .select("id", { count: "exact", head: true })
-        .eq("collector_id", collectorA.userId)
-        .eq("intended_op", "sms_resend");
-
       const res = await handler(
         buildRequest(collectorA.jwt, {
           action: "issue",
@@ -423,13 +416,235 @@ Deno.test({
       );
       assertEquals(res.status, 502);
 
-      // No new row should have landed (insert was deleted on Termii failure).
-      const { count: after } = await service
+      // CODE REVIEW C4 fix: row is preserved with status='expired' so the
+      // 30s cooldown query still catches it on the next issue attempt.
+      const { data: rows } = await service
         .from("reauth_challenges")
-        .select("id", { count: "exact", head: true })
+        .select("id, status")
         .eq("collector_id", collectorA.userId)
         .eq("intended_op", "sms_resend");
-      assertEquals(after, before);
+      assertEquals(rows?.length, 1, "row preserved (not deleted)");
+      assertEquals(rows![0].status, "expired");
+    } finally {
+      recorder.uninstall();
+    }
+  },
+});
+
+Deno.test({
+  name: "(i) issue: cooldown applies even after Termii failure (anti-pattern guard)",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    await ensureCollectors();
+    await clearChallenges();
+    let termiiCalls = 0;
+    const recorder = installFetchRecorder({
+      matchUrl: (url) => url.includes("termii.com"),
+      responder: () => {
+        termiiCalls++;
+        return new Response(JSON.stringify({ error: "upstream down" }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    });
+    try {
+      // First issue → Termii fails (with internal client retries: 3 attempts
+      // per sendSms call due to 5xx backoff). Row marked status='expired'.
+      const r1 = await handler(
+        buildRequest(collectorA.jwt, {
+          action: "issue",
+          intended_op: "sms_resend",
+        }),
+      );
+      assertEquals(r1.status, 502);
+      const callsAfterFirstIssue = termiiCalls;
+      assert(callsAfterFirstIssue >= 1, "expected at least one Termii dispatch attempt");
+
+      // Second issue within 30s — must be rejected with otp_resend_too_soon,
+      // NOT dispatch a fresh SMS. This is the C4 anti-pattern guard.
+      const r2 = await handler(
+        buildRequest(collectorA.jwt, {
+          action: "issue",
+          intended_op: "sms_resend",
+        }),
+      );
+      assertEquals(r2.status, 429, "cooldown must reject fresh issue after Termii failure");
+      assertEquals(
+        termiiCalls,
+        callsAfterFirstIssue,
+        "no NEW Termii dispatch on the rejected second issue (cooldown gate held)",
+      );
+    } finally {
+      recorder.uninstall();
+    }
+  },
+});
+
+Deno.test({
+  name: "(j) verify: 5 concurrent wrong-OTP verifies — atomic CAS prevents brute-force amplification",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    await ensureCollectors();
+    await clearChallenges();
+    const otpHolder = { lastBody: "" };
+    const recorder = termiiMock(otpHolder);
+    try {
+      const issueRes = await handler(
+        buildRequest(collectorA.jwt, {
+          action: "issue",
+          intended_op: "cycle_settlement",
+        }),
+      );
+      const challengeId = (await readJson(issueRes)).challenge_id as string;
+
+      // Fire 5 parallel wrong-OTP verifies. WITHOUT the CAS fix (Story 1.3
+      // code review C1), all 5 read attempts=0 and write attempts=1 →
+      // lockout never trips. WITH the fix, attempts increments atomically
+      // 1→2→3 and the 3rd verify gets locked; the remaining 2 see status
+      // already terminal and return 429 (lockout) or 409 (already_used).
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          handler(
+            buildRequest(collectorA.jwt, {
+              action: "verify",
+              challenge_id: challengeId,
+              otp: "000000",
+            }),
+          ),
+        ),
+      );
+      const statuses = results.map((r) => r.status).sort();
+      // At most 2 attempts return 401 (counted toward lockout). The 3rd
+      // attempt (or first to reach attempts=3) returns 429 lockout. The
+      // 4th and 5th are blocked by the now-terminal status.
+      const status401Count = statuses.filter((s) => s === 401).length;
+      const status429Count = statuses.filter((s) => s === 429).length;
+      const status409Count = statuses.filter((s) => s === 409).length;
+      // Total = 5; 401s + 429s + 409s should account for all of them.
+      assertEquals(status401Count + status429Count + status409Count, 5);
+      // Critical: at LEAST one 429 fired (lockout did NOT silently never trigger).
+      assert(status429Count >= 1, `expected ≥ 1 lockout (429); got statuses ${statuses.join(",")}`);
+
+      // Verify final DB state: row.attempts should equal exactly 3 (capped),
+      // NOT 1 (which would indicate the race won).
+      const { data: final } = await service
+        .from("reauth_challenges")
+        .select("attempts, status")
+        .eq("id", challengeId)
+        .single();
+      assertEquals(final?.attempts, 3, "atomic CAS ensures attempts incremented monotonically");
+      assertEquals(final?.status, "locked");
+    } finally {
+      recorder.uninstall();
+    }
+  },
+});
+
+Deno.test({
+  name: "(k) audit_log: reauth.requested + reauth.verified emitted with hash chain",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    await ensureCollectors();
+    await clearChallenges();
+    const otpHolder = { lastBody: "" };
+    const recorder = termiiMock(otpHolder);
+    try {
+      const issueRes = await handler(
+        buildRequest(collectorA.jwt, {
+          action: "issue",
+          intended_op: "csv_export",
+        }),
+      );
+      const challengeId = (await readJson(issueRes)).challenge_id as string;
+      const otp = extractOtpFromSmsBody(otpHolder.lastBody);
+
+      const verifyRes = await handler(
+        buildRequest(collectorA.jwt, {
+          action: "verify",
+          challenge_id: challengeId,
+          otp,
+        }),
+      );
+      assertEquals(verifyRes.status, 200);
+
+      // Read audit_log via service-role; expect both events for this challenge.
+      const { data: events } = await service
+        .from("audit_log")
+        .select("event_type, payload, prev_hash, entry_hash")
+        .eq("collector_id", collectorA.userId)
+        .eq("entity_id", challengeId)
+        .order("timestamp", { ascending: true });
+      const types = (events ?? []).map((e) => e.event_type);
+      assert(types.includes("reauth.requested"), `expected reauth.requested in ${types.join(",")}`);
+      assert(types.includes("reauth.verified"), `expected reauth.verified in ${types.join(",")}`);
+      // Code review H7: otp_hash must NOT appear in audit payload.
+      for (const ev of events ?? []) {
+        const p = ev.payload as Record<string, unknown>;
+        assert(
+          !("otp_hash" in p),
+          `otp_hash must be redacted from audit payload, got: ${JSON.stringify(p)}`,
+        );
+      }
+    } finally {
+      recorder.uninstall();
+    }
+  },
+});
+
+Deno.test({
+  name: "(l) consumer flow: consumeConfirmation atomic + DB-clock expiry (no JS clock skew)",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    await ensureCollectors();
+    await clearChallenges();
+    const otpHolder = { lastBody: "" };
+    const recorder = termiiMock(otpHolder);
+    try {
+      const issueRes = await handler(
+        buildRequest(collectorA.jwt, {
+          action: "issue",
+          intended_op: "member_delete",
+        }),
+      );
+      const challengeId = (await readJson(issueRes)).challenge_id as string;
+      const otp = extractOtpFromSmsBody(otpHolder.lastBody);
+
+      const verifyRes = await handler(
+        buildRequest(collectorA.jwt, {
+          action: "verify",
+          challenge_id: challengeId,
+          otp,
+        }),
+      );
+      const { confirmation_token: token } = (await readJson(verifyRes)) as {
+        confirmation_token: string;
+      };
+
+      // Wrong intended_op → confirmation_invalid (matrix coverage).
+      const wrongOp = await consumeConfirmation(service, collectorA.userId, "csv_export", token);
+      assertEquals(wrongOp.ok, false);
+
+      // Wrong collector → confirmation_invalid.
+      const wrongCollector = await consumeConfirmation(
+        service,
+        collectorB.userId,
+        "member_delete",
+        token,
+      );
+      assertEquals(wrongCollector.ok, false);
+
+      // Correct args → ok once.
+      const ok1 = await consumeConfirmation(service, collectorA.userId, "member_delete", token);
+      assertEquals(ok1.ok, true);
+
+      // Reuse → confirmation_invalid.
+      const ok2 = await consumeConfirmation(service, collectorA.userId, "member_delete", token);
+      assertEquals(ok2.ok, false);
     } finally {
       recorder.uninstall();
     }

@@ -17,26 +17,36 @@
 -- Enums
 -- ---------------------------------------------------------------------------
 
-create type public.reauth_intended_op_enum as enum (
-  'cycle_settlement',  -- consumed by Story 7.4
-  'member_delete',     -- consumed by Story 2.6
-  'csv_export',        -- consumed by Story 9.3
-  'sms_resend'         -- consumed by Story 6.x receipt-resend
-);
-
-create type public.reauth_challenge_status_enum as enum (
-  'pending',   -- OTP issued, awaiting verify
-  'verified',  -- OTP matched; confirmation_token issued
-  'failed',    -- one or two failed attempts (still verifiable)
-  'locked',    -- 3 failed attempts → lockout window active
-  'expired'    -- created_at + OTP_EXPIRY_MINUTES exceeded (cleanup-time terminal state)
-);
+-- Idempotency wrappers — code review M5 fix. CREATE TYPE/TABLE/POLICY/INDEX
+-- without IF NOT EXISTS would error on re-apply via `supabase db push`. The
+-- DO blocks make the migration safe to re-run on a project already at 0008.
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'reauth_intended_op_enum') then
+    create type public.reauth_intended_op_enum as enum (
+      'cycle_settlement',  -- consumed by Story 7.4
+      'member_delete',     -- consumed by Story 2.6
+      'csv_export',        -- consumed by Story 9.3
+      'sms_resend'         -- consumed by Story 6.x receipt-resend
+    );
+  end if;
+  if not exists (select 1 from pg_type where typname = 'reauth_challenge_status_enum') then
+    create type public.reauth_challenge_status_enum as enum (
+      'pending',   -- OTP issued, awaiting verify
+      'verified',  -- OTP matched; confirmation_token issued
+      'failed',    -- one or two failed attempts (still verifiable)
+      'locked',    -- 3 failed attempts → lockout window active
+      'expired'    -- terminal — created_at+OTP_EXPIRY_MINUTES exceeded OR Termii dispatch failed
+    );
+  end if;
+end;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- reauth_challenges table
 -- ---------------------------------------------------------------------------
 
-create table public.reauth_challenges (
+create table if not exists public.reauth_challenges (
   id                       uuid primary key default gen_random_uuid(),
   collector_id             uuid not null references public.users(id) on delete restrict,
   intended_op              public.reauth_intended_op_enum not null,
@@ -84,13 +94,22 @@ comment on column public.reauth_challenges.confirmation_token is
 -- ---------------------------------------------------------------------------
 
 -- Active-lockout lookup: WHERE collector_id = $ AND intended_op = $ ORDER BY created_at DESC LIMIT 1
-create index idx_reauth_challenges_collector_id_intended_op_created_at
+create index if not exists idx_reauth_challenges_collector_id_intended_op_created_at
   on public.reauth_challenges (collector_id, intended_op, created_at desc);
 
 -- Confirmation-token consumption (sparse — only set after verify success).
-create unique index idx_reauth_challenges_confirmation_token
+create unique index if not exists idx_reauth_challenges_confirmation_token
   on public.reauth_challenges (confirmation_token)
   where confirmation_token is not null;
+
+-- CRITICAL race fix (code review C2): UNIQUE constraint on (collector_id,
+-- intended_op) WHERE status='pending' prevents two parallel issue calls
+-- both passing the resend-cooldown pre-check and both INSERTing rows.
+-- The handler catches Postgres error code 23505 (unique violation) and
+-- returns otp_resend_too_soon (429) instead of internal_unexpected.
+create unique index if not exists idx_reauth_challenges_one_pending_per_op
+  on public.reauth_challenges (collector_id, intended_op)
+  where status = 'pending';
 
 -- ---------------------------------------------------------------------------
 -- updated_at trigger (Story 1.2 helper)
@@ -153,7 +172,10 @@ create or replace function public.get_reauth_otp_hmac_key()
 returns text
 language plpgsql
 security definer
-set search_path = vault, public, pg_temp
+-- pg_temp only — force every identifier in the body to be fully qualified
+-- (defense in depth against search-path shadowing of vault.* via attacker-
+-- created public objects).
+set search_path = pg_temp
 as $$
 declare
   result text;
@@ -175,6 +197,169 @@ revoke execute on function public.get_reauth_otp_hmac_key() from public;
 revoke execute on function public.get_reauth_otp_hmac_key() from authenticated;
 revoke execute on function public.get_reauth_otp_hmac_key() from anon;
 grant  execute on function public.get_reauth_otp_hmac_key() to service_role;
+
+-- ---------------------------------------------------------------------------
+-- Atomic state-transition RPCs (CRITICAL race fixes from code review).
+--
+-- The Edge Function calls these instead of doing read-modify-write on the
+-- row, which had a race window allowing concurrent verifies to ALL read
+-- attempts=0 and ALL write attempts=1 — defeating the lockout entirely.
+-- Each function is a single SQL statement guarded by Postgres row locks
+-- (UPDATE ... WHERE ... RETURNING) — atomic by construction.
+-- All three are SECURITY DEFINER, service_role-only.
+-- ---------------------------------------------------------------------------
+
+-- Result type for reauth_record_failed_verify.
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'reauth_verify_outcome') then
+    create type public.reauth_verify_outcome as (
+      attempts        int,
+      status          public.reauth_challenge_status_enum,
+      lockout_until   timestamptz
+    );
+  end if;
+end;
+$$;
+
+-- ATOMIC CAS: increment attempts; if attempts reaches OTP_MAX_ATTEMPTS=3
+-- transition to 'locked' with lockout_until = now() + 5 min; otherwise
+-- transition (or stay at) 'failed'. Returns the resulting state.
+-- Returns NULL if challenge does not exist or is in a terminal state
+-- (verified / locked / expired) — handler treats NULL as otp_already_used.
+create or replace function public.reauth_record_failed_verify(
+  p_challenge_id uuid,
+  p_collector_id uuid
+)
+returns public.reauth_verify_outcome
+language plpgsql
+security definer
+set search_path = pg_temp
+as $$
+declare
+  result public.reauth_verify_outcome;
+  lockout_seconds int := 5 * 60;
+  max_attempts int := 3;
+begin
+  update public.reauth_challenges
+    set attempts = attempts + 1,
+        status = case
+          when attempts + 1 >= max_attempts then 'locked'::public.reauth_challenge_status_enum
+          else 'failed'::public.reauth_challenge_status_enum
+        end,
+        lockout_until = case
+          when attempts + 1 >= max_attempts then clock_timestamp() + (lockout_seconds || ' seconds')::interval
+          else lockout_until
+        end
+    where id = p_challenge_id
+      and collector_id = p_collector_id
+      and status in ('pending', 'failed')
+      and expires_at > clock_timestamp()
+    returning attempts, status, lockout_until
+    into result;
+  return result;
+end;
+$$;
+
+comment on function public.reauth_record_failed_verify(uuid, uuid) is
+  'Atomic CAS for failed verify. Increments attempts; transitions to locked at OTP_MAX_ATTEMPTS=3. Returns NULL on already-terminal/expired/cross-collector. Service-role only.';
+
+revoke execute on function public.reauth_record_failed_verify(uuid, uuid) from public;
+revoke execute on function public.reauth_record_failed_verify(uuid, uuid) from authenticated;
+revoke execute on function public.reauth_record_failed_verify(uuid, uuid) from anon;
+grant  execute on function public.reauth_record_failed_verify(uuid, uuid) to service_role;
+
+-- Result type for reauth_mark_verified.
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'reauth_mark_verified_result') then
+    create type public.reauth_mark_verified_result as (
+      confirmation_token       uuid,
+      confirmation_expires_at  timestamptz
+    );
+  end if;
+end;
+$$;
+
+-- ATOMIC CAS: transition status pending|failed → verified, mint a fresh
+-- confirmation_token (uuid v4) and set confirmation_expires_at = now() + 2 min.
+-- Returns NULL if the challenge is already in a terminal state — handler
+-- treats NULL as otp_already_used.
+create or replace function public.reauth_mark_verified(
+  p_challenge_id uuid,
+  p_collector_id uuid
+)
+returns public.reauth_mark_verified_result
+language plpgsql
+security definer
+set search_path = pg_temp
+as $$
+declare
+  result public.reauth_mark_verified_result;
+  confirmation_seconds int := 2 * 60;
+  new_token uuid := extensions.gen_random_uuid();
+begin
+  update public.reauth_challenges
+    set status = 'verified',
+        confirmation_token = new_token,
+        confirmation_expires_at = clock_timestamp() + (confirmation_seconds || ' seconds')::interval
+    where id = p_challenge_id
+      and collector_id = p_collector_id
+      and status in ('pending', 'failed')
+      and expires_at > clock_timestamp()
+    returning confirmation_token, confirmation_expires_at
+    into result;
+  return result;
+end;
+$$;
+
+comment on function public.reauth_mark_verified(uuid, uuid) is
+  'Atomic CAS for successful verify. Transitions to verified + mints confirmation_token. Returns NULL on already-terminal/expired/cross-collector. Service-role only.';
+
+revoke execute on function public.reauth_mark_verified(uuid, uuid) from public;
+revoke execute on function public.reauth_mark_verified(uuid, uuid) from authenticated;
+revoke execute on function public.reauth_mark_verified(uuid, uuid) from anon;
+grant  execute on function public.reauth_mark_verified(uuid, uuid) to service_role;
+
+-- ATOMIC CAS for confirmation_token consumption (replaces the JS-clock
+-- check in _shared/reauth-check.ts, fixing the clock-skew bypass H8).
+-- All four conditions checked + flip to confirmation_used=true in a single
+-- statement. Returns true on success, false on any failure mode (token
+-- not found / wrong collector / wrong intended_op / expired / already used).
+-- The deliberately-generic boolean prevents an oracle for distinguishing
+-- failure reasons (matches the spec's "single confirmation/invalid problem").
+create or replace function public.reauth_consume_confirmation(
+  p_token        uuid,
+  p_collector_id uuid,
+  p_intended_op  public.reauth_intended_op_enum
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = pg_temp
+as $$
+declare
+  consumed_id uuid;
+begin
+  update public.reauth_challenges
+    set confirmation_used = true
+    where confirmation_token = p_token
+      and collector_id = p_collector_id
+      and intended_op = p_intended_op
+      and confirmation_used = false
+      and confirmation_expires_at > clock_timestamp()
+    returning id into consumed_id;
+  return consumed_id is not null;
+end;
+$$;
+
+comment on function public.reauth_consume_confirmation(uuid, uuid, public.reauth_intended_op_enum) is
+  'Atomic single-use confirmation token consumption. Replaces JS-clock checks (clock-skew bypass fix). Service-role only — Story 7.4/2.6/9.3/6.x consumer Edge Functions invoke via _shared/reauth-check.ts.';
+
+revoke execute on function public.reauth_consume_confirmation(uuid, uuid, public.reauth_intended_op_enum) from public;
+revoke execute on function public.reauth_consume_confirmation(uuid, uuid, public.reauth_intended_op_enum) from authenticated;
+revoke execute on function public.reauth_consume_confirmation(uuid, uuid, public.reauth_intended_op_enum) from anon;
+grant  execute on function public.reauth_consume_confirmation(uuid, uuid, public.reauth_intended_op_enum) to service_role;
 
 -- ---------------------------------------------------------------------------
 -- audit_emit() trigger extension — adds reauth_challenges branches.
@@ -230,6 +415,17 @@ begin
     v_payload      := to_jsonb(new);
   end if;
 
+  -- Redact otp_hash from reauth_challenges audit payloads (code review H7).
+  -- An attacker who later compromises the HMAC key + has read access to
+  -- audit_log could brute-force the 10^6 OTP space against historical
+  -- otp_hash values. Removing it from the persisted payload eliminates
+  -- this 5-min-window leak retroactively. The hash is still computed into
+  -- the chain via canonical_jsonb (without the field), so chain integrity
+  -- is preserved.
+  if v_entity_table = 'reauth_challenges' and v_payload ? 'otp_hash' then
+    v_payload := v_payload - 'otp_hash';
+  end if;
+
   -- event_type mapping per architecture.md § Event naming + Story 1.2 + 1.3.
   v_event_type := case
     when v_entity_table = 'members'      and v_op = 'INSERT' then 'member.created'
@@ -258,13 +454,14 @@ begin
     when v_entity_table = 'reauth_challenges' and v_op = 'UPDATE'
          and (v_payload->>'status') = 'failed'
          and (v_payload->>'attempts')::int > (to_jsonb(old)->>'attempts')::int then 'reauth.failed'
-    -- Confirmation-token consumption (collector_id same, status stays
-    -- 'verified', confirmation_used flips false→true) is intentionally
-    -- NOT a separate audit event here — the consumer story (7.4 / 2.6 /
-    -- 9.3 / 6.x) emits its OWN domain audit event ('cycle.settled',
-    -- 'member.deleted', etc.) which already chains the proof of re-auth
-    -- via the audit log timestamp ordering.
-    when v_entity_table = 'reauth_challenges' and v_op = 'UPDATE' then null  -- ignore
+    -- Confirmation-token consumption (status='verified', confirmation_used
+    -- flips false→true). Code review M2: emit a reauth.consumed event so
+    -- the audit chain explicitly links re-auth to the downstream domain
+    -- event (cycle.settled / member.deleted / csv.exported / sms.resent).
+    when v_entity_table = 'reauth_challenges' and v_op = 'UPDATE'
+         and (v_payload->>'confirmation_used')::boolean = true
+         and (to_jsonb(old)->>'confirmation_used')::boolean = false then 'reauth.consumed'
+    when v_entity_table = 'reauth_challenges' and v_op = 'UPDATE' then null  -- ignore other UPDATEs
     else null
   end;
 

@@ -52,6 +52,14 @@ function getSenderId(): string {
   return Deno.env.get("TERMII_SENDER_ID") ?? "SafariCash";
 }
 
+// CODE REVIEW H3 fix: Termii's error responses sometimes echo the request
+// body (which contains the OTP). Strip any 6-digit numeric run before
+// embedding in TermiiError.bodyExcerpt so the OTP cannot leak into logs
+// via downstream `(err as Error).message/stack` capture.
+function scrubOtpDigits(text: string): string {
+  return text.replace(/\b\d{6}\b/g, "******");
+}
+
 async function sendOnce(args: TermiiSendArgs): Promise<TermiiSendResult> {
   const apiKey = getApiKey();
   const url = `${getBaseUrl()}/api/sms/send`;
@@ -60,23 +68,39 @@ async function sendOnce(args: TermiiSendArgs): Promise<TermiiSendResult> {
   const timeoutId = setTimeout(() => controller.abort(), TERMII_REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        api_key: apiKey,
-        to: args.to,
-        from: getSenderId(),
-        sms: args.body,
-        type: "plain",
-        channel: args.channel ?? "generic",
-      }),
-      signal: controller.signal,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          api_key: apiKey,
+          to: args.to,
+          from: getSenderId(),
+          sms: args.body,
+          type: "plain",
+          channel: args.channel ?? "generic",
+        }),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      // CODE REVIEW L6 fix: AbortController fires DOMException("AbortError"),
+      // not a TermiiError. Translate so the caller's `instanceof TermiiError`
+      // checks behave consistently. Treat timeout as 5xx-equivalent (retryable).
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new TermiiError(
+          `Termii SMS send timed out after ${TERMII_REQUEST_TIMEOUT_MS}ms`,
+          504,
+          "",
+        );
+      }
+      throw err;
+    }
 
-    const text = await response.text();
+    const rawText = await response.text();
+    const text = scrubOtpDigits(rawText);
     if (!response.ok) {
       // 4xx → no retry (caller's fault).
       // 5xx → retry-eligible (handled by caller).
@@ -88,7 +112,7 @@ async function sendOnce(args: TermiiSendArgs): Promise<TermiiSendResult> {
     }
     let parsed: { message_id?: string };
     try {
-      parsed = JSON.parse(text);
+      parsed = JSON.parse(rawText); // parse the unscrubbed body for message_id
     } catch {
       throw new TermiiError(
         "Termii returned non-JSON success body",

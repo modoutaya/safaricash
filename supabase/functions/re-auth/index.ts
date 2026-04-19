@@ -17,8 +17,10 @@
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 import { assertAuthenticated, buildAnonClient, buildServiceClient } from "../_shared/auth-check.ts";
+// CONFIRMATION_TOKEN_EXPIRY_MINUTES is no longer imported here — the
+// confirmation_expires_at value is now set inside the SQL RPC
+// reauth_mark_verified() (DB clock, code review H8 fix).
 import {
-  CONFIRMATION_TOKEN_EXPIRY_MINUTES,
   OTP_EXPIRY_MINUTES,
   OTP_LENGTH,
   OTP_LOCKOUT_MINUTES,
@@ -27,6 +29,20 @@ import {
 } from "../_shared/constants.ts";
 import { problem, problemResponse } from "../_shared/rfc7807.ts";
 import { sendSms, TermiiError } from "../_shared/termii-client.ts";
+
+// CODE REVIEW L5: lazy module-scope singletons. Each warm Edge Function
+// instance constructs the SupabaseClient once and reuses across requests
+// instead of allocating per-invocation.
+let _anonClient: ReturnType<typeof buildAnonClient> | null = null;
+let _serviceClient: ReturnType<typeof buildServiceClient> | null = null;
+function getAnonClientLazy(): ReturnType<typeof buildAnonClient> {
+  if (!_anonClient) _anonClient = buildAnonClient();
+  return _anonClient;
+}
+function getServiceClientLazy(): ReturnType<typeof buildServiceClient> {
+  if (!_serviceClient) _serviceClient = buildServiceClient();
+  return _serviceClient;
+}
 
 // ---------------------------------------------------------------------------
 // Request schemas (Zod tagged union).
@@ -55,11 +71,19 @@ type VerifyRequest = z.infer<typeof VerifySchema>;
 
 function generateOtp(): string {
   // 6 cryptographically-random digits, leading-zero preserved.
+  // CODE REVIEW L2 fix: rejection sample to eliminate the ~7.45 ppm modulo
+  // bias toward low digits. Discard any uint32 >= max * (10^6) where max =
+  // floor(2^32 / 10^6). Worst-case retry rate < 0.001% — negligible.
+  const max = 10 ** OTP_LENGTH;
+  const ceiling = Math.floor(0x1_0000_0000 / max) * max;
   const bytes = new Uint8Array(4);
-  crypto.getRandomValues(bytes);
-  const view = new DataView(bytes.buffer);
-  const n = view.getUint32(0) % 10 ** OTP_LENGTH;
-  return n.toString().padStart(OTP_LENGTH, "0");
+  let n: number;
+  do {
+    crypto.getRandomValues(bytes);
+    const view = new DataView(bytes.buffer);
+    n = view.getUint32(0);
+  } while (n >= ceiling);
+  return (n % max).toString().padStart(OTP_LENGTH, "0");
 }
 
 async function hashOtp(otp: string, hmacKeyHex: string): Promise<string> {
@@ -106,19 +130,36 @@ function constantTimeEqualHex(a: string, b: string): boolean {
   return diff === 0;
 }
 
-// Simple in-memory cache for the HMAC key per warm function instance.
-// Migration 0008 provisions the key in Vault and the
-// public.get_reauth_otp_hmac_key() SECURITY DEFINER function (service-role only).
+// HMAC key cache with 5-minute TTL (CODE REVIEW H2 fix). Edge Function
+// instances persist for hours when warm; without TTL, a Vault key rotation
+// would not take effect on warm instances and would silently break OTP
+// verify for affected users. 5min cap balances rotation latency vs RPC cost.
 let cachedHmacKey: string | null = null;
+let cachedHmacKeyAt = 0;
+const HMAC_KEY_CACHE_TTL_MS = 5 * 60 * 1000;
+
 async function getOtpHmacKey(service: ReturnType<typeof buildServiceClient>): Promise<string> {
-  if (cachedHmacKey) return cachedHmacKey;
+  const nowMs = Date.now();
+  if (cachedHmacKey && nowMs - cachedHmacKeyAt < HMAC_KEY_CACHE_TTL_MS) {
+    return cachedHmacKey;
+  }
   const { data, error } = await service.rpc("get_reauth_otp_hmac_key");
   if (error || typeof data !== "string") {
     throw new Error(
       `reauth_otp_hmac_key fetch failed: ${error?.message ?? "rpc returned non-string"}`,
     );
   }
+  // CODE REVIEW H1 fix: validate hex format before using as crypto bytes.
+  // A non-hex value would silently produce an all-zero key (parseInt('NaN
+  // char',16) = NaN; new Uint8Array fills NaN as 0), making HMAC trivially
+  // forgeable. Reject loudly.
+  if (!/^[0-9a-f]{64}$/i.test(data)) {
+    throw new Error(
+      "reauth_otp_hmac_key fetched from Vault is not a 64-char hex string (expected 32 bytes, hex-encoded)",
+    );
+  }
   cachedHmacKey = data;
+  cachedHmacKeyAt = nowMs;
   return cachedHmacKey;
 }
 
@@ -223,15 +264,19 @@ async function handleIssue(
     );
   }
 
-  // 2. Resend cooldown: any pending challenge for the same (collector, intended_op)
-  //    issued less than OTP_RESEND_COOLDOWN_SECONDS ago?
+  // 2. Resend cooldown: any pending OR expired (Termii-failed) challenge
+  //    for the same (collector, intended_op) issued less than
+  //    OTP_RESEND_COOLDOWN_SECONDS ago? Including 'expired' is the C4 fix —
+  //    a Termii failure marks the row 'expired' (not deleted), so the
+  //    cooldown still triggers and an attacker cannot spam SMS by causing
+  //    Termii errors.
   const cooldownThreshold = new Date(now.getTime() - OTP_RESEND_COOLDOWN_SECONDS * 1000);
   const { data: recentRow, error: recentErr } = await service
     .from("reauth_challenges")
     .select("id, created_at")
     .eq("collector_id", collectorId)
     .eq("intended_op", req.intended_op)
-    .eq("status", "pending")
+    .in("status", ["pending", "expired"])
     .gt("created_at", cooldownThreshold.toISOString())
     .order("created_at", { ascending: false })
     .limit(1)
@@ -279,6 +324,22 @@ async function handleIssue(
     .select("id, expires_at")
     .single();
   if (insertErr || !inserted) {
+    // CODE REVIEW C2 fix: a parallel issue in the same millisecond may
+    // beat us to INSERT. The UNIQUE partial index on (collector_id,
+    // intended_op) WHERE status='pending' (migration 0008) raises 23505
+    // for the loser. Map to otp_resend_too_soon so the user retries
+    // gracefully instead of seeing a 500.
+    if (insertErr?.code === "23505") {
+      return problemResponse(
+        problem(
+          "otp_resend_too_soon",
+          `Another OTP request is already in flight; please retry in ${OTP_RESEND_COOLDOWN_SECONDS} seconds.`,
+          { retry_after_seconds: OTP_RESEND_COOLDOWN_SECONDS },
+        ),
+        reqUrl,
+        { "Retry-After": String(OTP_RESEND_COOLDOWN_SECONDS) },
+      );
+    }
     return problemResponse(
       problem("internal_unexpected", `reauth_challenges insert failed: ${insertErr?.message}`),
       reqUrl,
@@ -306,12 +367,26 @@ async function handleIssue(
   try {
     await sendSms({ to: phone, body: composeOtpBody(otp) });
   } catch (err) {
-    await service.from("reauth_challenges").delete().eq("id", inserted.id);
-    logJson("error", "reauth.delivery_failed", {
+    // CODE REVIEW C4 + M1 fix: Do NOT delete the row on Termii failure.
+    // Deleting would let the next issue (within 30s) bypass the cooldown
+    // — an attacker triggering Termii errors could spam SMS. Instead,
+    // mark status='expired' so:
+    //   - the cooldown query (which filters status IN ('pending','expired'))
+    //     still catches it,
+    //   - the audit chain emits reauth.expired (no orphan reauth.requested),
+    //   - the user sees the same otp_delivery_failed response.
+    await service.from("reauth_challenges").update({ status: "expired" }).eq("id", inserted.id);
+    const termiiStatus = err instanceof TermiiError ? err.httpStatus : null;
+    // Code review M7: distinguish bad-credentials (401/403) from generic
+    // delivery failure for ops visibility — same user-facing problem,
+    // different log signal.
+    const credBad = termiiStatus === 401 || termiiStatus === 403;
+    logJson("error", credBad ? "reauth.delivery_failed" : "reauth.delivery_failed", {
       collector_id: collectorId,
       intended_op: req.intended_op,
       challenge_id: inserted.id,
-      termii_status: err instanceof TermiiError ? err.httpStatus : null,
+      termii_status: termiiStatus,
+      ops_alert: credBad ? "termii_credentials_bad" : null,
     });
     return problemResponse(
       problem("otp_delivery_failed", "SMS dispatch failed; please retry."),
@@ -368,10 +443,16 @@ async function handleVerify(
     );
   }
   if (!row) {
-    // Constant-time intent: do a dummy HMAC compare so timing matches the
-    // wrong-OTP path. The actual result is discarded.
-    const hmacKey = await getOtpHmacKey(service).catch(() => "00".repeat(32));
-    await hashOtp(req.otp, hmacKey).catch(() => undefined);
+    // Constant-time intent (CODE REVIEW H5 fix): the wrong-OTP path executes
+    // a DB UPDATE via RPC (~5-50ms). The 404 path skips it entirely. Network
+    // timing easily distinguishes "challenge not found" from "wrong OTP",
+    // enabling cross-collector challenge enumeration. Pad with a dummy RPC
+    // call (resolves the HMAC key, identical RPC overhead) plus a no-op DB
+    // round-trip to match the wrong-OTP path's timing profile.
+    await getOtpHmacKey(service).catch(() => undefined);
+    await hashOtp(req.otp, "00".repeat(32)).catch(() => undefined);
+    // Single SELECT round-trip approximates the wrong-OTP path's UPDATE-RETURNING.
+    await service.from("reauth_challenges").select("id").eq("id", req.challenge_id).maybeSingle();
     return problemResponse(
       problem("challenge_not_found", "Challenge not found for this collector"),
       reqUrl,
@@ -412,21 +493,30 @@ async function handleVerify(
   const otpMatches = constantTimeEqualHex(submittedHash, row.otp_hash as string);
 
   if (otpMatches) {
-    const confirmationToken = crypto.randomUUID();
-    const confirmationExpiresAt = new Date(
-      now.getTime() + CONFIRMATION_TOKEN_EXPIRY_MINUTES * 60 * 1000,
-    );
-    const { error: updateErr } = await service
-      .from("reauth_challenges")
-      .update({
-        status: "verified",
-        confirmation_token: confirmationToken,
-        confirmation_expires_at: confirmationExpiresAt.toISOString(),
-      })
-      .eq("id", row.id);
-    if (updateErr) {
+    // CODE REVIEW C3 fix: atomic CAS via SECURITY DEFINER RPC. The previous
+    // read-modify-write let two parallel correct-OTP verifies both mint
+    // different confirmation_tokens. The RPC's UPDATE WHERE status IN
+    // ('pending','failed') AND expires_at > clock_timestamp() is atomic;
+    // the loser gets NULL back and is reported as already_used.
+    const { data: markedRaw, error: markedErr } = await service.rpc("reauth_mark_verified", {
+      p_challenge_id: row.id,
+      p_collector_id: collectorId,
+    });
+    if (markedErr) {
       return problemResponse(
-        problem("internal_unexpected", `verify update failed: ${updateErr.message}`),
+        problem("internal_unexpected", `verify mark failed: ${markedErr.message}`),
+        reqUrl,
+      );
+    }
+    // RPC returns the composite row or null. Supabase JS unwraps it as an
+    // object; null/undefined indicates lost race or terminal state.
+    const marked = markedRaw as {
+      confirmation_token: string;
+      confirmation_expires_at: string;
+    } | null;
+    if (!marked) {
+      return problemResponse(
+        problem("otp_already_used", "Challenge already verified or terminal"),
         reqUrl,
       );
     }
@@ -437,37 +527,46 @@ async function handleVerify(
     });
     return new Response(
       JSON.stringify({
-        confirmation_token: confirmationToken,
-        confirmation_expires_at: confirmationExpiresAt.toISOString(),
+        confirmation_token: marked.confirmation_token,
+        confirmation_expires_at: marked.confirmation_expires_at,
       }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   }
 
-  // 4. Wrong OTP — increment attempts; if attempts == OTP_MAX_ATTEMPTS, lock.
-  const nextAttempts = (row.attempts as number) + 1;
-  if (nextAttempts >= OTP_MAX_ATTEMPTS) {
-    const lockoutUntil = new Date(now.getTime() + OTP_LOCKOUT_MINUTES * 60 * 1000);
-    const { error: lockErr } = await service
-      .from("reauth_challenges")
-      .update({
-        attempts: nextAttempts,
-        status: "locked",
-        lockout_until: lockoutUntil.toISOString(),
-      })
-      .eq("id", row.id);
-    if (lockErr) {
-      return problemResponse(
-        problem("internal_unexpected", `lockout update failed: ${lockErr.message}`),
-        reqUrl,
-      );
-    }
+  // 4. Wrong OTP — atomic CAS via SECURITY DEFINER RPC (CODE REVIEW C1 fix).
+  // The RPC increments attempts in a single UPDATE statement, so concurrent
+  // wrong-OTP verifies cannot all read attempts=N and all write attempts=N+1.
+  // It also performs the lockout transition atomically when attempts reaches
+  // OTP_MAX_ATTEMPTS=3.
+  const { data: outcomeRaw, error: outcomeErr } = await service.rpc("reauth_record_failed_verify", {
+    p_challenge_id: row.id,
+    p_collector_id: collectorId,
+  });
+  if (outcomeErr) {
+    return problemResponse(
+      problem("internal_unexpected", `failed-verify record failed: ${outcomeErr.message}`),
+      reqUrl,
+    );
+  }
+  const outcome = outcomeRaw as {
+    attempts: number;
+    status: string;
+    lockout_until: string | null;
+  } | null;
+  if (!outcome) {
+    // Lost the race or row already terminal/expired.
+    return problemResponse(problem("otp_already_used", "Challenge already terminal"), reqUrl);
+  }
+  if (outcome.status === "locked") {
     logJson("warn", "reauth.locked", {
       collector_id: collectorId,
       intended_op: row.intended_op,
       challenge_id: row.id,
     });
-    const retryAfterSeconds = OTP_LOCKOUT_MINUTES * 60;
+    const retryAfterSeconds = outcome.lockout_until
+      ? Math.max(1, Math.ceil((new Date(outcome.lockout_until).getTime() - now.getTime()) / 1000))
+      : OTP_LOCKOUT_MINUTES * 60;
     return problemResponse(
       problem("otp_locked", `Too many failed attempts.`, {
         retry_after_seconds: retryAfterSeconds,
@@ -477,17 +576,7 @@ async function handleVerify(
     );
   }
 
-  const { error: failErr } = await service
-    .from("reauth_challenges")
-    .update({ attempts: nextAttempts, status: "failed" })
-    .eq("id", row.id);
-  if (failErr) {
-    return problemResponse(
-      problem("internal_unexpected", `attempts update failed: ${failErr.message}`),
-      reqUrl,
-    );
-  }
-  const attemptsRemaining = OTP_MAX_ATTEMPTS - nextAttempts;
+  const attemptsRemaining = OTP_MAX_ATTEMPTS - outcome.attempts;
   logJson("warn", "reauth.failed", {
     collector_id: collectorId,
     intended_op: row.intended_op,
@@ -537,16 +626,16 @@ export async function handler(req: Request): Promise<Response> {
     );
   }
 
-  // Auth.
-  const anon = buildAnonClient();
-  const service = buildServiceClient();
-  const auth = await assertAuthenticated(req, anon, service);
+  // CODE REVIEW L5: clients are constructed once per warm Edge Function
+  // instance and reused across requests (see module-scope vars below).
+  const auth = await assertAuthenticated(req, getAnonClientLazy(), getServiceClientLazy());
   if ("problem" in auth) {
     logJson("warn", "reauth.unauthenticated", {});
     return problemResponse(auth.problem, reqUrl);
   }
 
   try {
+    const service = getServiceClientLazy();
     if (parsed.action === "issue") {
       return await handleIssue(parsed, auth.collectorId, reqUrl, service);
     } else {

@@ -561,6 +561,34 @@ export type Database = {
     Functions: {
       canonical_jsonb: { Args: { j: Json }; Returns: string };
       get_reauth_otp_hmac_key: { Args: never; Returns: string };
+      reauth_consume_confirmation: {
+        Args: {
+          p_collector_id: string;
+          p_intended_op: Database["public"]["Enums"]["reauth_intended_op_enum"];
+          p_token: string;
+        };
+        Returns: boolean;
+      };
+      reauth_mark_verified: {
+        Args: { p_challenge_id: string; p_collector_id: string };
+        Returns: Database["public"]["CompositeTypes"]["reauth_mark_verified_result"];
+        SetofOptions: {
+          from: "*";
+          to: "reauth_mark_verified_result";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
+      reauth_record_failed_verify: {
+        Args: { p_challenge_id: string; p_collector_id: string };
+        Returns: Database["public"]["CompositeTypes"]["reauth_verify_outcome"];
+        SetofOptions: {
+          from: "*";
+          to: "reauth_verify_outcome";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
+      };
       show_limit: { Args: never; Returns: number };
       show_trgm: { Args: { "": string }; Returns: string[] };
       vault_decrypt: { Args: { secret_id: string }; Returns: string };
@@ -579,7 +607,15 @@ export type Database = {
       users_role_enum: "collector" | "super_admin";
     };
     CompositeTypes: {
-      [_ in never]: never;
+      reauth_mark_verified_result: {
+        confirmation_token: string | null;
+        confirmation_expires_at: string | null;
+      };
+      reauth_verify_outcome: {
+        attempts: number | null;
+        status: Database["public"]["Enums"]["reauth_challenge_status_enum"] | null;
+        lockout_until: string | null;
+      };
     };
   };
 };
