@@ -23,7 +23,11 @@ export SUPABASE_TEST_ANON_KEY="$SUPABASE_ANON_KEY"
 export SUPABASE_TEST_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY"
 export TERMII_API_KEY="${TERMII_API_KEY:-mock-key-not-used-in-tests}"
 
-deno test --allow-net --allow-env --allow-read --no-check \
+# --node-modules-dir=auto lets Deno resolve the npm deps pinned in deno.lock
+# (e.g. @supabase/realtime-js@2.103.3, a transitive of jsr:@supabase/supabase-js)
+# even when `npm ci` has populated node_modules/ with different versions via
+# the package-lock.json resolution.
+deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=auto \
   supabase/functions/re-auth/index.test.ts \
   supabase/functions/auth-sms-hook/index.test.ts \
   supabase/functions/_shared/check-collector-registered.contract.test.ts \
