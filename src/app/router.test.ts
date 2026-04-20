@@ -2,9 +2,16 @@
 // expected top-level public routes. If someone accidentally removes /login
 // or /non-registered, this test fails loudly.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { router } from "@/app/router";
+// The router module transitively imports the Supabase client, which validates
+// VITE_SUPABASE_* env at module-init time. CI does not ship a .env.local, so
+// we stub the client — this test only exercises the router's route table.
+vi.mock("@/infrastructure/supabase/client", () => ({
+  supabase: {},
+}));
+
+const { router } = await import("@/app/router");
 
 describe("router", () => {
   it("exposes the /login and /non-registered public routes", () => {
