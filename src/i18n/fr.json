@@ -1,4 +1,7 @@
 {
+  "_notes": {
+    "errors.rate_limited": "TODO Story 7.4/2.6/9.3 — wire {seconds} from the 429 RFC 7807 body's retry_after_seconds field on the consumer side."
+  },
   "errors": {
     "rate_limited": "Limite atteinte — patientez {seconds} s avant de réessayer."
   },

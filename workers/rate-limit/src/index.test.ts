@@ -72,9 +72,16 @@ function buildJwt(payload: Record<string, unknown>): string {
   return `${header}.${body}.fake-signature`;
 }
 
-function buildRequest(opts: { method?: string; authJwt?: string | null; path?: string }): Request {
+function buildRequest(opts: {
+  method?: string;
+  authJwt?: string | null;
+  authBearer?: string | null;
+  path?: string;
+}): Request {
   const headers: HeadersInit = {};
-  if (opts.authJwt !== null && opts.authJwt !== undefined) {
+  if (opts.authBearer !== undefined && opts.authBearer !== null) {
+    headers["Authorization"] = `Bearer ${opts.authBearer}`;
+  } else if (opts.authJwt !== null && opts.authJwt !== undefined) {
     headers["Authorization"] = `Bearer ${opts.authJwt}`;
   }
   return new Request(
@@ -83,7 +90,7 @@ function buildRequest(opts: { method?: string; authJwt?: string | null; path?: s
       method: opts.method ?? "POST",
       headers,
       body:
-        opts.method === "GET" || opts.method === "HEAD"
+        opts.method === "GET" || opts.method === "HEAD" || opts.method === "OPTIONS"
           ? null
           : JSON.stringify({ action: "issue" }),
     },
@@ -92,10 +99,17 @@ function buildRequest(opts: { method?: string; authJwt?: string | null; path?: s
 
 const ctx = {} as ExecutionContext;
 
+// Realistic-shape service-role key (length matters for constant-time compare).
+const SERVICE_ROLE_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9." +
+  "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvY2FsIiwicm9sZSI6InNlcnZpY2Vfcm9sZSJ9." +
+  "the-real-static-service-role-signature-bytes";
+
 const baseEnv = (kv: KVNamespace, threshold = "100"): Env => ({
   RATE_LIMIT_KV: kv,
   SUPABASE_PROJECT_URL: "https://example.supabase.co",
   RATE_LIMIT_PER_MINUTE: threshold,
+  SUPABASE_SERVICE_ROLE_KEY: SERVICE_ROLE_KEY,
 });
 
 let fetchSpy: ReturnType<typeof vi.spyOn>;
@@ -127,17 +141,48 @@ describe("rate-limit worker", () => {
     expect((await kv.list()).keys).toHaveLength(0); // no counter key written
   });
 
-  it("(b) service-role JWT → bypasses rate-limit (proxied without count)", async () => {
+  it("(b) legitimate service-role bearer (env match) → bypasses rate-limit", async () => {
     const kv = makeKv();
-    const jwt = buildJwt({ sub: "service-internal", role: "service_role" });
-    // Fire 200 requests; all should proxy, none should be 429.
+    // Fire 200 requests with the real service-role key; all proxy, no count.
     const responses = await Promise.all(
       Array.from({ length: 200 }, () =>
-        handler.fetch(buildRequest({ authJwt: jwt }), baseEnv(kv), ctx),
+        handler.fetch(buildRequest({ authBearer: SERVICE_ROLE_KEY }), baseEnv(kv), ctx),
       ),
     );
     for (const r of responses) expect(r.status).toBe(200);
     expect((await kv.list()).keys).toHaveLength(0);
+  });
+
+  it("(b2) FORGED service-role JWT (role claim only, signature wrong) → counted as collector", async () => {
+    // CRITICAL regression guard for review finding F1.
+    // Anyone could craft a JWT with {role: "service_role"} in the payload —
+    // before the fix, the worker trusted the unverified role claim.
+    const kv = makeKv();
+    const forgedJwt = buildJwt({ sub: "attacker-A", role: "service_role" });
+    for (let i = 0; i < 100; i++) {
+      const res = await handler.fetch(buildRequest({ authBearer: forgedJwt }), baseEnv(kv), ctx);
+      expect(res.status, `request #${i + 1} should proxy`).toBe(200);
+    }
+    const r101 = await handler.fetch(buildRequest({ authBearer: forgedJwt }), baseEnv(kv), ctx);
+    expect(r101.status, "101st forged service-role request must be 429, not bypass").toBe(429);
+  });
+
+  it("(b3) service-role bearer with no SUPABASE_SERVICE_ROLE_KEY env → no bypass", async () => {
+    const kv = makeKv();
+    const env: Env = {
+      RATE_LIMIT_KV: kv,
+      SUPABASE_PROJECT_URL: "https://example.supabase.co",
+      RATE_LIMIT_PER_MINUTE: "100",
+      // SUPABASE_SERVICE_ROLE_KEY intentionally undefined.
+    };
+    // Legitimate-looking JWT body — handler must still rate-limit because
+    // the bypass check has no expected key to compare against.
+    const jwt = buildJwt({ sub: "collector-A", role: "authenticated" });
+    for (let i = 0; i < 100; i++) {
+      await handler.fetch(buildRequest({ authBearer: jwt }), env, ctx);
+    }
+    const r101 = await handler.fetch(buildRequest({ authBearer: jwt }), env, ctx);
+    expect(r101.status).toBe(429);
   });
 
   it("(c) collector JWT, first 100 calls → all proxy", async () => {
@@ -150,7 +195,7 @@ describe("rate-limit worker", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(100);
   });
 
-  it("(d) collector JWT, 101st call within same minute → 429 + Retry-After", async () => {
+  it("(d) collector JWT, 101st call within same minute → 429 + Retry-After + security headers", async () => {
     const kv = makeKv();
     const jwt = buildJwt({ sub: "collector-A", role: "authenticated" });
     for (let i = 0; i < 100; i++) {
@@ -160,9 +205,27 @@ describe("rate-limit worker", () => {
     expect(res101.status).toBe(429);
     expect(res101.headers.get("Content-Type")).toBe("application/problem+json");
     expect(res101.headers.get("Retry-After")).toMatch(/^\d+$/);
+    expect(res101.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res101.headers.get("Cache-Control")).toBe("no-store");
+    expect(res101.headers.get("Access-Control-Allow-Origin")).toBe("*");
     const body = (await res101.json()) as Record<string, unknown>;
     expect(body["type"]).toBe("https://safaricash.app/problems/ratelimit/exceeded");
     expect(typeof body["retry_after_seconds"]).toBe("number");
+    // instance MUST be pathname only (no query string — leak guard).
+    expect(body["instance"]).toBe("/functions/v1/re-auth");
+  });
+
+  it("(d2) 429 instance strips query string (token-leak guard)", async () => {
+    const kv = makeKv();
+    const jwt = buildJwt({ sub: "collector-A", role: "authenticated" });
+    const path = "/functions/v1/re-auth?token=secret-do-not-echo";
+    for (let i = 0; i < 100; i++) {
+      await handler.fetch(buildRequest({ authJwt: jwt, path }), baseEnv(kv), ctx);
+    }
+    const r = await handler.fetch(buildRequest({ authJwt: jwt, path }), baseEnv(kv), ctx);
+    const body = (await r.json()) as Record<string, unknown>;
+    expect(body["instance"]).toBe("/functions/v1/re-auth");
+    expect(JSON.stringify(body)).not.toContain("secret-do-not-echo");
   });
 
   it("(e) collector JWT, 101st call AFTER 60s rollover → proxies (new bucket)", async () => {
@@ -173,17 +236,39 @@ describe("rate-limit worker", () => {
 
       const kv = makeKv();
       const jwt = buildJwt({ sub: "collector-A", role: "authenticated" });
-      // Fill the 10:23 bucket.
       for (let i = 0; i < 100; i++) {
         await handler.fetch(buildRequest({ authJwt: jwt }), baseEnv(kv), ctx);
       }
       const blocked = await handler.fetch(buildRequest({ authJwt: jwt }), baseEnv(kv), ctx);
       expect(blocked.status).toBe(429);
 
-      // Advance to the next minute → bucket key changes → counter resets.
       vi.setSystemTime(new Date("2026-04-20T10:24:05.000Z"));
       const allowedAgain = await handler.fetch(buildRequest({ authJwt: jwt }), baseEnv(kv), ctx);
       expect(allowedAgain.status).toBe(200);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("(e2) bucket boundary attack — 100 requests in last second + 100 in first second of next bucket BOTH succeed (documented behavior)", async () => {
+    // This test EXISTS to lock in the documented MVP trade-off (story spec
+    // AC #4(b)). If we ever migrate to Durable Objects (strong consistency)
+    // the expected behavior changes — this test must then be updated.
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-04-20T10:23:59.500Z"));
+      const kv = makeKv();
+      const jwt = buildJwt({ sub: "collector-boundary", role: "authenticated" });
+
+      for (let i = 0; i < 100; i++) {
+        const r = await handler.fetch(buildRequest({ authJwt: jwt }), baseEnv(kv), ctx);
+        expect(r.status, `last-second req #${i + 1}`).toBe(200);
+      }
+      vi.setSystemTime(new Date("2026-04-20T10:24:00.500Z"));
+      for (let i = 0; i < 100; i++) {
+        const r = await handler.fetch(buildRequest({ authJwt: jwt }), baseEnv(kv), ctx);
+        expect(r.status, `first-second req #${i + 1}`).toBe(200);
+      }
     } finally {
       vi.useRealTimers();
     }
@@ -200,9 +285,28 @@ describe("rate-limit worker", () => {
     expect(r11.status).toBe(429);
   });
 
+  it("(f2) RATE_LIMIT_PER_MINUTE=0 → rate-limit DISABLED (operator kill-switch)", async () => {
+    const kv = makeKv();
+    const jwt = buildJwt({ sub: "collector-A", role: "authenticated" });
+    for (let i = 0; i < 250; i++) {
+      const res = await handler.fetch(buildRequest({ authJwt: jwt }), baseEnv(kv, "0"), ctx);
+      expect(res.status, `req #${i + 1}`).toBe(200);
+    }
+    expect((await kv.list()).keys).toHaveLength(0); // zero-threshold skips KV entirely
+  });
+
   it("(g) malformed JWT → treated as anonymous (proxy through)", async () => {
     const kv = makeKv();
     const res = await handler.fetch(buildRequest({ authJwt: "not.a.jwt" }), baseEnv(kv), ctx);
+    expect(res.status).toBe(200);
+    expect((await kv.list()).keys).toHaveLength(0);
+  });
+
+  it("(g2) oversized JWT payload (>8KB) → treated as anonymous (no OOM)", async () => {
+    const kv = makeKv();
+    // Payload of ~10KB should be rejected by decodeJwt size cap.
+    const big = "A".repeat(10_000);
+    const res = await handler.fetch(buildRequest({ authJwt: big }), baseEnv(kv), ctx);
     expect(res.status).toBe(200);
     expect((await kv.list()).keys).toHaveLength(0);
   });
@@ -213,9 +317,7 @@ describe("rate-limit worker", () => {
       const kv = makeFailingKv();
       const jwt = buildJwt({ sub: "collector-A", role: "authenticated" });
       const res = await handler.fetch(buildRequest({ authJwt: jwt }), baseEnv(kv), ctx);
-      // Failed-open = proxy succeeded with 200.
       expect(res.status).toBe(200);
-      // The error was logged.
       const calls = consoleSpy.mock.calls.flat().filter((arg) => typeof arg === "string");
       const middlewareErrorLogged = calls.some((s) =>
         (s as string).includes("ratelimit.middleware_error"),
@@ -224,6 +326,38 @@ describe("rate-limit worker", () => {
     } finally {
       consoleSpy.mockRestore();
     }
+  });
+
+  it("(i) OPTIONS preflight → 204 + CORS headers, no KV consult", async () => {
+    const kv = makeKv();
+    const res = await handler.fetch(
+      buildRequest({ method: "OPTIONS", authJwt: null }),
+      baseEnv(kv),
+      ctx,
+    );
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe("*");
+    expect(res.headers.get("Access-Control-Allow-Methods")).toContain("POST");
+    expect(res.headers.get("Access-Control-Allow-Headers")).toContain("authorization");
+    expect(fetchSpy).not.toHaveBeenCalled(); // never proxies
+    expect((await kv.list()).keys).toHaveLength(0);
+  });
+
+  it("(j) disallowed method (custom verb) → 405 + RFC 7807", async () => {
+    // Node's Request constructor blocks TRACE/CONNECT/TRACK at the platform
+    // level, so we mock a Request-shaped object directly to exercise the
+    // worker's allowlist (which is itself defense-in-depth — production CF
+    // runtime may also block these).
+    const kv = makeKv();
+    const fakeReq = {
+      method: "PURGE",
+      headers: new Headers(),
+      url: "https://safaricash-api.example.workers.dev/functions/v1/re-auth",
+      body: null,
+    } as unknown as Request;
+    const res = await handler.fetch(fakeReq, baseEnv(kv), ctx);
+    expect(res.status).toBe(405);
+    expect(res.headers.get("Content-Type")).toBe("application/problem+json");
   });
 
   it("logs ratelimit.exceeded with collector_id + count + threshold on 429", async () => {
@@ -243,6 +377,9 @@ describe("rate-limit worker", () => {
       expect(parsed["collector_id"]).toBe("collector-A");
       expect(parsed["count"]).toBe(101);
       expect(parsed["threshold"]).toBe(100);
+      // bucket_minute (not bucket_key) — collector_id no longer duplicated.
+      expect(typeof parsed["bucket_minute"]).toBe("string");
+      expect(parsed["bucket_minute"]).not.toContain("collector-A");
     } finally {
       consoleSpy.mockRestore();
     }

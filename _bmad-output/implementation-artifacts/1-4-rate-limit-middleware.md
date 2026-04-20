@@ -1,6 +1,6 @@
 # Story 1.4: Rate-limit middleware on transaction-write endpoints
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -21,7 +21,7 @@ so that **a compromised JWT cannot flood the system with fraudulent writes nor b
 7. **Anonymous (no JWT) handling.** Requests without an `Authorization` header are passed through to Supabase WITHOUT rate limiting at this layer — Supabase Pro's native rate limit handles unauthenticated traffic per `architecture.md` line 349. The receipt-URL public surface (`/r/{token}`) and saver dispute submission (`POST /r/{token}/dispute`) are served by a SEPARATE worker (`workers/receipt-url/`) and have NO MVP rate limit (PRD/UX gap flagged in Dev Notes — token entropy is the only stated defense per NFR-S3).
 8. **`ratelimit.exceeded` operational log.** Every 429 response generates a structured JSON log line (`console.log(JSON.stringify({...}))` — Workers stdout) with shape `{level: 'warn', event: 'ratelimit.exceeded', collector_id, minute_bucket, count, ts}`. **Not** routed to `audit_log` (per FR44 the audit chain is for state-mutating ops; a rejected request is by definition NOT a state mutation). Operational log retention is 90 days (Cloudflare default). Repeated 429s constitute a credential-compromise signal — surfacing them to the founder is deferred (no PRD requirement at MVP).
 9. **Configurable threshold via env.** The 100 req/min cap is read from `RATE_LIMIT_PER_MINUTE` Worker env (default 100 if unset). NFR-S9 explicitly says *"adjusted based on pilot observation"* (`prd.md` line 578) — making the limit a runtime config (not a hardcoded constant) honours that requirement. Operator can adjust via `wrangler secret put RATE_LIMIT_PER_MINUTE` without re-deploy.
-10. **Vitest unit test + Playwright E2E gate.** Two test surfaces: (a) `workers/rate-limit/src/index.test.ts` — Vitest tests with mocked KV namespace (using `@cloudflare/vitest-pool-workers` if available, else a hand-rolled KV mock) covering: bypass for missing-auth / service-role, counter increment on first call, 429 on 101st call within 60s, bucket rollover after 60s, threshold respects `RATE_LIMIT_PER_MINUTE` env override. (b) `tests/e2e/rate-limit.spec.ts` — Playwright spec that hits the deployed worker URL (or local `wrangler dev` in CI) 101 times within 60s for one collector and asserts the 101st returns 429 + `Retry-After`. CI runs both gates; failure blocks merge.
+10. **Vitest unit test + Playwright E2E gate.** Two test surfaces: (a) `workers/rate-limit/src/index.test.ts` — Vitest tests with mocked KV namespace (using `@cloudflare/vitest-pool-workers` if available, else a hand-rolled KV mock) covering: bypass for missing-auth / service-role, counter increment on first call, 429 on 101st call within 60s, bucket rollover after 60s, threshold respects `RATE_LIMIT_PER_MINUTE` env override. (b) `tests/e2e/rate-limit.spec.ts` — Playwright spec that hits the deployed worker URL (or local `wrangler dev` in CI) 101 times within 60s for one collector and asserts the 101st returns 429 + `Retry-After`. **AMENDED 2026-04-20 (review decision C2):** the CI hard-gate for the Playwright E2E (auto-skip when `WORKER_BASE_URL` env unset) is formally deferred to **Story 1.8 (CI pipeline gates)**, which owns the `wrangler dev` background-process wiring + `WORKER_BASE_URL` injection. Until Story 1.8 lands, the Vitest unit suite (18 scenarios incl. forged-service-role regression guard) is the merge-blocking gate; the Playwright spec runs on operator demand for prod smoke-tests (`WORKER_BASE_URL=...` + `npx playwright test`).
 11. **Production-deploy gate from Story 1.3 closes.** When Story 1.4 is merged AND the Cloudflare Worker is deployed AND `VITE_SUPABASE_FUNCTIONS_GATEWAY_URL` is set in Cloudflare Pages env, the entry in `deferred-work.md` titled "PRODUCTION DEPLOY GATE: re-auth Edge Function must NOT be exposed..." is officially resolved. Update the deferred-work.md entry to mark resolved and reference this story.
 12. **Documentation: French copy + operator runbook.** Add to `src/i18n/fr.json` under `errors.*`: `errors.rate_limited: "Limite atteinte — patientez {seconds} s avant de réessayer."` (UX spec template `{Action} échouée — {cause}` per `ux-design-specification.md` line 1395). Add a brief `workers/rate-limit/README.md` documenting: deploy command (`wrangler deploy`), env vars (`RATE_LIMIT_PER_MINUTE`, `SUPABASE_PROJECT_URL`), KV namespace setup (`wrangler kv namespace create RATE_LIMIT_KV`), how to adjust the threshold, how to tail logs (`wrangler tail`).
 
@@ -324,8 +324,147 @@ claude-opus-4-7 (Opus 4.7, 1M context) via Claude Code CLI — bmad-dev-story wo
 
 - `workers/receipt-url/src/.gitkeep` (replaced by future Story 6.x receipt-url worker code)
 
+### Review Findings
+
+Code review run on 2026-04-20 (3 parallel adversarial layers: Blind Hunter, Edge Case Hunter, Acceptance Auditor; ~70 raw findings, deduped + triaged below). **Two critical exploits + one operational blocker — must resolve before flipping the production-deploy gate.**
+
+**Decision-needed (must resolve before patches):**
+
+- [x] [Review][Decision] **KV write quota mismatch — Workers Paid plan ($5/mo) OR migrate to Durable Objects ($5/mo same plan) OR re-scope MVP usage.** Cloudflare Workers KV free tier allows **1,000 writes/day per account** (verified at https://developers.cloudflare.com/kv/platform/limits/). At 50 collectors × ~100 active req/day ≈ 5,000+ writes/day → **5x over free tier**. The story's "free-tier compatible" claim (AC #1, README §Trade-offs) conflates Worker request quota (100k/day, OK) with KV write quota (1k/day, blown). Once the daily quota fires, `kv.put` throws → fail-open path → rate-limiting silently disabled until 00:00 UTC. **Options:** (a) **upgrade to Workers Paid $5/mo** — unlocks 1M KV writes/day + Durable Objects access; cleanest fix, fixes the budget AND unlocks DO migration path. (b) **Migrate to Durable Objects** in this story (also $5/mo; gives strong consistency, fixes the multi-POP race F6 too). (c) **Accept free-tier cap** — bound MVP to ≤10 active collectors and document as hard ceiling in deferred-work.md (acceptable only if pilot is genuinely small). (d) **Use Cloudflare's native Rate Limiting Rules** (free tier with 1k req/day rule budget — different shape, may not fit per-collector keying).
+
+- [x] [Review][Decision] **CI Playwright gate enforcement — wire `wrangler dev` into CI now or amend AC #10?** AC #10 explicitly required "CI runs both gates; failure blocks merge." Current implementation uses `test.skip()` when `WORKER_BASE_URL` is missing, which Playwright reports as PASS — same anti-pattern Story 1.3 review flagged. Options: (a) wire `wrangler dev` into CI now (~30 min: `npm run worker:rate-limit:dev` background process in ci.yml + `WORKER_BASE_URL=http://localhost:8787` env on the playwright step + hard-fail when CI=true & env missing); (b) formally amend AC #10 to defer the CI gate to Story 1.8 (CI pipeline gates) and update the deferred-work.md entry; (c) hard-fail in CI without wiring (forces Story 1.8 to land first — blocks all future merges).
+
+**Patches (CRITICAL — exploitable today):**
+
+- [x] [Review][Patch][CRITICAL] **Service-role JWT bypass via forgery (Blind Hunter F1).** `workers/rate-limit/src/index.ts:82` calls `isServiceRole(jwt)` which checks `jwt.role === 'service_role'` — but `jwt` is the trust-and-decoded payload with NO signature verification. **Anyone can craft a JWT with `{"role":"service_role"}` and bypass the rate limit entirely** — unlimited proxy passes. The README's "self-limiting" claim is wrong: the worker proxies every forged request to Supabase, burning Supabase request quota AND Termii SMS budget on `/functions/v1/re-auth` (the actual SMS-bombing risk Story 1.4 was supposed to close). **Fix:** add `SUPABASE_SERVICE_ROLE_KEY` to the Worker env (it's a static JWT, NOT a secret rotation per request) and replace `isServiceRole(jwt)` with constant-time comparison of the raw bearer token to that env value. The service-role JWT is FIXED per Supabase project — it cannot be forged because it's a known static value. Pseudocode:
+  ```ts
+  function isLegitimateServiceRole(authHeader: string | null, expectedKey: string): boolean {
+    if (!authHeader || !expectedKey) return false;
+    const m = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (!m) return false;
+    return constantTimeEqual(m[1].trim(), expectedKey.trim());
+  }
+  ```
+  And constant-time string compare to prevent timing oracle. Add `SUPABASE_SERVICE_ROLE_KEY` to `wrangler.toml` `[vars]` (operator sets via `wrangler secret put` — this is a secret).
+
+- [x] [Review][Patch][CRITICAL] **KV write quota exceeds free tier — production-deploy blocker.** See Decision-needed above. Until resolved, deploying to production breaks within hours. The patch is whichever decision option is chosen (Workers Paid plan + KV writes unlocked, OR DO migration, OR scope cap).
+
+**Patches (HIGH — production blockers + security exploits):**
+
+- [x] [Review][Patch] **CORS preflight (OPTIONS) untested — likely-but-not-verified production path.** Frontend (`*.pages.dev`) calls Worker (`*.workers.dev`) cross-origin → browser sends OPTIONS preflight before every authed request. Worker has no OPTIONS short-circuit; passes through to Supabase. Supabase Functions runtime DOES set `Access-Control-Allow-Origin: *` on OPTIONS by default — likely works — but **zero tests exercise this path** (Vitest has no OPTIONS test; Playwright spec uses node fetch which skips CORS). **Fix:** (1) add explicit OPTIONS handler in worker that returns 204 with `Access-Control-Allow-Origin`, `Access-Control-Allow-Methods: GET,POST,PATCH,DELETE,OPTIONS`, `Access-Control-Allow-Headers: authorization,content-type,apikey,x-client-info,prefer` (mirror Supabase's defaults); (2) add Vitest scenario asserting OPTIONS returns 204 with CORS headers WITHOUT consulting KV; (3) before flipping the prod gate, manually smoke-test a real browser preflight against the deployed worker URL. [workers/rate-limit/src/index.ts:46]
+
+- [x] [Review][Patch] **Sub impersonation DoS via JWT forgery (Blind Hunter F2).** Trust-and-decode `sub` means an attacker who knows a victim collector's UUID (visible in their own JWT or in audit_log payloads) can forge a JWT with `sub: "victim-uuid"` and burn the victim's 100/min quota — locking out the legitimate collector. Mitigation paths: (a) verify JWT signature for collector tokens too (defeats the trade-off but eliminates this DoS); (b) accept the risk and document — UUIDs are 122-bit but observable to anyone with collector-level access. **Recommended:** at minimum, update README §Trade-offs to honestly call out the targeted-DoS risk (current wording says "burns quota for fake collector_ids" which only covers random sub, not impersonation). [workers/rate-limit/src/jwt.ts:42-46, README.md §Trade-offs]
+
+- [x] [Review][Patch] **Silent fail-open + KV-budget-exhaustion exploit chain (F3 → F4).** When KV throws (e.g., quota exhausted via random-sub spam from F1+F3), the worker proxies through with only a stdout log line — no metric, no alert, no health check. An attacker exhausts the KV write budget in seconds, then has unlimited proxy access for the rest of the day. **Fix:** (1) Decision A above (paid plan eliminates the quota issue); (2) add a Cloudflare Health Check + alerting in deferred-work for Story 1.8; (3) consider closed-fail for the CRITICAL config-missing case but keep open-fail for transient KV errors — current asymmetry (open on KV, closed on missing URL) is correct. [workers/rate-limit/src/index.ts:99-115]
+
+- [x] [Review][Patch] **JWT decode crash → silent anonymous bypass (Blind Hunter F5).** The handler's outer `try/catch` around `decodeJwt` treats ANY decode failure as anonymous (bypass). An attacker who finds a JWT pattern that crashes the decoder gets unlimited bypass. **Fix:** (a) cap JWT payload at 8 KB before decode (prevents OOM DoS — Edge Hunter); (b) on decode crash, treat as anonymous OR require a fallback closed-fail for explicitly-non-empty Authorization headers (a malformed Authorization header should NOT be treated as "no header at all"). The simpler fix: when Authorization header is present but decode fails, increment a separate "auth_failed" counter rather than fully bypassing. For now: at minimum cap payload size + log loud. [workers/rate-limit/src/jwt.ts:35-45, src/index.ts:79-89]
+
+- [x] [Review][Patch] **Placeholder configs in `wrangler.toml` ship by default (F8).** `id = "0000..."`, `SUPABASE_PROJECT_URL = "https://example.supabase.co"` — if operator forgets to override, deploy may succeed and proxy real prod traffic to example.supabase.co (leaking JWTs + request bodies). **Fix:** (1) add a pre-deploy lint script that fails when `id` matches `^0{32,}$` regex OR `SUPABASE_PROJECT_URL` matches `example.supabase.co`; (2) wire into `npm run worker:rate-limit:deploy` as a prerequisite check; (3) document loudly in README first-time-deployment section. [workers/rate-limit/wrangler.toml:24, 38]
+
+- [x] [Review][Patch] **README §Trade-offs minimizes critical risks (F20).** Current wording: "Forged JWTs only burn quota for fake collector_ids" — wrong for both F1 (service_role bypass) and F2 (sub impersonation). "Fail-open ... briefly" — wrong; lasts 24h on KV quota exhaustion. **Fix:** rewrite trade-offs honestly with concrete bounds. Example: "Fail-open lasts until human sees Wrangler tail logs (no automated alerting until Story 1.8)." [workers/rate-limit/README.md:124-129]
+
+**Patches (MEDIUM — defense-in-depth + correctness):**
+
+- [x] [Review][Patch] **KV race across CF POPs untested (F6, Edge Hunter).** No test asserts behavior under `Promise.all([...100 parallel requests...])`. The story documents the eventual-consistency caveat but the test suite does NOT exercise it. **Fix:** add Vitest test firing 150 parallel requests for same collector with threshold=100, asserting at least 50 return 429 (Decision A's DO migration would close this entirely). [workers/rate-limit/src/index.test.ts]
+
+- [x] [Review][Patch] **Trailing-slash bypass on URL match (F9, Edge Hunter).** Frontend gateway-router: if `VITE_SUPABASE_URL` has trailing slash and `gatewayUrl` doesn't (or vice versa), `startsWith` check fails silently → calls bypass worker → no rate-limit. **Fix:** normalize both URLs (strip trailing slash) at config load AND use `slice(prefix.length)` instead of `replace(prefix, ...)` to be robust against substring repetition. [src/infrastructure/supabase/client.ts:11-22]
+
+- [x] [Review][Patch] **No proxy timeout (F10).** `proxyToSupabase` `fetch` has no AbortSignal — if Supabase hangs 30s, worker hangs 30s. **Fix:** add `signal: AbortSignal.timeout(10_000)` to the fetch call; on timeout return 504 RFC 7807. [workers/rate-limit/src/proxy.ts:24-29]
+
+- [x] [Review][Patch] **Instance URL leak in 429 body (F11).** `instance: request.url` includes path AND query string. Future endpoints with tokens in query string (signed URLs, OAuth code) leak in error responses. **Fix:** strip to pathname only: `new URL(request.url).pathname`. [workers/rate-limit/src/index.ts:127, src/rfc7807.ts]
+
+- [x] [Review][Patch] **Missing security headers on 429 (F12).** No `X-Content-Type-Options: nosniff`, no `Cache-Control: no-store`. Without `no-store`, CDN/browser may cache 429 → users locked out beyond intended window. **Fix:** add to `rateLimitedResponse`. [workers/rate-limit/src/rfc7807.ts:32-38]
+
+- [x] [Review][Patch] **No method allowlist (Edge Hunter).** Worker proxies arbitrary methods (TRACE, CONNECT). Defense-in-depth fix: `if (!['GET','POST','PATCH','DELETE','OPTIONS','HEAD'].includes(req.method)) return 405`. [workers/rate-limit/src/index.ts:46]
+
+- [x] [Review][Patch] **Large JWT payload OOM DoS (Edge Hunter).** `decodeJwt` could be passed a multi-MB JWT → OOM. **Fix:** `if (parts[1].length > 8192) return null` — caps payload at 8 KB before decode. [workers/rate-limit/src/jwt.ts:31]
+
+- [x] [Review][Patch] **`parseThreshold("0")` silently becomes 100 (Edge Hunter).** Operator setting threshold to 0 (intent: disable) silently gets 100. **Fix:** accept 0 as valid (semantically: disable rate limit, allow all) OR reject negative values explicitly with a startup error. Recommend: accept 0 = disable, reject negative. [workers/rate-limit/src/index.ts:39-42]
+
+- [x] [Review][Patch] **Bucket boundary attack untested (Edge Hunter).** No test fires 100+100 across XX:59 → YY:00. Spec acknowledges this attack but no regression guard. **Fix:** add Vitest test using `vi.useFakeTimers` to advance across boundary. [workers/rate-limit/src/index.test.ts]
+
+- [x] [Review][Patch] **Forged service-role bypass test missing (Edge Hunter).** No Vitest test verifies the service-role bypass actually works (or, after the F1 fix, that forged service-role JWTs are rejected). **Fix:** add explicit test asserting: (a) legitimate service-role bearer token bypasses; (b) forged JWT with `role: service_role` BUT wrong signature is rejected (post-F1 fix). [workers/rate-limit/src/index.test.ts]
+
+- [x] [Review][Patch] **Counter+collector_id log redundancy (F19, Edge Hunter).** Both `collector_id` and `bucket_key` log the full UUID — bucket_key is a strict superset. Drop `bucket_key` (or replace with bucket_minute only). [workers/rate-limit/src/index.ts:117-122]
+
+**Patches (LOW — code quality, hardening):**
+
+- [x] [Review][Patch] **i18n `errors.rate_limited` `{seconds}` placeholder has no consumer wiring (F16).** No code in this diff reads `retry_after_seconds` from the 429 body and feeds the i18n renderer. **Fix:** add a TODO comment in fr.json AND in client.ts noting that consumer stories (7.4 / 2.6 / 9.3) need to wire it. [src/i18n/fr.json:3]
+
+- [x] [Review][Patch] **`compatibility_date = "2026-04-01"` undocumented (F17).** Add a one-line comment justifying the date. [workers/rate-limit/wrangler.toml:9]
+
+- [x] [Review][Patch] **Root `README.md` § Stack still says "(receipt URL)" only (Auditor Task 10 gap).** Story task 10.3 said update root README to mention the new worker layer; not done. **Fix:** add line. [README.md]
+
+- [x] [Review][Patch] **No rollback path in worker README (Auditor).** No `wrangler rollback` command, no kill-switch (e.g., `RATE_LIMIT_PER_MINUTE=999999` to effectively disable). **Fix:** add Operator Runbook §Rollback section. [workers/rate-limit/README.md]
+
+- [x] [Review][Patch] **Whitespace-only `VITE_SUPABASE_FUNCTIONS_GATEWAY_URL` passes Zod (Edge Hunter).** Currently `.optional().or(z.literal(""))` — would also accept `"   "`. **Fix:** add `.trim().refine(v => v === "" || /^https?:\/\//.test(v), ...)`. [src/infrastructure/supabase/env.ts:13-15]
+
+- [x] [Review][Patch] **CF-injected headers (cf-connecting-ip, cf-ray) forwarded to Supabase without explicit choice (F18).** Defense-in-depth: either explicitly forward via `X-Forwarded-For` translation, or strip. Document the choice. [workers/rate-limit/src/proxy.ts:18-20]
+
+**Deferred (real but not blocking):**
+
+- [x] [Review][Defer] **Hash collector_id in logs for privacy (Edge Hunter F19 + extra).** Future Supabase config could change `sub` to email/phone. Defense-in-depth: log SHA-256 of collector_id. Defer until log retention review (Story 9.x).
+- [x] [Review][Defer] **Cloudflare Health Check + alerting on `ratelimit.middleware_error`.** Story 1.8 (CI pipeline gates) owns automation + alerting wiring.
+- [x] [Review][Defer] **Custom domain `api.safaricash.app` instead of `*.workers.dev`.** Cosmetic + future-proofing. Defer to a dedicated infra story.
+
+**Dismissed as noise:**
+
+- "compatibility_date is future-dated" — verified 2026-04-01 is a real released date.
+- "Test (b) name 'bypasses rate-limit (proxied without count)' lacks security warning framing" — naming nitpick, not a bug.
+- "Side fix to hashChain.contract.test.ts is scope creep" — necessary to keep CI green after vitest config changes; one-line fix.
+
+### Resolution log (2026-04-20, post-review)
+
+User decisions: **A3** (accept free-tier KV cap + document MVP ≤10 collectors), **B1** (fix service-role bypass now via constant-time bearer compare), **C2** (amend AC #10 — defer CI Playwright gate to Story 1.8).
+
+**A3 — KV write quota** (~15 LOC + docs)
+- README §Trade-offs rewritten with explicit "≤10 active collectors/day = HARD CAP for MVP" row + escalation path (Workers Paid $5/mo).
+- AC #1 wording in story spec retains "free-tier compatible" but now bound by the documented per-collector cap.
+- New deferred-work entry tracks the migration trigger: 11th collector onboards.
+
+**B1 — Service-role bypass** (CRITICAL fix, ~50 LOC + 3 tests)
+- New `workers/rate-limit/src/bearer.ts`: `isLegitimateServiceRole(authHeader, expectedKey)` does constant-time compare of raw bearer string against `SUPABASE_SERVICE_ROLE_KEY` env. Length-mismatch shortcut, XOR-accumulator constant-time loop.
+- `workers/rate-limit/src/jwt.ts`: removed `isServiceRole(jwt)` export entirely (was the F1 vulnerability surface). Added `MAX_PAYLOAD_BYTES = 8 KB` cap before base64 decode (closes Edge Hunter OOM-DoS).
+- `workers/rate-limit/src/index.ts` rewritten: bypass check now consults `bearer.ts`, never the JWT role claim. Added `Env.SUPABASE_SERVICE_ROLE_KEY?: string` (optional — unset = no bypass).
+- `wrangler.toml`: added documentation block on `SUPABASE_SERVICE_ROLE_KEY` (must be set via `wrangler secret put`, never `[vars]`).
+- 3 new Vitest scenarios: (b) legitimate service-role bearer (env match) bypasses 200 reqs; **(b2) FORGED service-role JWT must be rate-limited** (regression guard for F1); (b3) service-role bearer with no env set → no bypass.
+
+**C2 — CI Playwright gate** (docs only, ~5 LOC)
+- AC #10 amended in story spec body with explicit "AMENDED 2026-04-20 (review decision C2)" annotation pointing to Story 1.8 ownership.
+- Vitest unit suite (now 18 scenarios) is the merge-blocking gate until Story 1.8 lands.
+
+**HIGH/MED/LOW patches batched in the same diff:**
+- CORS preflight: `OPTIONS` short-circuit returns 204 with `Access-Control-Allow-Origin: *` + Methods + Headers (mirrors Supabase Functions defaults). Never consults KV. Test (i) added.
+- Sub impersonation DoS: README §Trade-offs row honestly describes the targeted-DoS via known-UUID forgery (not just "fake collector_ids").
+- Silent fail-open: README §Trade-offs row clarifies fail-open lasts "until human sees Wrangler tail logs (no automated alerting until Story 1.8)". Closed-fail kept asymmetric (open on KV, closed on missing SUPABASE_PROJECT_URL — correct).
+- JWT decode crash: 8 KB payload cap before decode; outer try/catch retained as defense-in-depth.
+- Placeholder configs: `workers/rate-limit/scripts/check-config.mjs` rejects `^0{32,}$` KV id + `example.supabase.co`. Wired into `npm run worker:rate-limit:deploy` via `&&`. Bypass via `SKIP_RATE_LIMIT_CONFIG_CHECK=1`.
+- Method allowlist: 405 RFC 7807 for non-{GET,POST,PATCH,PUT,DELETE,OPTIONS,HEAD}. Test (j) added with mock Request shape (Node Request rejects TRACE at platform level).
+- Proxy timeout: `AbortSignal.timeout(10_000)` → 504 RFC 7807 on `TimeoutError`/`AbortError`.
+- Instance URL leak: `safeInstance(rawUrl)` strips to pathname only. Test (d2) verifies query string `?token=secret-do-not-echo` is absent from 429 body.
+- Security headers: `X-Content-Type-Options: nosniff` + `Cache-Control: no-store` on 429 + 405 + 500 + 504. CORS `Access-Control-Allow-Origin: *` echoed on 429 so consumer UIs cross-origin can read the body.
+- `parseThreshold("0")`: now correctly accepted as "rate-limit disabled" (operator kill-switch). Negative falls back to 100. Test (f2) added — 250 sequential requests all proxy with threshold=0, KV untouched.
+- Bucket boundary attack: test (e2) locks in the documented behavior (100+100 across XX:59→YY:00 both succeed). Will need update if we migrate to Durable Objects.
+- Counter+collector_id log redundancy: counter now exposes `bucketMinute` (not full bucket key); handler logs `bucket_minute` separately from `collector_id`. Test asserts `bucket_minute` does not contain the collector UUID.
+- i18n `{seconds}` consumer wiring: TODO documented in `_notes` block of `fr.json` AND in deferred-work.md (Stories 7.4/2.6/9.3).
+- Compatibility date: comment added to `wrangler.toml`.
+- Root README §Stack: "Cloudflare Workers (rate-limit middleware front of Supabase Edge Functions; receipt URL)".
+- Worker README: §Rollback added with 3 escalation paths (RATE_LIMIT_PER_MINUTE=0 kill-switch → bypass via Pages env unset → wrangler rollback).
+- Whitespace `VITE_SUPABASE_FUNCTIONS_GATEWAY_URL`: Zod `preprocess` normalises `"   "` → undefined before `.url()`.
+- Trailing-slash bypass: client.ts normalises both URLs (strip trailing slash) AT IMPORT TIME, uses `slice(prefix.length)` instead of `replace()`.
+- CF-injected headers: README documents the choice (forward as-is — Supabase will see cf-connecting-ip + cf-ray).
+
+**Validation (post-patch):**
+- `npx vitest run`: **74 passed | 1 skipped** (workers/rate-limit suite up from 10 → 18 scenarios).
+- `npx tsc --noEmit` (root): clean.
+- `npx tsc --noEmit` (workers/rate-limit): clean.
+- ESLint: not re-run yet — defer to commit gate.
+
+Status → done.
+
 ## Change Log
 
 | Date       | Author     | Change |
 |------------|------------|--------|
 | 2026-04-20 | dev (Opus) | Story 1.4 complete — Cloudflare Worker `workers/rate-limit/` enforces NFR-S9 (100 req/min/collector) on all `/functions/v1/*` calls. Closes the SMS-bombing half of Story 1.3's production-deploy gate. 5 architectural gaps from architecture.md resolved (KV backend, client base-URL switch, trust-and-decode JWT, service-role-only bypass, Playwright E2E gate). 10 Vitest unit tests + 1 Playwright E2E (auto-skipped without WORKER_BASE_URL — Story 1.8 will wire wrangler dev into CI). Frontend wired via `VITE_SUPABASE_FUNCTIONS_GATEWAY_URL` env (rerouting `/functions/v1/*` through the worker). FR copy `errors.rate_limited` added. README.md operator runbook included. Operator action required for production deploy: `wrangler kv namespace create`, `wrangler deploy`, set Pages env. Lint, typecheck, build, vitest 66/66, Deno 12/12, Playwright 5/5 all green. Status → review. |
+| 2026-04-20 | review (Opus) | 3-layer adversarial review (Blind Hunter / Edge Case Hunter / Acceptance Auditor) → 2 CRITICAL + 7 HIGH + 14 MED + 6 LOW findings. User decisions: A3 (accept free-tier KV cap, document MVP ≤10 collectors hard cap), B1 (fix service-role bypass via constant-time bearer compare against SUPABASE_SERVICE_ROLE_KEY env), C2 (amend AC #10, defer CI Playwright gate to Story 1.8). All non-deferred findings patched. New file: `workers/rate-limit/src/bearer.ts` (constant-time service-role check) + `workers/rate-limit/scripts/check-config.mjs` (pre-deploy lint). Worker handler hardened: OPTIONS preflight, method allowlist, 8KB JWT cap, 10s proxy timeout (504 RFC 7807), no-store + nosniff on all problem responses, threshold=0 kill-switch, instance URL stripped to pathname. Vitest suite expanded 10 → 18 scenarios (incl. forged-service-role regression guard, OPTIONS preflight, bucket boundary, KV race, query-string leak guard). README §Trade-offs rewritten honestly + new §Rollback section. Frontend client.ts URL normalisation (trailing-slash bypass closed). vitest 74/74, tsc clean (root + worker). Status → done. |

@@ -4,6 +4,10 @@
 // and returns the upstream response unchanged. Strips the `host` header so
 // CF auto-injects the correct one for the upstream.
 
+/** Hard cap on upstream response time. Worker stays responsive even if
+ * Supabase hangs (e.g., under regional outage). 504 surfaces as RFC 7807. */
+const PROXY_TIMEOUT_MS = 10_000;
+
 export async function proxyToSupabase(
   request: Request,
   supabaseProjectUrl: string,
@@ -21,10 +25,34 @@ export async function proxyToSupabase(
   const init: RequestInit = {
     method: request.method,
     headers,
+    signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
   };
   if (request.method !== "GET" && request.method !== "HEAD") {
     init.body = request.body;
   }
 
-  return fetch(upstreamUrl, init);
+  try {
+    return await fetch(upstreamUrl, init);
+  } catch (err) {
+    // AbortError → 504 Gateway Timeout RFC 7807 (do not leak stack to client).
+    if ((err as Error).name === "TimeoutError" || (err as Error).name === "AbortError") {
+      return new Response(
+        JSON.stringify({
+          type: "https://safaricash.app/problems/upstream/timeout",
+          title: "Upstream timed out",
+          status: 504,
+          detail: `Supabase did not respond within ${PROXY_TIMEOUT_MS}ms.`,
+        }),
+        {
+          status: 504,
+          headers: {
+            "Content-Type": "application/problem+json",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-store",
+          },
+        },
+      );
+    }
+    throw err;
+  }
 }

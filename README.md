@@ -36,7 +36,7 @@ npm run dev        # vite dev server on http://localhost:5173
 - **Animation:** framer-motion (purposeful only)
 - **Routing:** react-router-dom v7
 - **Backend (Story 1.2+):** Supabase (Postgres + Auth + Edge Functions + Vault)
-- **Hosting:** Cloudflare Pages (frontend) + Cloudflare Workers (receipt URL)
+- **Hosting:** Cloudflare Pages (frontend) + Cloudflare Workers (rate-limit middleware front of Supabase Edge Functions; receipt URL)
 - **Testing:** Vitest + Testing Library + Playwright + axe-core
 
 ## Documentation

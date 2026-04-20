@@ -7,6 +7,8 @@
 
 name = "safaricash-rate-limit"
 main = "src/index.ts"
+# Pinned to a Cloudflare-released compatibility date. Bump only after
+# checking the Cloudflare runtime changelog (https://developers.cloudflare.com/workers/configuration/compatibility-dates/).
 compatibility_date = "2026-04-01"
 # nodejs_compat is NOT required — the worker only uses Web standard APIs
 # (fetch, Request/Response, atob, crypto.subtle). Keeps cold start minimal.
@@ -21,6 +23,9 @@ binding = "RATE_LIMIT_KV"
 #   wrangler kv namespace create RATE_LIMIT_KV
 # `wrangler dev` uses a separate `preview_id` (Miniflare local) so `wrangler dev`
 # works out of the box without a real Cloudflare account.
+# A pre-deploy lint script (workers/rate-limit/scripts/check-config.mjs)
+# rejects this placeholder shape (^0{32,}$) — see npm script
+# `worker:rate-limit:deploy`.
 id = "0000000000000000000000000000000000000000000000000000000000000000"
 preview_id = "1111111111111111111111111111111111111111111111111111111111111111"
 
@@ -29,12 +34,25 @@ preview_id = "1111111111111111111111111111111111111111111111111111111111111111"
 # Default rate-limit ceiling. NFR-S9 says "adjust based on pilot observation"
 # so this is a runtime config, not a hardcoded constant. Override:
 #   wrangler secret put RATE_LIMIT_PER_MINUTE
+# Special value "0" = rate limit DISABLED (operator opt-out for incident
+# response — kill-switch, see workers/rate-limit/README.md §Rollback).
 RATE_LIMIT_PER_MINUTE = "100"
 
 # Target Supabase project URL — the worker proxies all incoming requests
 # here. Operator MUST override per-environment (dev/staging/prod):
 #   wrangler secret put SUPABASE_PROJECT_URL
+# The pre-deploy lint script rejects "example.supabase.co" placeholder.
 SUPABASE_PROJECT_URL = "https://example.supabase.co"
+
+# SUPABASE_SERVICE_ROLE_KEY: the static project-scoped service-role JWT.
+# Compared in constant time against incoming Authorization bearer tokens to
+# bypass the rate-limit for backend-to-backend callers (sms-worker,
+# dispute-notify, manual operator scripts). NEVER store in [vars] (plain
+# config); set as a SECRET only:
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# If unset, no caller bypasses the rate limit (every collector_id counts).
+# Story 6.2 (sms-worker) is the first MVP code path that NEEDS this set in
+# prod — until then leaving it unset is fine.
 
 # Smaller observability + reliability footprint:
 [observability]

@@ -10,11 +10,13 @@ const envSchema = z.object({
   // to VITE_SUPABASE_URL after enforcing 100 req/min/collector).
   // When unset (dev convenience), calls go direct to Supabase — NO rate
   // limit enforced. Production MUST set this in Cloudflare Pages env.
-  VITE_SUPABASE_FUNCTIONS_GATEWAY_URL: z
-    .string()
-    .url("VITE_SUPABASE_FUNCTIONS_GATEWAY_URL must be a valid URL")
-    .optional()
-    .or(z.literal("")),
+  // Whitespace-only values are normalised to undefined to avoid silent
+  // bypass (a stray space in the dashboard config would otherwise pass
+  // .url() never — Zod sees "   " as a non-empty string).
+  VITE_SUPABASE_FUNCTIONS_GATEWAY_URL: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().trim().url("VITE_SUPABASE_FUNCTIONS_GATEWAY_URL must be a valid URL").optional(),
+  ),
 });
 
 export class SupabaseEnvError extends Error {

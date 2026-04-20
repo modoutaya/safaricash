@@ -23,6 +23,10 @@ export type ProblemBody = {
  * `retryAfterSeconds` populates BOTH the header (for HTTP clients) AND the
  * `retry_after_seconds` extension field (for SafariCash consumer UIs that
  * want to render a localised countdown).
+ *
+ * `instance` MUST be a pathname (no query string) — caller is responsible
+ * for stripping query to avoid leaking tokens (signed URLs, OAuth codes,
+ * etc.) in echoed error responses.
  */
 export function rateLimitedResponse(retryAfterSeconds: number, instance: string): Response {
   const body: ProblemBody = {
@@ -38,6 +42,13 @@ export function rateLimitedResponse(retryAfterSeconds: number, instance: string)
     headers: {
       "Content-Type": "application/problem+json",
       "Retry-After": String(retryAfterSeconds),
+      // Without no-store, CDN/browser may cache 429 → users locked out
+      // beyond intended bucket.
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+      // Echo CORS so the browser doesn't swallow the body in cross-origin
+      // contexts (consumer UIs need to read retry_after_seconds).
+      "Access-Control-Allow-Origin": "*",
     },
   });
 }
