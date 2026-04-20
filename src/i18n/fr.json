@@ -3,7 +3,8 @@
     "errors.rate_limited": "TODO Story 7.4/2.6/9.3 — wire {seconds} from the 429 RFC 7807 body's retry_after_seconds field on the consumer side."
   },
   "errors": {
-    "rate_limited": "Limite atteinte — patientez {seconds} s avant de réessayer."
+    "rate_limited": "Limite atteinte — patientez {seconds} s avant de réessayer.",
+    "delivery_failed": "Envoi du code échoué — retenter"
   },
   "reauth": {
     "title": "Vérification de sécurité",
@@ -27,5 +28,27 @@
       "network": "Pas de réseau — vérifiez votre connexion"
     },
     "support_after_lockout": "Si le problème persiste, appelez le {founder_phone}"
+  },
+  "login": {
+    "welcome_title": "Bienvenue sur SafariCash",
+    "welcome_subtitle": "Entrez votre numéro pour continuer",
+    "phone_label": "Numéro de téléphone",
+    "phone_invalid": "Numéro invalide",
+    "phone_placeholder": "+221 77 791 58 98",
+    "cta_send_code": "Recevoir le code",
+    "cta_verify": "Vérifier",
+    "cta_resend": "Renvoyer le code",
+    "cta_resend_cooldown": "Renvoyer dans {seconds} s",
+    "otp_subtitle": "Nous vous avons envoyé un code à 6 chiffres au {phone}. Entrez-le ci-dessous.",
+    "non_registered_title": "Numéro non enregistré",
+    "non_registered_body": "Ce numéro n'est pas enregistré chez SafariCash. Contactez-nous au 77 791 58 98 pour démarrer.",
+    "non_registered_cta_call": "Appeler SafariCash",
+    "non_registered_cta_back": "Retour",
+    "session_expired_toast": "Session expirée, reconnectez-vous",
+    "empty_state_headline": "Aucun membre pour l'instant",
+    "empty_state_subtext": "Ajoutez votre premier membre pour démarrer votre cycle.",
+    "empty_state_cta": "Ajouter mon premier membre",
+    "sending_code": "Envoi du code…",
+    "verifying_code": "Vérification du code…"
   }
 }

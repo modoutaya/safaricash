@@ -36,6 +36,7 @@ npm run dev        # vite dev server on http://localhost:5173
 - **Animation:** framer-motion (purposeful only)
 - **Routing:** react-router-dom v7
 - **Backend (Story 1.2+):** Supabase (Postgres + Auth + Edge Functions + Vault)
+- **Auth (Story 1.5):** Supabase Auth phone-OTP (no password, no email fallback) via a custom **Send SMS Hook** → Termii. Pre-provisioned collectors only — see `supabase/functions/auth-sms-hook/README.md`.
 - **Hosting:** Cloudflare Pages (frontend) + Cloudflare Workers (rate-limit middleware front of Supabase Edge Functions; receipt URL)
 - **Testing:** Vitest + Testing Library + Playwright + axe-core
 
@@ -56,4 +57,4 @@ npm run dev        # vite dev server on http://localhost:5173
 - **Tokens, not hex.** Brand colours live in `tailwind.config.ts`; an ESLint rule blocks hard-coded SafariCash hex codes in component code.
 - **Strict TypeScript.** `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noFallthroughCasesInSwitch`, `strict` — all on.
 - **Layering.** `domain/` (pure) ← `infrastructure/` ← `features/` ← `components/`. Cross-feature imports must go through the feature's `index.ts` (enforced by ESLint).
-- **Locale.** App is French-first (NFR-L1). Strings will land under `src/i18n/fr.json` from Story 1.5 onward.
+- **Locale.** App is French-first (NFR-L1). Strings live under `src/i18n/fr.json` (Story 1.5 onward).

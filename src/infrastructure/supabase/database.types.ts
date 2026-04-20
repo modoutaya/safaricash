@@ -560,6 +560,10 @@ export type Database = {
     };
     Functions: {
       canonical_jsonb: { Args: { j: Json }; Returns: string };
+      check_collector_registered: {
+        Args: { p_phone: string };
+        Returns: boolean;
+      };
       get_reauth_otp_hmac_key: { Args: never; Returns: string };
       reauth_consume_confirmation: {
         Args: {

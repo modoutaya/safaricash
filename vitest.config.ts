@@ -18,7 +18,7 @@ export default defineConfig({
     // files (e.g. workers/rate-limit/tsconfig.json) don't get treated as
     // standalone projects and try to load a non-existent vitest.setup.ts.
     root: __dirname,
-    include: ["src/**/*.{test,spec}.ts", "workers/**/*.{test,spec}.ts"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "workers/**/*.{test,spec}.{ts,tsx}"],
     exclude: [
       "node_modules",
       "dist",

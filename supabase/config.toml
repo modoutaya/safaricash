@@ -364,6 +364,13 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
+# Story 1.5 — auth-sms-hook is called by Supabase Auth itself (service-to-
+# service, no caller JWT). The platform-level JWT gate MUST be disabled on
+# this function; our own Standard Webhooks HMAC verification is the
+# authentication boundary. See supabase/functions/auth-sms-hook/README.md.
+[functions.auth-sms-hook]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.

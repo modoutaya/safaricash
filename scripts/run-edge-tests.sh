@@ -23,4 +23,8 @@ export SUPABASE_TEST_ANON_KEY="$SUPABASE_ANON_KEY"
 export SUPABASE_TEST_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY"
 export TERMII_API_KEY="${TERMII_API_KEY:-mock-key-not-used-in-tests}"
 
-deno test --allow-net --allow-env --allow-read --no-check supabase/functions/re-auth/index.test.ts "$@"
+deno test --allow-net --allow-env --allow-read --no-check \
+  supabase/functions/re-auth/index.test.ts \
+  supabase/functions/auth-sms-hook/index.test.ts \
+  supabase/functions/_shared/check-collector-registered.contract.test.ts \
+  "$@"
