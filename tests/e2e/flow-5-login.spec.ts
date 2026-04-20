@@ -51,9 +51,11 @@ test.describe("Flow 5 — collector login", () => {
     await page.goto("/login");
     const input = page.getByLabel("Numéro de téléphone");
     // A random +221 phone that (almost certainly) is not provisioned.
-    const randomPhone = `+22177${Math.floor(1e9 + Math.random() * 8e9)
+    // Senegal E.164 = +221 + 9 digits; we lock the first two ("77", a valid
+    // mobile prefix) and generate the remaining 7 randomly.
+    const randomPhone = `+22177${Math.floor(1e6 + Math.random() * 9e6)
       .toString()
-      .slice(-9)}`;
+      .slice(-7)}`;
     await input.fill(randomPhone);
     await page.getByRole("button", { name: /recevoir le code/i }).click();
 
