@@ -96,6 +96,11 @@ jobs:
           SUPABASE_TEST_URL: http://127.0.0.1:54321
           SUPABASE_TEST_ANON_KEY: ${{ env.SUPABASE_LOCAL_ANON_KEY }}
           SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ env.SUPABASE_LOCAL_SERVICE_ROLE_KEY }}
+          # Vite reads VITE_* from process.env; without these the dev server
+          # spawned by playwright.config.ts crashes at module-load in
+          # src/infrastructure/supabase/env.ts and React never mounts.
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_ANON_KEY: ${{ env.SUPABASE_LOCAL_ANON_KEY }}
         run: npx playwright test
 
       # ----- Edge Function tests (Deno) — Story 1.3 onward.
