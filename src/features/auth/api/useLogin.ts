@@ -42,8 +42,13 @@ export type SendCodeResult =
   | { kind: "not_registered"; phone: string }
   | { kind: "error"; code: LoginErrorCode };
 
+/** Optional non-fatal warning raised by verifyCode — the session IS established
+ *  but some post-auth query degraded. Caller can surface a toast without
+ *  blocking the post-login navigation. */
+export type VerifyWarning = "count_query_failed";
+
 export type VerifyCodeResult =
-  | { kind: "ok"; userId: string; memberCount: number }
+  | { kind: "ok"; userId: string; memberCount: number; warning?: VerifyWarning }
   | { kind: "error"; code: LoginErrorCode };
 
 export type ResendCodeResult =
@@ -88,7 +93,11 @@ function classifyAuthError(err: AuthError | null): LoginErrorCode {
   const status = err.status ?? 0;
   if (status === 0) return "network";
   if (status === 410) return "expired";
-  if (status === 429) return "locked";
+  // 429 without a specific rate-limit code: fold into delivery_failed rather
+  // than arming the client soft lockout (which is a 3-strike OTP guard, not
+  // a transient-429 semantic). Supabase Auth's server-side hard lockout
+  // still applies independently.
+  if (status === 429) return "delivery_failed";
   return "invalid";
 }
 
@@ -103,6 +112,15 @@ export function useLogin(): UseLoginReturn {
   // Track the lockout timer so a second lockout / unmount cleans it up.
   const lockoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cooldownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Absolute wall-clock target for the resend cooldown — survives tab
+  // backgrounding / laptop sleep (browsers throttle timer ticks, so a naive
+  // decrement-every-second counter drifts; comparing to Date.now() does not).
+  const cooldownTargetMsRef = useRef<number>(0);
+  // Synchronous in-flight guard. `isPending` state flips through React's
+  // commit cycle, so a second keypress / double-click can re-enter before
+  // the disabled UI actually renders. This ref is the single source of
+  // truth within one render tick.
+  const inFlightRef = useRef(false);
 
   // Clean up timers on unmount — otherwise a React.StrictMode double-mount
   // in dev leaks interval callbacks referencing stale setState closures.
@@ -115,16 +133,15 @@ export function useLogin(): UseLoginReturn {
 
   const startCooldown = useCallback(() => {
     if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
+    cooldownTargetMsRef.current = Date.now() + OTP_RESEND_COOLDOWN_SECONDS * 1000;
     setCooldownSecondsRemaining(OTP_RESEND_COOLDOWN_SECONDS);
     cooldownIntervalRef.current = setInterval(() => {
-      setCooldownSecondsRemaining((prev) => {
-        if (prev <= 1) {
-          if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
-          cooldownIntervalRef.current = null;
-          return 0;
-        }
-        return prev - 1;
-      });
+      const remaining = Math.max(0, Math.ceil((cooldownTargetMsRef.current - Date.now()) / 1000));
+      setCooldownSecondsRemaining(remaining);
+      if (remaining === 0) {
+        if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
+        cooldownIntervalRef.current = null;
+      }
     }, 1000);
   }, []);
 
@@ -147,6 +164,11 @@ export function useLogin(): UseLoginReturn {
 
   const sendCode = useCallback(
     async (rawPhone: string): Promise<SendCodeResult> => {
+      // Synchronous re-entrancy guard: a double-click or second Enter fires
+      // handleSubmit twice before React commits isPending=true.
+      if (inFlightRef.current) {
+        return { kind: "error", code: "unknown" };
+      }
       setError(null);
       const normalized = formatE164(rawPhone);
       if (!isValidSenegalPhone(normalized)) {
@@ -154,6 +176,7 @@ export function useLogin(): UseLoginReturn {
         return { kind: "error", code: "phone_invalid" };
       }
 
+      inFlightRef.current = true;
       setIsPending(true);
       try {
         // Pre-provisioning gate — cheap RPC, no Termii cost on unknown phones.
@@ -162,9 +185,13 @@ export function useLogin(): UseLoginReturn {
           { p_phone: normalized },
         );
         if (rpcError) {
-          const code: LoginErrorCode = rpcError.message?.toLowerCase().includes("fetch")
-            ? "network"
-            : "unknown";
+          // Network faults typically surface with "fetch" / "Failed to fetch"
+          // in the message. Anything else — PGRST permission, Postgres 5xx,
+          // PostgREST timeout — is a delivery failure from the user's POV.
+          // Returning "unknown" previously fell through to a nonsensical
+          // "Code incorrect" copy in LoginForm.
+          const msg = rpcError.message?.toLowerCase() ?? "";
+          const code: LoginErrorCode = msg.includes("fetch") ? "network" : "delivery_failed";
           setError(code);
           return { kind: "error", code };
         }
@@ -191,6 +218,7 @@ export function useLogin(): UseLoginReturn {
         startCooldown();
         return { kind: "registered" };
       } finally {
+        inFlightRef.current = false;
         setIsPending(false);
       }
     },
@@ -202,7 +230,16 @@ export function useLogin(): UseLoginReturn {
       if (step === "locked") {
         return { kind: "error", code: "locked" };
       }
+      // Re-entrancy guard: handleChange auto-submits on the 6th digit AND
+      // a keyboard Enter can fire handleSubmit at the same edge. Without a
+      // synchronous guard both branches call verifyCode and each burns a
+      // strike on invalid — the user is surprise-locked after two wrong
+      // guesses instead of three.
+      if (inFlightRef.current) {
+        return { kind: "error", code: "unknown" };
+      }
       setError(null);
+      inFlightRef.current = true;
       setIsPending(true);
       try {
         const { data, error: otpError } = await supabase.auth.verifyOtp({
@@ -211,7 +248,11 @@ export function useLogin(): UseLoginReturn {
           type: "sms",
         });
         if (otpError || !data.session?.user) {
-          const code = classifyAuthError(otpError);
+          // Classify on the AuthError when present; treat the rare
+          // no-error-no-session case as invalid so it counts toward the
+          // 3-strike lockout and renders a real error message (otherwise
+          // the UI would silently clear the input with no feedback).
+          const code = otpError ? classifyAuthError(otpError) : "invalid";
           if (code === "invalid") {
             const nextCount = attemptCount + 1;
             setAttemptCount(nextCount);
@@ -231,13 +272,20 @@ export function useLogin(): UseLoginReturn {
           .select("id", { count: "exact", head: true })
           .limit(1);
         if (countError) {
-          // Session IS established. Post-login nav should still succeed;
-          // degrade gracefully to assuming there are members (so we route
-          // to dashboard, not the empty state — a safer guess).
-          return { kind: "ok", userId, memberCount: 1 };
+          // Session IS established. Keep navigation alive (fail-to-dashboard)
+          // but raise a non-fatal warning so the caller can surface a toast
+          // — the user should know the member list failed to load, not be
+          // silently routed to a wrong post-login destination.
+          return {
+            kind: "ok",
+            userId,
+            memberCount: 1,
+            warning: "count_query_failed",
+          };
         }
         return { kind: "ok", userId, memberCount: count ?? 0 };
       } finally {
+        inFlightRef.current = false;
         setIsPending(false);
       }
     },
@@ -248,10 +296,20 @@ export function useLogin(): UseLoginReturn {
     if (cooldownSecondsRemaining > 0) {
       return { kind: "cooldown", secondsRemaining: cooldownSecondsRemaining };
     }
+    // Defense-in-depth: the OtpStep disables the resend button while
+    // step === "locked", but any future programmatic caller (e.g. a keyboard
+    // shortcut, a dev tool) must not dispatch an SMS during lockout.
+    if (step === "locked") {
+      return { kind: "error", code: "locked" };
+    }
     if (!phone) {
       return { kind: "error", code: "unknown" };
     }
+    if (inFlightRef.current) {
+      return { kind: "error", code: "unknown" };
+    }
     setError(null);
+    inFlightRef.current = true;
     setIsPending(true);
     try {
       const { error: otpError } = await supabase.auth.signInWithOtp({
@@ -267,9 +325,10 @@ export function useLogin(): UseLoginReturn {
       startCooldown();
       return { kind: "ok" };
     } finally {
+      inFlightRef.current = false;
       setIsPending(false);
     }
-  }, [cooldownSecondsRemaining, phone, startCooldown]);
+  }, [cooldownSecondsRemaining, step, phone, startCooldown]);
 
   const reset = useCallback(() => {
     if (lockoutTimerRef.current) {

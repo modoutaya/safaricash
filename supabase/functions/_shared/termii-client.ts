@@ -53,11 +53,16 @@ function getSenderId(): string {
 }
 
 // CODE REVIEW H3 fix: Termii's error responses sometimes echo the request
-// body (which contains the OTP). Strip any 6-digit numeric run before
+// body (which contains the OTP). Strip any 4-10-digit numeric run before
 // embedding in TermiiError.bodyExcerpt so the OTP cannot leak into logs
 // via downstream `(err as Error).message/stack` capture.
+//
+// Story 1.5 review follow-up: width is 4-10 to cover all Supabase Auth OTP
+// length configurations (Supabase supports 4-10; default is 6). The earlier
+// strict `\d{6}` regex would have missed non-default configurations and
+// allowed the OTP through to logs.
 function scrubOtpDigits(text: string): string {
-  return text.replace(/\b\d{6}\b/g, "******");
+  return text.replace(/\b\d{4,10}\b/g, "******");
 }
 
 async function sendOnce(args: TermiiSendArgs): Promise<TermiiSendResult> {

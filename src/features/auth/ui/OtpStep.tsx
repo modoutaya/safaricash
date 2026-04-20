@@ -12,15 +12,21 @@ import type { FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import type { UseLoginReturn } from "@/features/auth/api/useLogin";
+import type { UseLoginReturn, VerifyWarning } from "@/features/auth/api/useLogin";
 import { maskPhone } from "@/features/auth/ui/phoneFormat";
 import { useT } from "@/i18n/useT";
 import { OTP_LOCKOUT_MINUTES } from "@/lib/constants";
 
+export type SignedInResult = {
+  userId: string;
+  memberCount: number;
+  warning?: VerifyWarning;
+};
+
 export type OtpStepProps = {
   phone: string;
   onCancel: () => void;
-  onSignedIn: (result: { userId: string; memberCount: number }) => void;
+  onSignedIn: (result: SignedInResult) => void;
   login: UseLoginReturn;
 };
 
@@ -34,7 +40,15 @@ export function OtpStep({ phone, onCancel, onSignedIn, login }: OtpStepProps) {
     if (locked || otp.length !== 6) return;
     const outcome = await login.verifyCode(otp);
     if (outcome.kind === "ok") {
-      onSignedIn({ userId: outcome.userId, memberCount: outcome.memberCount });
+      onSignedIn(
+        outcome.warning
+          ? {
+              userId: outcome.userId,
+              memberCount: outcome.memberCount,
+              warning: outcome.warning,
+            }
+          : { userId: outcome.userId, memberCount: outcome.memberCount },
+      );
     } else {
       // Clear the input so the user can re-enter cleanly (UX Flow 5 step N).
       setOtp("");
@@ -44,11 +58,21 @@ export function OtpStep({ phone, onCancel, onSignedIn, login }: OtpStepProps) {
   async function handleChange(value: string) {
     setOtp(value);
     // Auto-submit when the 6th digit lands. Supabase verifyOtp is fast
-    // enough (~200ms) that we do not need a debounce.
+    // enough (~200ms) that we do not need a debounce. The hook carries a
+    // synchronous in-flight guard so a handleSubmit + handleChange race
+    // cannot double-submit.
     if (value.length === 6 && !locked && !login.isPending) {
       const outcome = await login.verifyCode(value);
       if (outcome.kind === "ok") {
-        onSignedIn({ userId: outcome.userId, memberCount: outcome.memberCount });
+        onSignedIn(
+          outcome.warning
+            ? {
+                userId: outcome.userId,
+                memberCount: outcome.memberCount,
+                warning: outcome.warning,
+              }
+            : { userId: outcome.userId, memberCount: outcome.memberCount },
+        );
       } else {
         setOtp("");
       }
@@ -66,9 +90,11 @@ export function OtpStep({ phone, onCancel, onSignedIn, login }: OtpStepProps) {
         <h1 id="otp-title" className="text-title-1 text-primary-700">
           {t("login.cta_verify")}
         </h1>
-        <p className="text-body-1 text-text-secondary">
-          {t("login.otp_subtitle", { phone: maskPhone(phone) })}
-        </p>
+        {phone ? (
+          <p className="text-body-1 text-text-secondary">
+            {t("login.otp_subtitle", { phone: maskPhone(phone) })}
+          </p>
+        ) : null}
       </header>
 
       <div className="flex justify-center">
@@ -133,7 +159,7 @@ export function OtpStep({ phone, onCancel, onSignedIn, login }: OtpStepProps) {
             : t("login.cta_resend")}
         </Button>
         <Button type="button" variant="link" onClick={onCancel}>
-          {t("login.non_registered_cta_back")}
+          {t("login.otp_cta_back")}
         </Button>
       </div>
     </form>

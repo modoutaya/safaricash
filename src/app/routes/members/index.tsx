@@ -9,10 +9,12 @@ import { EmptyState } from "@/components/domain/EmptyState";
 import { supabase } from "@/infrastructure/supabase/client";
 import { useT } from "@/i18n/useT";
 
+type LoadState = { status: "loading" } | { status: "error" } | { status: "ready"; count: number };
+
 export default function MembersRoute() {
   const t = useT();
   const navigate = useNavigate();
-  const [memberCount, setMemberCount] = useState<number | null>(null);
+  const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
@@ -20,19 +22,37 @@ export default function MembersRoute() {
       .from("members")
       .select("id", { count: "exact", head: true })
       .limit(1)
-      .then(({ count }) => {
-        if (!cancelled) setMemberCount(count ?? 0);
+      .then(({ count, error }) => {
+        if (cancelled) return;
+        // Handle errors explicitly. Silently defaulting `count ?? 0` to 0
+        // would render the empty state to a collector who actually has
+        // members — a real correctness bug (risk of duplicate creation
+        // from the "Ajouter mon premier membre" CTA).
+        if (error) {
+          setState({ status: "error" });
+          return;
+        }
+        setState({ status: "ready", count: count ?? 0 });
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  if (memberCount === null) {
+  if (state.status === "loading") {
     return null;
   }
 
-  if (memberCount === 0) {
+  if (state.status === "error") {
+    return (
+      <section role="alert" className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4">
+        <h1 className="text-title-1 text-text-primary">Membres</h1>
+        <p className="text-body-1 text-destructive">{t("login.members_load_error")}</p>
+      </section>
+    );
+  }
+
+  if (state.count === 0) {
     return (
       <EmptyState
         emoji="🦁"
@@ -48,7 +68,7 @@ export default function MembersRoute() {
     <section className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4">
       <h1 className="text-title-1 text-text-primary">Membres</h1>
       <p className="text-body-1 text-text-secondary">
-        {memberCount} membre{memberCount > 1 ? "s" : ""} — la liste complète arrive avec Story 2.1.
+        {state.count} membre{state.count > 1 ? "s" : ""} — la liste complète arrive avec Story 2.1.
       </p>
     </section>
   );

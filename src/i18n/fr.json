@@ -44,6 +44,8 @@
     "non_registered_body": "Ce numéro n'est pas enregistré chez SafariCash. Contactez-nous au 77 791 58 98 pour démarrer.",
     "non_registered_cta_call": "Appeler SafariCash",
     "non_registered_cta_back": "Retour",
+    "otp_cta_back": "Retour",
+    "members_load_error": "Impossible de charger vos membres — réessayez depuis le tableau de bord",
     "session_expired_toast": "Session expirée, reconnectez-vous",
     "empty_state_headline": "Aucun membre pour l'instant",
     "empty_state_subtext": "Ajoutez votre premier membre pour démarrer votre cycle.",

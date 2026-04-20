@@ -4,11 +4,16 @@
 
 import type frJson from "@/i18n/fr.json";
 
+// Exclude `_notes` — it's a JSON block reserved for translator comments,
+// not a translatable leaf. Leaking it into TranslationKey lets callers
+// resolve `t("_notes.xyz")` to whatever TODO string was parked there.
+type ExcludedKey = "_notes";
+
 type Leaves<T, P extends string = ""> = {
-  [K in keyof T & string]: T[K] extends Record<string, unknown>
+  [K in Exclude<keyof T, ExcludedKey> & string]: T[K] extends Record<string, unknown>
     ? Leaves<T[K], `${P}${P extends "" ? "" : "."}${K}`>
     : `${P}${P extends "" ? "" : "."}${K}`;
-}[keyof T & string];
+}[Exclude<keyof T, ExcludedKey> & string];
 
 export type TranslationKey = Leaves<typeof frJson>;
 

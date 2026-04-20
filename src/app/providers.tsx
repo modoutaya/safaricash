@@ -13,10 +13,10 @@
 // which this listener catches — so the routing plumbing for 1.6 is in
 // place without 1.6 needing to touch this file.
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { toast, Toaster } from "sonner";
 
 import { supabase } from "@/infrastructure/supabase/client";
@@ -43,16 +43,52 @@ export function RootProviders({ children }: { children: ReactNode }) {
 /** Must render inside <RouterProvider>. Listens for SIGNED_OUT and redirects. */
 export function AuthStateListener() {
   const navigate = useNavigate();
+  const location = useLocation();
   const t = useT();
+  // Track whether a session existed BEFORE the current SIGNED_OUT event.
+  // Supabase emits SIGNED_OUT on cold-load when persistSession is null and
+  // on intentional signOut() calls; toasting in those cases is misleading.
+  // We only surface "Session expirée" when a session truly went from
+  // present → absent. The pathname guard additionally suppresses redundant
+  // navigates/toasts when the user is already on /login.
+  const hadSessionRef = useRef<boolean>(false);
+  const locationRef = useRef(location.pathname);
+
+  // Mirror the current pathname into a ref so the onAuthStateChange callback
+  // (subscribed once) can read the latest value without re-subscribing on
+  // every navigation. Updating the ref in an effect keeps render pure.
+  useEffect(() => {
+    locationRef.current = location.pathname;
+  }, [location.pathname]);
 
   useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event) => {
+    let cancelled = false;
+    // Seed the prior-session flag BEFORE subscribing.
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!cancelled) hadSessionRef.current = Boolean(data.session);
+      })
+      .catch(() => {
+        if (!cancelled) hadSessionRef.current = false;
+      });
+
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
-        toast(t("login.session_expired_toast"));
-        navigate("/login", { replace: true });
+        const wasSignedIn = hadSessionRef.current;
+        hadSessionRef.current = false;
+        if (!wasSignedIn) return;
+        if (locationRef.current !== "/login") {
+          toast(t("login.session_expired_toast"));
+          navigate("/login", { replace: true });
+        }
+        return;
       }
+      // Any event that carries a session keeps the prior-session flag true.
+      hadSessionRef.current = Boolean(session);
     });
     return () => {
+      cancelled = true;
       data.subscription.unsubscribe();
     };
   }, [navigate, t]);

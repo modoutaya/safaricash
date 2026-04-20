@@ -1,6 +1,6 @@
 # Story 1.5: Phone-OTP sign-in flow
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -20,7 +20,7 @@ so that **I can access the app to manage my members and start the daily collecti
 
 4. **Non-registered → dead-end screen with founder support link.** When the RPC returns `{ registered: false }`, the app navigates to `/non-registered` (route `src/app/routes/non-registered.tsx`) WITHOUT calling `signInWithOtp` (no Termii cost on bad phones). The screen shows: copy *"Ce numéro n'est pas enregistré chez SafariCash. Contactez-nous au 77 791 58 98 pour démarrer."*; primary CTA *"Appeler SafariCash"* (`<a href="tel:+221777915898">` per UX Flow 5 step J — note the **+221** prefix MUST be in the tel: URL even though display copy strips it); secondary CTA *"Retour"* (router `back()` to `/login`). Background: `bg-warning-50` (#FAECE7) per UX Flow 5 mermaid styling. Single CTA per UX § Component 9 Empty State principles applied to a dead-end. The founder phone number lives in a single constant `src/lib/contact.ts` (`FOUNDER_SUPPORT_PHONE = '+221777915898'`, `FOUNDER_SUPPORT_PHONE_DISPLAY = '77 791 58 98'`) — NEVER hard-coded across UI files. (Future: when the founder line changes per R-OP1, only `contact.ts` is touched.)
 
-5. **OTP send via Supabase Auth `signInWithOtp` — Termii routed via custom SMS hook.** Once the RPC confirms registered, the app calls `supabase.auth.signInWithOtp({ phone, options: { channel: 'sms', shouldCreateUser: false } })`. The `shouldCreateUser: false` MUST be set — pre-provisioned model rejects auto-account-creation (matches `supabase/config.toml` `enable_signup = false`). The OTP itself is dispatched by Supabase Auth's phone provider — at MVP the operator configures the **Send SMS Hook** in the Supabase dashboard (Auth → Hooks → Send SMS Hook → URL = `${SUPABASE_PROJECT_URL}/functions/v1/auth-sms-hook`). A new Edge Function `supabase/functions/auth-sms-hook/index.ts` receives Supabase's webhook payload `{ user, sms: { otp, phone } }`, validates the JWT signature header `x-supabase-signature` (HMAC-SHA256 with hook secret), then dispatches via the existing `_shared/termii-client.ts` (Story 1.3 dependency) using template *"Votre code SafariCash : {otp}. Valable 5 minutes. Ne le partagez avec personne."* (≤ 160 chars, plain text — per NFR-S10 no banking language). On Termii failure (network, 5xx, invalid sender_id), the hook returns HTTP 500 — Supabase Auth surfaces this to the client as `AuthApiError` which the frontend translates to `errors.delivery_failed` toast.
+5. **OTP send via Supabase Auth `signInWithOtp` — Termii routed via custom SMS hook.** Once the RPC confirms registered, the app calls `supabase.auth.signInWithOtp({ phone, options: { channel: 'sms', shouldCreateUser: false } })`. The `shouldCreateUser: false` MUST be set — pre-provisioned model rejects auto-account-creation (matches `supabase/config.toml` `enable_signup = false`). The OTP itself is dispatched by Supabase Auth's phone provider — at MVP the operator configures the **Send SMS Hook** in the Supabase dashboard (Auth → Hooks → Send SMS Hook → URL = `${SUPABASE_PROJECT_URL}/functions/v1/auth-sms-hook`). A new Edge Function `supabase/functions/auth-sms-hook/index.ts` receives Supabase's webhook payload `{ user, sms: { otp, phone } }`, validates the **Standard Webhooks** signature headers (`webhook-id` / `webhook-timestamp` / `webhook-signature`, HMAC-SHA256 over `${id}.${timestamp}.${rawBody}` with hook secret, ±5 min replay tolerance, multi-signature rotation support — matches the current Supabase Auth hook wire format), then dispatches via the existing `_shared/termii-client.ts` (Story 1.3 dependency) using template *"Votre code SafariCash : {otp}. Valable 5 minutes. Ne le partagez avec personne."* (≤ 160 chars, plain text — per NFR-S10 no banking language). On Termii failure (network, 5xx, invalid sender_id), the hook returns HTTP 502 (`otp_delivery_failed` RFC 7807) — Supabase Auth surfaces this to the client as `AuthApiError` which the frontend translates to `errors.delivery_failed` toast.
 
 6. **OTP step UI (Flow 5 step K) — 6-digit input + countdown + resend.** On successful `signInWithOtp` response, the LoginForm transitions in-place (no route change) to render `<OtpStep />`. The component shows: copy *"Nous vous avons envoyé un code à 6 chiffres au {masked_phone}. Entrez-le ci-dessous."* (mask = `+221 77 X 91 58 98` — keep prefix + last 8 digits visible, replace digits 4-5 with X for confirmation-not-leak); shadcn/ui `OTPInput` 6-digit Radix-compliant component (NEW — added via `npx shadcn add input-otp` and re-skinned per UX § Visual Foundation tokens — primary-green focus ring, 56×56 px segments for NFR-A2); auto-advance between segments; auto-submit on 6th digit; primary CTA *"Vérifier"* (manual fallback if auto-submit fails); secondary CTA *"Renvoyer le code"* — **disabled with countdown** for the first 30 seconds (UX Flow 5 step M: "Retry + 'Renvoyer le code' after 30s"), then enabled. The `OtpStep` is a controlled component receiving `{ phone, onVerified, onCancel }` props.
 
@@ -111,16 +111,66 @@ so that **I can access the app to manage my members and start the daily collecti
   - [x] Verify existing `reauth.error.*` keys are reusable (invalid / expired / locked / delivery_failed / network)
   - [x] Add a unit test for `formatE164` + `maskPhone` (`src/features/auth/ui/phoneFormat.test.ts`) — edge cases: leading +221, no prefix, 9-digit Senegal mobile, double prefix protection
 
-- [x] **Task 11: Playwright E2E + manual smoke test**
-  - [x] `tests/e2e/flow-5-login.spec.ts`: Flow 5 happy path against local Supabase (env-gated like Story 1.3/1.4)
-  - [x] Use service-role client to read OTP from `auth.one_time_tokens` (Supabase internal table) for test-only OTP capture; document why this is acceptable in test-only context
-  - [x] Mutation-test verification: temporarily wrong RPC return → spec goes red on the registered case
+- [~] **Task 11: Playwright E2E + manual smoke test** — partial: welcome/CTA-gating/unregistered branches landed; happy-path OTP verify + mutation-test verification deferred to Story 1.8 per `deferred-work.md`
+  - [x] `tests/e2e/flow-5-login.spec.ts`: welcome render + E.164 CTA gating + unregistered → /non-registered (happy-path OTP verify deferred)
+  - [ ] Use service-role client to read OTP from `auth.one_time_tokens` (Supabase internal table) for test-only OTP capture — deferred to Story 1.8 (requires Supabase-plan-agnostic test-OTP mechanism; see deferred-work.md)
+  - [ ] Mutation-test verification: temporarily wrong RPC return → spec goes red on the registered case — deferred to Story 1.8 alongside the happy-path spec
   - [x] Manual smoke (operator): seed a collector via `supabase studio`; run `npm run dev`; complete the login from a real phone with Termii configured; verify SMS arrives within 60 s (NFR-P4); verify route lands on Empty State (zero members)
 
 - [x] **Task 12: Documentation + sprint hygiene**
   - [x] Update root `README.md` § Stack: add "Auth: Supabase phone-OTP via custom Send SMS Hook → Termii"
   - [x] Update `_bmad-output/implementation-artifacts/deferred-work.md`: closes Story 1.3's "Generic UX missing-key fallback in `useT.ts`" entry IF this story actually wires a proper i18n machinery (verify); closes the OTHER half of Story 1.3's production-deploy gate (login UX now exists, real prod traffic can flow)
   - [x] Update story spec status to `review` once all ACs verified
+
+### Review Findings (AI) — 2026-04-20
+
+_Adversarial review layers: Blind Hunter + Edge Case Hunter + Acceptance Auditor. 38 findings normalized → 3 decision-needed (resolved), 24 patches, 9 deferred, 5 dismissed as noise._
+
+**Decision-needed (resolved 2026-04-20)**
+
+- D1 → **Patch** (see patch list): keep fail-to-dashboard, add error toast on `/members` count failure.
+- D2 → **Dismiss**: `bg-destructive-bg` pixels already match spec hex (#FAECE7); taxonomy nit.
+- D3 → **Patch** (see patch list): update spec AC #5 text to reflect Standard Webhooks implementation (code is correct + more hardened).
+
+**Patches (unambiguous fixes)**
+
+- [x] [Review][Patch][D1] [Med] On `verifyCode` post-auth `/members` count-query error, surface a toast "Impossible de charger vos membres — ressayez" and keep navigation to `/dashboard` rather than silently defaulting `memberCount` to 1 [src/features/auth/api/useLogin.ts:233-238, src/app/routes/login.tsx]
+- [x] [Review][Patch][D3] [Med] Update spec AC #5 to reflect Standard Webhooks signature scheme (`webhook-id` / `webhook-timestamp` / `webhook-signature`) + replay window + multi-sig rotation — the stale `x-supabase-signature` text was inherited from an earlier Supabase Auth hook format [_bmad-output/implementation-artifacts/1-5-phone-otp-signin.md:23]
+
+- [x] [Review][Patch] [High] OTP can leak into `auth.sms.failed` logs when Supabase OTP length ≠ 6 — scrubber `\b\d{6}\b` vs validator `\d{4,8}` disagree [supabase/functions/_shared/termii-client.ts:60, supabase/functions/auth-sms-hook/index.ts:192]
+- [x] [Review][Patch] [High] `/members` route ignores count-query error → shows empty state to collectors who actually have members (could trigger duplicate creation) [src/app/routes/members/index.tsx:17-29]
+- [x] [Review][Patch] [Med] Duplicate `FOUNDER_SUPPORT_PHONE` in `src/lib/contact.ts` (`+221777915898`) AND `src/lib/constants.ts` (`+221 77 791 58 98`, env-driven) — breaks "single source of truth" anti-pattern [src/lib/contact.ts:6, src/lib/constants.ts:18-19]
+- [x] [Review][Patch] [Med] Double-fire of `verifyCode` can burn 2 of 3 strikes per user action — `handleChange` reads stale `!login.isPending` between React commits [src/features/auth/ui/OtpStep.tsx:44-56]; same race on `sendCode` [src/features/auth/ui/LoginForm.tsx:37-47]
+- [x] [Review][Patch] [Med] `verifyOtp` returning `{data: {session: null}, error: null}` is classified as `"unknown"`, which is not rendered by OtpStep → silent failure, no strike counted → infinite retry without lockout [src/features/auth/api/useLogin.ts:213-214]
+- [x] [Review][Patch] [Med] Non-network RPC errors (DB 5xx, permission, `PGRST116`) classified `"unknown"` → LoginForm falls through to "Code incorrect" copy on a pre-OTP failure [src/features/auth/api/useLogin.ts:165-167]
+- [x] [Review][Patch] [Med] `ProtectedRoute` has no `.catch()` on `getSession()` (bricked screen if storage corrupt), renders `null` flash, and does not subscribe to `onAuthStateChange` (session expiry mid-page not re-evaluated) [src/app/guards.tsx:26-44]
+- [x] [Review][Patch] [Med] `AuthStateListener` toasts "Session expirée" on every cold load (Supabase fires SIGNED_OUT on initial mount when no session) AND on intentional dev-only logout [src/app/providers.tsx:48-58]
+- [x] [Review][Patch] [Med] Cooldown countdown breaks on tab backgrounding / laptop sleep — `setInterval` tick-based instead of target-timestamp [src/features/auth/api/useLogin.ts:119-128]
+- [x] [Review][Patch] [Med] `check_collector_registered` RPC does not server-side trim `p_phone` — defensive gap; client is the only barrier against stray whitespace [supabase/migrations/20260420000001_check_collector_registered.sql:39-48]
+- [x] [Review][Patch] [Med] Task 11 checkbox `[x]` overstates completion — happy-path E2E (OTP verify → /members empty state) is explicitly deferred to Story 1.8 per spec subtask text [_bmad-output/implementation-artifacts/1-5-phone-otp-signin.md:115]
+- [x] [Review][Patch] [Low] Supabase Auth 429 (no specific code) maps to `"locked"` but does not arm the lockout timer — inconsistent UI state (banner locked, inputs enabled) [src/features/auth/api/useLogin.ts:91]
+- [x] [Review][Patch] [Low] `auth-sms-hook` returns distinct message for `bad_timestamp` vs `bad_signature` — lets an attacker probe server clock [supabase/functions/auth-sms-hook/index.ts:252-265]
+- [x] [Review][Patch] [Low] `router.test.ts` mocks `supabase: {}` (no methods) — brittle if `router.tsx` adds any supabase call at module scope [src/app/router.test.ts:10-14]
+- [x] [Review][Patch] [Low] `auth-sms-hook` does not validate `sms.phone` is E.164-shaped before forwarding to Termii [supabase/functions/auth-sms-hook/index.ts:185-196]
+- [x] [Review][Patch] [Low] `TranslationKey` type includes `_notes.*` keys (JSON comment block leaks into keyspace) [src/i18n/keys.ts:7-11]
+- [x] [Review][Patch] [Low] Empty `phone` during `step="phone" → "otp"` transition renders subtitle with mid-sentence blank ("…au . Entrez-le…") [src/features/auth/ui/OtpStep.tsx:70]
+- [x] [Review][Patch] [Low] `resendCode` lacks `step === "locked"` early-return — UI enforces it today, but any future programmatic caller could bypass [src/features/auth/api/useLogin.ts:247-272]
+- [x] [Review][Patch] [Low] `verifyHmac` swallows import-key errors into `reason: "bad_signature"` without logging the underlying error — observability gap [supabase/functions/auth-sms-hook/index.ts:243-250]
+- [x] [Review][Patch] [Low] Spec AC #5 says "Termii failure → 500" but implementation returns 502 (semantically correct). Update spec text to 502. [_bmad-output/implementation-artifacts/1-5-phone-otp-signin.md:23]
+- [x] [Review][Patch] [Low] `OtpStep` "Retour" button reuses `login.non_registered_cta_back` i18n key — future translator might drift the copy [src/features/auth/ui/OtpStep.tsx:135-137]
+- [ ] [Review][Patch][SKIPPED-FROM-BATCH] [Low] `src/features/auth/types.ts` defines `PhoneSchema` / `OtpSchema` but `useLogin` uses `isValidSenegalPhone` regex helper instead — two parallel validators risk drift. Skipped from batch because the fix has two legitimate directions (wire Zod vs delete the unused schemas) and touching shared phone-validation introduces test churn. Revisit in a dedicated consolidation pass. [src/features/auth/types.ts, src/features/auth/api/useLogin.ts]
+
+**Deferred (added to `deferred-work.md`)**
+
+- [x] [Review][Defer] `check_collector_registered` contract test claims "no SQL injection / wildcard match" but `%` in `=` predicate is tautological [supabase/functions/_shared/check-collector-registered.contract.test.ts:115] — low-value comment fix
+- [x] [Review][Defer] `verifyCode` post-auth count query has no `AbortSignal` on unmount — React 18 tolerates silently [src/features/auth/api/useLogin.ts:229-239]
+- [x] [Review][Defer] Lockout `setTimeout` (5 min) extends on tab backgrounding — fail-closed, acceptable [src/features/auth/api/useLogin.ts:131-146]
+- [x] [Review][Defer] `auth-sms-hook` has no `Content-Length` / body-size guard (Deno Deploy mitigates at platform) [supabase/functions/auth-sms-hook/index.ts:240]
+- [x] [Review][Defer] `auth-sms-hook` reads body as text — non-UTF8 bytes silently replaced with U+FFFD before HMAC (theoretical) [supabase/functions/auth-sms-hook/index.ts:240-269]
+- [x] [Review][Defer] `auth-sms-hook` does not verify `Content-Type: application/json` — Standard Webhooks spec deviation, no exploit [supabase/functions/auth-sms-hook/index.ts:202-281]
+- [x] [Review][Defer] `/login` route has no guard to redirect already-authenticated users — Story 1.6 / 1.7 territory [src/app/router.tsx:31]
+- [x] [Review][Defer] Non-registered screen adds uncommanded 🔒 emoji (spec says nothing about illustration) [src/app/routes/non-registered.tsx:22]
+- [x] [Review][Defer] `AuthStateListener` does not debounce → rapid SIGNED_OUT events could stack duplicate toasts (resolved naturally if Patch F16 is applied) [src/app/providers.tsx:49-54]
 
 ## Dev Notes
 
@@ -295,3 +345,4 @@ Executed in dependency order: foundation (i18n + `contact.ts` + `phoneFormat` he
 |------------|------------|--------|
 | 2026-04-20 | sm (Opus)  | Story 1.5 spec created — phone-OTP signin via Supabase Auth + Termii via custom SMS hook. Adds React Router v7 + provider tree (first time wired), `LoginForm` + `OtpStep` UI, `useLogin` hook with state machine + 3-strike lockout, `EmptyState` component (P1 from UX), `ProtectedRoute` guard + `SIGNED_OUT` listener, `check_collector_registered` SECURITY DEFINER RPC (boolean only — no enumeration), new `auth-sms-hook` Edge Function dispatching Termii. Single source of truth for founder support phone in `src/lib/contact.ts` (R-OP1). Closes the OTHER half of Story 1.3's production-deploy gate (login UX exists). Status → ready-for-dev. |
 | 2026-04-20 | dev (Opus) | Story 1.5 implemented end-to-end. All 14 ACs satisfied, all 12 tasks checked. Vitest 123 passed, Deno auth-sms-hook 9 passed, `tsc --noEmit` + `npm run build` + `npm run lint` green. `database.types.ts` hand-extended with the new RPC; `npm run db:types` to be run by operator after the cloud migration is applied. Deferred: full E2E OTP verify path (Story 1.8), vault-based hook secret storage, runtime missing-i18n-key fallback. Status → review. |
+| 2026-04-20 | reviewer (Opus) | Code review complete (Blind Hunter + Edge Case Hunter + Acceptance Auditor). 38 findings triaged: 3 decision-needed (2 patched, 1 dismissed), 24 patches applied (2 High, 8 Med, 13 Low, + 1 Low Zod-schema consolidation skipped from batch), 9 deferred to `deferred-work.md`, 4 dismissed as noise. Key fixes: OTP scrubber `\d{4,10}` covers all Supabase OTP lengths; `/members` error-state surfaces load failure; `FOUNDER_SUPPORT_PHONE` consolidated into `contact.ts`; `useLogin` gains synchronous in-flight guard + target-timestamp cooldown + tighter error classification; `ProtectedRoute` subscribes to `onAuthStateChange` with catch-fallback; `AuthStateListener` only toasts when a session truly went present→absent; `auth-sms-hook` unifies bad_timestamp/bad_signature message + validates E.164 phone + logs HMAC error; RPC trims `p_phone` server-side. Vitest 123 passed, Deno auth-sms-hook 14 passed, typecheck/lint/build green. Status → done. |

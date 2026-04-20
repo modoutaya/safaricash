@@ -31,19 +31,27 @@ security definer
 set search_path = public
 as $$
 declare
+  v_phone text;
   v_exists boolean;
 begin
+  -- Server-side trim as defense-in-depth: the JS client normalizes via
+  -- formatE164 (strips whitespace/dashes), but nothing stops a future
+  -- caller (Edge Function, admin tool, manual SQL) from passing a phone
+  -- with stray whitespace. Trim before the equality check so phone lookup
+  -- remains robust to that class of drift.
+  v_phone := trim(p_phone);
+
   -- Null / empty / malformed phone: short-circuit false. Protects against
   -- accidentally treating "" as a wildcard if future code changes the query
   -- shape. Also defensive against a client sending phone = NULL.
-  if p_phone is null or length(p_phone) = 0 then
+  if v_phone is null or length(v_phone) = 0 then
     return false;
   end if;
 
   select exists(
     select 1
     from public.users
-    where phone_number = p_phone
+    where phone_number = v_phone
       and role = 'collector'
   ) into v_exists;
 

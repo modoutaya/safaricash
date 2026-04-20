@@ -7,8 +7,25 @@ import { describe, expect, it, vi } from "vitest";
 // The router module transitively imports the Supabase client, which validates
 // VITE_SUPABASE_* env at module-init time. CI does not ship a .env.local, so
 // we stub the client — this test only exercises the router's route table.
+//
+// Provide stubs for the methods actually called at module/guard/listener
+// mount time: ProtectedRoute reads getSession; AuthStateListener subscribes
+// via onAuthStateChange. Returning a valid-shape empty object for each keeps
+// the route table importable even if route components execute their mount
+// effects during test collection.
 vi.mock("@/infrastructure/supabase/client", () => ({
-  supabase: {},
+  supabase: {
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    },
+    rpc: () => Promise.resolve({ data: null, error: null }),
+    from: () => ({
+      select: () => ({
+        limit: () => Promise.resolve({ count: 0, data: null, error: null }),
+      }),
+    }),
+  },
 }));
 
 const { router } = await import("@/app/router");

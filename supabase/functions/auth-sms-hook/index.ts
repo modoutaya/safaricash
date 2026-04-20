@@ -114,7 +114,11 @@ function constantTimeEqual(a: string, b: string): boolean {
 
 type VerifyResult =
   | { ok: true }
-  | { ok: false; reason: "missing_headers" | "bad_timestamp" | "bad_signature" };
+  | {
+      ok: false;
+      reason: "missing_headers" | "bad_timestamp" | "bad_signature";
+      error?: string;
+    };
 
 async function verifySignature(opts: {
   rawBody: string;
@@ -191,7 +195,10 @@ function isSendSmsHookPayload(raw: unknown): raw is SendSmsHookPayload {
     typeof sms.otp === "string" &&
     /^\d{4,8}$/.test(sms.otp) &&
     typeof sms.phone === "string" &&
-    sms.phone.length > 0
+    // Accept any E.164 phone (leading +, 8-15 digits). Guards against header
+    // injection, premium-rate-prefix smuggling, and other arbitrary-string
+    // drift from the Supabase Auth webhook payload.
+    /^\+\d{8,15}$/.test(sms.phone)
   );
 }
 
@@ -247,19 +254,27 @@ export async function handler(req: Request): Promise<Response> {
     webhookSignature: req.headers.get("webhook-signature"),
     secretBytes,
     nowSec,
-  }).catch((err) => ({ ok: false, reason: "bad_signature" as const, error: err }));
+  }).catch((err) => ({
+    ok: false as const,
+    reason: "bad_signature" as const,
+    error: (err as Error)?.message ?? String(err),
+  }));
 
   if (!verified.ok) {
     const event: LogEvent =
       verified.reason === "bad_timestamp" ? "auth.sms.bad_timestamp" : "auth.sms.bad_signature";
-    logJson("warn", event, { reason: verified.reason });
+    // Log underlying error when present (e.g., crypto.subtle.importKey failure)
+    // so an ops-surfaced signature incident is not indistinguishable from a
+    // client-sprayed bad signature.
+    logJson("warn", event, {
+      reason: verified.reason,
+      error: verified.error ?? null,
+    });
+    // Return a unified message for bad_timestamp + bad_signature — do not
+    // let an attacker distinguish clock-skew probes from signature probes
+    // (the clock-skew variant does NOT require a valid signature).
     return problemResponse(
-      problem(
-        "auth_unauthenticated",
-        verified.reason === "bad_timestamp"
-          ? "Webhook timestamp outside replay tolerance"
-          : "Invalid webhook signature",
-      ),
+      problem("auth_unauthenticated", "Invalid webhook signature or timestamp"),
       reqUrl,
     );
   }

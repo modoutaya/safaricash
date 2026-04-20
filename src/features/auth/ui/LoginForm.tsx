@@ -18,10 +18,11 @@ import { useT } from "@/i18n/useT";
 import { formatE164, isValidSenegalPhone } from "@/features/auth/ui/phoneFormat";
 
 import { OtpStep } from "./OtpStep";
+import type { SignedInResult } from "./OtpStep";
 
 export type LoginFormProps = {
   onNonRegistered: (phone: string) => void;
-  onSignedIn: (result: { userId: string; memberCount: number }) => void;
+  onSignedIn: (result: SignedInResult) => void;
 };
 
 export function LoginForm({ onNonRegistered, onSignedIn }: LoginFormProps) {
