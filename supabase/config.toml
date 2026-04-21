@@ -166,7 +166,13 @@ enable_refresh_token_rotation = true
 # Requires enable_refresh_token_rotation = true.
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
-enable_signup = true
+# Story 1.5b — pre-provisioned model (PRD v1.3). Self-signup via
+# /auth/v1/signup is disabled; only service-role `admin.createUser`
+# (our provision-collector script) can create accounts. The phone
+# provider stays enabled for sign-IN (/token?grant_type=password)
+# via the separate [auth.sms] enable_signup toggle below — GoTrue
+# treats signup and signin as distinct endpoints.
+enable_signup = false
 # Allow/disallow anonymous sign-ins to your project.
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
@@ -302,7 +308,7 @@ message_service_sid = "MGdummy-safaricash-local-dev"
 # dispatched for auth). If this file ever switches back to a real
 # provider for OTP (post-KYC), revert to env() substitution and set
 # SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN in the local shell + CI secrets.
-auth_token = "dummy-safaricash-never-called"
+auth_token = "dummy-safaricash-never-called" # gitleaks:allow trufflehog:ignore
 
 # Multi-factor-authentication is available to Supabase Pro plan.
 [auth.mfa]

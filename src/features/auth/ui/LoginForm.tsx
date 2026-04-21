@@ -51,7 +51,7 @@ export function LoginForm({ onSignedIn }: LoginFormProps) {
 
   function errorCopyKey(code: NonNullable<typeof login.error>): TranslationKey {
     if (code === "rate_limited") return "errors.rate_limited";
-    if (code === "network") return "reauth.error.network";
+    if (code === "network") return "errors.network";
     return "errors.invalid_credentials";
   }
 
