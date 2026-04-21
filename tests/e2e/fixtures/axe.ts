@@ -22,9 +22,20 @@ const SERIOUS_IMPACTS = new Set(["serious", "critical"]);
 
 /** Scan the current page with axe-core and fail on serious/critical
  *  violations. `context` is a short human-readable label included in the
- *  error message so failures identify which page-state regressed. */
-export async function expectNoA11yViolations(page: Page, context: string): Promise<void> {
-  const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
+ *  error message so failures identify which page-state regressed.
+ *  `disableRules` lets a specific test waive a rule when the violation
+ *  is already tracked in deferred-work.md — document each waiver at the
+ *  call site with a TODO pointing to the story that will fix it. */
+export async function expectNoA11yViolations(
+  page: Page,
+  context: string,
+  options?: { disableRules?: string[] },
+): Promise<void> {
+  let builder = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]);
+  if (options?.disableRules?.length) {
+    builder = builder.disableRules(options.disableRules);
+  }
+  const results = await builder.analyze();
 
   const blocking = results.violations.filter((v) => SERIOUS_IMPACTS.has(v.impact ?? ""));
   const informational = results.violations.filter((v) => !SERIOUS_IMPACTS.has(v.impact ?? ""));

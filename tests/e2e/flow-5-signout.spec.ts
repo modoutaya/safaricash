@@ -36,10 +36,11 @@ test.describe("Flow 5 — explicit sign-out (Story 1.7)", () => {
     await expect(page).toHaveURL(/\/login$/);
     // Explicit-sign-out toast copy — differentiated from idle-timeout's
     // "Session expirée" (Story 1.6) per UX spec "Toast never lies".
-    // Diacritic-tolerant: matches "é" or "e" on each accented letter so a
-    // future copy tweak that normalizes diacritics doesn't silently turn
-    // the gate red.
-    await expect(page.getByText(/vous\s+[eé]tes\s+d[eé]connect[eé]/i)).toBeVisible();
+    // Diacritic-tolerant: "êtes" starts with `ê` (e-circumflex), so the
+    // character class must include `ê` alongside `e` + `é`. Same for
+    // "déconnecté" — allow all three variants so a future copy tweak
+    // that normalizes diacritics doesn't silently turn the gate red.
+    await expect(page.getByText(/vous\s+[eéêè]tes\s+d[eéêè]connect[eéêè]/i)).toBeVisible();
 
     await expectNoA11yViolations(page, "/login post-signout");
   });
