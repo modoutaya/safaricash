@@ -58,5 +58,22 @@
     "signout_cta": "Se déconnecter",
     "signout_loading": "Déconnexion…",
     "signed_out_success": "Vous êtes déconnecté"
+  },
+  "members": {
+    "title": "Membres",
+    "search_placeholder": "Rechercher un membre…",
+    "filter_actif": "Actif",
+    "filter_avance": "Avance",
+    "filter_termine": "Terminé",
+    "count_label_zero": "Aucun membre",
+    "count_label_one": "1 membre",
+    "count_label_many": "{n} membres",
+    "no_search_match_headline": "Aucun résultat",
+    "no_search_match_subtext": "Vérifiez l'orthographe ou effacez la recherche.",
+    "status_badge_actif": "Actif",
+    "status_badge_avance": "Avance",
+    "status_badge_termine": "Terminé",
+    "amount_per_day": "{amount} F CFA / jour",
+    "load_error": "Impossible de charger la liste des membres. Réessayez dans un instant."
   }
 }

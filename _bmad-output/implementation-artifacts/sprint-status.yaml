@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-21
-# touched: 1-8-ci-pipeline-gates → review (2026-04-21, dev complete)
+# touched: 2-1-member-list-search → review (2026-04-21, dev complete)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -52,12 +52,12 @@ development_status:
   1-5-phone-otp-signin: done
   1-6-session-management: done
   1-7-sign-out: done
-  1-8-ci-pipeline-gates: review
+  1-8-ci-pipeline-gates: done
   epic-1-retrospective: optional
 
   # Epic 2 — Member Lifecycle Management
-  epic-2: backlog
-  2-1-member-list-search: backlog
+  epic-2: in-progress
+  2-1-member-list-search: review
   2-2-create-member-manual: backlog
   2-3-contacts-bulk-import: backlog
   2-4-member-profile-view: backlog
