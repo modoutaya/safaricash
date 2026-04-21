@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // ---------------------------------------------------------------------------
@@ -23,8 +23,9 @@ describe("SettingsRoute", () => {
     vi.clearAllTimers();
   });
 
-  it("renders the Plus heading", () => {
+  it("renders inside a <main> landmark with the Plus heading", () => {
     render(<SettingsRoute />);
+    expect(screen.getByRole("main")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: /plus/i })).toBeInTheDocument();
   });
 
@@ -41,7 +42,7 @@ describe("SettingsRoute", () => {
     expect(requestSignOutMock).toHaveBeenCalledWith("explicit");
   });
 
-  it("disables the button and shows loading copy while sign-out is in flight", async () => {
+  it("disables the button and sets aria-busy while sign-out is in flight; re-enables on resolve", async () => {
     // Hold the helper open so the button stays in the pending state long
     // enough to assert against.
     let resolveSignOut!: () => void;
@@ -50,12 +51,40 @@ describe("SettingsRoute", () => {
     );
     render(<SettingsRoute />);
 
+    const btn = screen.getByRole("button", { name: /se déconnecter/i });
+
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: /se déconnecter/i }));
+      fireEvent.click(btn);
     });
 
-    const loadingBtn = screen.getByRole("button", { name: /déconnexion/i });
-    expect(loadingBtn).toBeDisabled();
+    expect(btn).toBeDisabled();
+    expect(btn.getAttribute("aria-busy")).toBe("true");
+    // The loading copy lives in a polite live region (sr-only), not the
+    // button's accessible name — accessible name stays stable during flight.
+    expect(screen.getByRole("status")).toHaveTextContent(/déconnexion/i);
+
+    await act(async () => {
+      resolveSignOut();
+    });
+
+    await waitFor(() => expect(btn).toBeEnabled());
+    expect(btn.getAttribute("aria-busy")).toBe("false");
+  });
+
+  it("drops the second click while a sign-out is already in flight (double-tap guard)", async () => {
+    let resolveSignOut!: () => void;
+    requestSignOutMock.mockImplementation(
+      () => new Promise<void>((resolve) => (resolveSignOut = resolve)),
+    );
+    render(<SettingsRoute />);
+    const btn = screen.getByRole("button", { name: /se déconnecter/i });
+
+    await act(async () => {
+      fireEvent.click(btn);
+      fireEvent.click(btn);
+    });
+
+    expect(requestSignOutMock).toHaveBeenCalledTimes(1);
 
     await act(async () => {
       resolveSignOut();

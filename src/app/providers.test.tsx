@@ -59,6 +59,7 @@ vi.mock("sonner", () => ({
 
 import { AuthStateListener, queryClient } from "@/app/providers";
 import { signOutStateRef } from "@/features/auth/api/signOut";
+import frJson from "@/i18n/fr.json";
 
 const fakeSession = { access_token: "jwt", user: { id: "u1" } } as unknown as Session;
 
@@ -216,8 +217,9 @@ describe("AuthStateListener", () => {
     await emitAuth("SIGNED_OUT", null);
 
     expect(toastMock).toHaveBeenCalledTimes(1);
-    // useT("settings.signed_out_success") resolves to the French copy.
-    expect(toastMock).toHaveBeenCalledWith("Vous êtes déconnecté");
+    // Assert on the i18n-resolved value looked up from fr.json so copy
+    // tweaks don't silently break this test.
+    expect(toastMock).toHaveBeenCalledWith(frJson.settings.signed_out_success);
   });
 
   it("P10: idle sign-out path toasts login.session_expired_toast", async () => {
@@ -229,7 +231,7 @@ describe("AuthStateListener", () => {
     await emitAuth("SIGNED_OUT", null);
 
     expect(toastMock).toHaveBeenCalledTimes(1);
-    expect(toastMock).toHaveBeenCalledWith("Session expirée, reconnectez-vous");
+    expect(toastMock).toHaveBeenCalledWith(frJson.login.session_expired_toast);
   });
 
   it("P11: signOutStateRef.reason is cleared after the SIGNED_OUT handler runs", async () => {
@@ -241,5 +243,20 @@ describe("AuthStateListener", () => {
     await emitAuth("SIGNED_OUT", null);
 
     expect(signOutStateRef.reason).toBeNull();
+  });
+
+  it("P12: cold-load SIGNED_OUT preserves signOutStateRef.reason (in-flight requestSignOut)", async () => {
+    // A concurrent `requestSignOut("explicit")` just set the ref; a cold-load
+    // SIGNED_OUT fires before `hadSessionRef` is seeded. The listener MUST
+    // NOT wipe the reason — the "real" SIGNED_OUT (from signOut()) arrives
+    // next and must still see "explicit".
+    render(<AuthStateListener />);
+    await flushMicrotasks();
+
+    signOutStateRef.reason = "explicit";
+    await emitAuth("SIGNED_OUT", null);
+
+    expect(signOutStateRef.reason).toBe("explicit");
+    expect(toastMock).not.toHaveBeenCalled();
   });
 });

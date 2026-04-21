@@ -17,7 +17,12 @@ vi.mock("@/infrastructure/supabase/client", () => ({
   },
 }));
 
-import { purgeSessionData, requestSignOut, signOutStateRef } from "@/features/auth/api/signOut";
+import {
+  AUDIT_EMIT_TIMEOUT_MS,
+  purgeSessionData,
+  requestSignOut,
+  signOutStateRef,
+} from "@/features/auth/api/signOut";
 
 describe("requestSignOut", () => {
   beforeEach(() => {
@@ -59,16 +64,35 @@ describe("requestSignOut", () => {
 
   it("sets signOutStateRef.reason synchronously BEFORE awaiting signOut", async () => {
     let reasonAtRpcCall: string | null | undefined;
+    let reasonAtSignOutCall: string | null | undefined;
     rpcMock.mockImplementation(() => {
       reasonAtRpcCall = signOutStateRef.reason;
       return Promise.resolve({ data: null, error: null });
+    });
+    signOutMock.mockImplementation(() => {
+      reasonAtSignOutCall = signOutStateRef.reason;
+      return Promise.resolve({ error: null });
     });
 
     await requestSignOut("explicit");
 
     expect(reasonAtRpcCall).toBe("explicit");
+    expect(reasonAtSignOutCall).toBe("explicit");
     // AuthStateListener clears the ref after reading — the helper leaves it
     // set. A fresh sign-in / sign-out cycle overwrites, not a leak.
+    expect(signOutStateRef.reason).toBe("explicit");
+  });
+
+  it("drops the second call while a sign-out is already in flight (concurrent guard)", async () => {
+    // Simulate the idle timer firing mid-explicit sign-out: first call pins
+    // reason='explicit'; a second call with 'idle' must be a no-op so the
+    // SIGNED_OUT listener reads the correct reason.
+    signOutStateRef.reason = "explicit";
+
+    await requestSignOut("idle");
+
+    expect(rpcMock).not.toHaveBeenCalled();
+    expect(signOutMock).not.toHaveBeenCalled();
     expect(signOutStateRef.reason).toBe("explicit");
   });
 
@@ -79,12 +103,25 @@ describe("requestSignOut", () => {
     expect(signOutMock).toHaveBeenCalledTimes(1);
   });
 
+  it("preserves signOutStateRef.reason when signOut rejects but the RPC succeeded", async () => {
+    // Network outage path: Supabase-js clears local session regardless, but
+    // signOut() still rejects. The helper must leave reason=explicit so the
+    // resulting SIGNED_OUT event still picks the right toast.
+    signOutMock.mockRejectedValue(new Error("network unreachable"));
+
+    await requestSignOut("explicit");
+
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+    expect(signOutMock).toHaveBeenCalledTimes(1);
+    expect(signOutStateRef.reason).toBe("explicit");
+  });
+
   it("does NOT throw when the RPC hangs past 2s; signOut is still called", async () => {
     // RPC never resolves. The helper's internal 2s timeout must fire.
     rpcMock.mockImplementation(() => new Promise(() => {}));
 
     const promise = requestSignOut("explicit");
-    await vi.advanceTimersByTimeAsync(2_001);
+    await vi.advanceTimersByTimeAsync(AUDIT_EMIT_TIMEOUT_MS + 1);
     await expect(promise).resolves.toBeUndefined();
     expect(signOutMock).toHaveBeenCalledTimes(1);
   });

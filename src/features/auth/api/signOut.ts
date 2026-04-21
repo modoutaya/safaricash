@@ -28,7 +28,7 @@ export type SignOutReason = "explicit" | "idle";
  */
 export const signOutStateRef: { reason: SignOutReason | null } = { reason: null };
 
-const AUDIT_EMIT_TIMEOUT_MS = 2_000;
+export const AUDIT_EMIT_TIMEOUT_MS = 2_000;
 
 /**
  * Placeholder for Story 8.3's IndexedDB offline-outbox purge.
@@ -48,40 +48,51 @@ export async function purgeSessionData(): Promise<void> {
   return Promise.resolve();
 }
 
+async function raceWithTimeout<T>(
+  promise: PromiseLike<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error(`${label} timeout`)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutHandle !== null) clearTimeout(timeoutHandle);
+  }
+}
+
 /**
  * Sign the current collector out. Explicit callers pass `"explicit"`;
  * Story 1.6's idle-timeout hook passes `"idle"`.
  *
+ * - Concurrent-call guard: if a sign-out is already in flight, drop the
+ *   second call. Prevents the idle timer firing mid-explicit sign-out from
+ *   overwriting the reason (wrong toast) and double-tap from double-emitting.
  * - Sets `signOutStateRef.reason` synchronously BEFORE awaiting anything,
  *   so even if signOut fires SIGNED_OUT before this function returns,
  *   the listener sees the correct reason.
- * - Audit emission runs with a 2 s budget — a hung RPC cannot stall
- *   sign-out. A dropped audit row is recoverable via ops reconciliation;
- *   a stuck UI is not.
+ * - Audit emit + purge both run under a 2 s budget — a hung RPC or slow
+ *   IndexedDB purge cannot stall sign-out. A dropped audit row is
+ *   recoverable via ops reconciliation; a stuck UI is not.
  * - Never throws. `signOut()` rejection is logged (DEV only) because
  *   Supabase-js already cleared local session state — the user IS signed
  *   out on the client regardless of network outcome.
  */
 export async function requestSignOut(reason: SignOutReason): Promise<void> {
+  if (signOutStateRef.reason !== null) return;
   signOutStateRef.reason = reason;
 
-  // Best-effort audit emit. Promise.race against a timeout so a slow
-  // network cannot block sign-out. All error paths (RPC rejection,
-  // timeout, non-200) collapse to a silent DEV warn — the sign-out MUST
-  // proceed regardless.
+  // Best-effort audit emit. All error paths (RPC rejection, timeout,
+  // non-200) collapse to a silent DEV warn — sign-out MUST proceed.
   try {
-    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
-    const timeout = new Promise<never>((_, reject) => {
-      timeoutHandle = setTimeout(
-        () => reject(new Error("audit emit timeout")),
-        AUDIT_EMIT_TIMEOUT_MS,
-      );
-    });
-    try {
-      await Promise.race([supabase.rpc("emit_session_event", { p_reason: reason }), timeout]);
-    } finally {
-      if (timeoutHandle !== null) clearTimeout(timeoutHandle);
-    }
+    await raceWithTimeout(
+      supabase.rpc("emit_session_event", { p_reason: reason }),
+      AUDIT_EMIT_TIMEOUT_MS,
+      "audit emit",
+    );
   } catch (err) {
     if (import.meta.env.DEV) {
       // eslint-disable-next-line no-console
@@ -89,8 +100,16 @@ export async function requestSignOut(reason: SignOutReason): Promise<void> {
     }
   }
 
-  // IndexedDB purge (placeholder — Story 8.3 fills the body).
-  await purgeSessionData();
+  // IndexedDB purge (placeholder — Story 8.3 fills the body). Wrapped in
+  // the same 2 s budget so a slow future purge body cannot stall sign-out.
+  try {
+    await raceWithTimeout(purgeSessionData(), AUDIT_EMIT_TIMEOUT_MS, "purge session data");
+  } catch (err) {
+    if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
+      console.warn("[signOut] purge session data failed", err);
+    }
+  }
 
   // Local scope ONLY. A collector may be signed in on a personal phone AND
   // a shared office device; signing out of the shared device MUST NOT

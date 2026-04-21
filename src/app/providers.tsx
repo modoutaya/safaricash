@@ -79,13 +79,15 @@ export function AuthStateListener() {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
         const wasSignedIn = hadSessionRef.current;
-        // Story 1.7 — read + clear the sign-out reason BEFORE any early
-        // return so a legitimate SIGNED_OUT doesn't leak stale state into
-        // the next cycle. `reason === "explicit"` selects a different toast.
+        hadSessionRef.current = false;
+        // On cold-load SIGNED_OUT (no prior session), early-return WITHOUT
+        // clearing `signOutStateRef.reason` — it was set by an in-flight
+        // `requestSignOut()` whose "real" SIGNED_OUT event is still to come.
+        if (!wasSignedIn) return;
+        // Story 1.7 — consume the sign-out reason only when a session truly
+        // existed. `reason === "explicit"` selects a different toast.
         const reason = signOutStateRef.reason;
         signOutStateRef.reason = null;
-        hadSessionRef.current = false;
-        if (!wasSignedIn) return;
         // Story 1.7 — wipe the TanStack Query cache so a subsequent sign-in
         // on the same device cannot flash the previous collector's data
         // (RLS guards server reads, but cached queries would still render

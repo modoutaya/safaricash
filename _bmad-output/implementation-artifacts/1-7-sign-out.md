@@ -1,6 +1,6 @@
 # Story 1.7: Sign-out
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -184,6 +184,53 @@ so that **the next user on this phone can't see my members and transactions, AND
   - [x] `npx playwright test --project=chromium tests/e2e/flow-5-signout.spec.ts` (expect skipped locally without env).
   - [x] `npm run build` — production build sanity.
   - [x] Manual smoke: sign in, navigate to `/settings`, click "Se déconnecter", verify landing on `/login` with the explicit-sign-out toast. Sign in again, leave idle 30 s (temporarily shorten `SESSION_IDLE_TIMEOUT_MS`), verify landing on `/login` with the "Session expirée" toast. Revert the constant.
+
+### Review Findings (2026-04-21)
+
+**Decision-needed (0 — 2 resolved)**
+
+- [x] [Review][Decision→Dismiss] Verify hash-chain byte-for-byte equivalence with `audit_emit()` — **RESOLVED**: verified identical 10-field canonical serialization (same order, same `v_delim = decode('1F', 'hex')`, same ISO format `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'` at UTC, same `coalesce(v_prev_hash, ''::bytea)` seed, same `extensions.digest(..., 'sha256')`). `supabase/migrations/20260421000001_emit_session_event.sql:79-91` ≡ `supabase/migrations/20260419000007_triggers_audit.sql:200-214`. Completion-note claim confirmed.
+- [x] [Review][Decision→Dismiss] Verify `clock_timestamp()` vs `audit_emit()` time source consistency — **RESOLVED**: both use `clock_timestamp()` (migration 0007 line 130, migration 0001 line 55). Same advisory lock `(0x5AFA, hashtext(v_collector_id::text))`, same `order by timestamp desc, event_id desc limit 1` selection. No fork risk across emitters.
+
+**Patch (17)** — 15 fixed, 1 promoted to action item, 1 dismissed on verification
+
+- [x] [Review][Patch→Fixed] AC1 — Button variant `outline` → `secondary` [`src/app/routes/settings.tsx`]
+- [x] [Review][Patch→Fixed] Concurrent-call guard in `requestSignOut`: drops second call while a sign-out is in flight (covers idle-vs-explicit race AND double-tap at the helper layer) [`src/features/auth/api/signOut.ts`]
+- [x] [Review][Patch→Fixed] `pendingRef` synchronous guard in `handleSignOut` (defense-in-depth against double-tap at the component layer) [`src/app/routes/settings.tsx`]
+- [x] [Review][Patch→Fixed] `mountedRef` pattern — `setIsPending(false)` no longer fires on unmounted `SettingsRoute` [`src/app/routes/settings.tsx`]
+- [x] [Review][Patch→Fixed] `signOutStateRef.reason` clear moved inside the `wasSignedIn` branch; cold-load SIGNED_OUT no longer discards in-flight reason [`src/app/providers.tsx`]
+- [x] [Review][Patch→Fixed] AC11 — component now wraps in `<main>`; test asserts `role="main"` [`src/app/routes/settings.tsx`, `src/app/routes/settings.test.tsx`]
+- [x] [Review][Patch→Fixed] `purgeSessionData()` wrapped in a 2 s `Promise.race` budget via shared `raceWithTimeout` helper; contract now holds when Story 8.3 fills the body [`src/features/auth/api/signOut.ts`]
+- [ ] [Review][Patch→Action-item] `as unknown as AuditRow[]` cast — CLAUDE.md "prefer Zod at boundaries" applies but introducing Zod as a Deno dep is out of scope for this review pass. Converted to action item: tackle at the next Deno-side refactor or when a second contract test adds shape validation [`supabase/functions/_shared/emit-session-event.contract.test.ts:~61`]
+- [x] [Review][Patch→Fixed] Button accessible name stays stable (`"Se déconnecter"`); `aria-busy` + `sr-only` polite live region carry the loading state [`src/app/routes/settings.tsx`]
+- [x] [Review][Patch→Fixed] `providers.test.tsx` P9/P10 now assert on `frJson.settings.signed_out_success` / `frJson.login.session_expired_toast` (adapt to copy tweaks) [`src/app/providers.test.tsx`]
+- [x] [Review][Patch→Fixed] `signOut.test.ts` "sets ref synchronously" now checks ref at BOTH rpcMock and signOutMock invocation [`src/features/auth/api/signOut.test.ts`]
+- [x] [Review][Patch→Fixed] `settings.test.tsx` pending-state test asserts `waitFor(() => expect(btn).toBeEnabled())` + `aria-busy` toggle [`src/app/routes/settings.test.tsx`]
+- [x] [Review][Patch→Fixed] Added test `"preserves signOutStateRef.reason when signOut rejects but the RPC succeeded"` [`src/features/auth/api/signOut.test.ts`]
+- [x] [Review][Patch→Fixed] `AUDIT_EMIT_TIMEOUT_MS` exported; test uses `AUDIT_EMIT_TIMEOUT_MS + 1` instead of hardcoding `2_001` [`src/features/auth/api/signOut.ts`, `src/features/auth/api/signOut.test.ts`]
+- [x] [Review][Patch→Fixed] `octetLength` now validates hex-only even-length format and throws on drift (base64 / decoded bytes surface loud) [`supabase/functions/_shared/emit-session-event.contract.test.ts`]
+- [x] [Review][Patch→Fixed] `p_reason` error message uses `quote_nullable(p_reason)` so newlines / injected log delimiters from caller input can't corrupt log parsing [`supabase/migrations/20260421000001_emit_session_event.sql`]
+- [x] [Review][Patch→Dismiss] `settings.signout_loading` strict-typing — verified false positive: `src/i18n/keys.ts` uses recursive `Leaves<typeof frJson>` typegen that automatically captures every leaf in `fr.json`; no keys.ts touch needed.
+
+**Deferred (13)** — see `_bmad-output/implementation-artifacts/deferred-work.md`
+
+- [x] [Review][Defer] Playwright E2E has no sign-in fixture; `test.skip` covers no-env but not yes-env-without-auth [`tests/e2e/flow-5-signout.spec.ts`] — deferred; explicit TODO for Story 1.8 CI wiring
+- [x] [Review][Defer] `queryClient.clear()` aborts in-flight mutations silently [`src/app/providers.tsx:~93`] — deferred; AC6 commits to simple clear, ops-monitored
+- [x] [Review][Defer] `audit_log.timestamp` unquoted reserved-name — deferred, pre-existing pattern from migration 0001
+- [x] [Review][Defer] Strict Mode double-invocation produces dup dev-only toast — deferred, dev-only
+- [x] [Review][Defer] Idle-timer `setTimeout` can fire after hook unmount — deferred; re-check `activeRef` in `armTimer` callback (minor)
+- [x] [Review][Defer] `entity_id = collector_id` sentinel lacks DB CHECK — deferred; rationale documented in AC4
+- [x] [Review][Defer] `signOutStateRef.reason` stays stale if Supabase-js fails to emit SIGNED_OUT — deferred; implementation-dependent edge
+- [x] [Review][Defer] `getSession()` seeding races `onAuthStateChange` subscription — deferred; pre-existing Story 1.5/1.6 pattern
+- [x] [Review][Defer] `emit_session_event` has no rate limit (unbounded self-chain appends) — deferred, ops-monitored
+- [x] [Review][Defer] No schema-drift CHECK between TS `SignOutReason` and SQL `p_reason` whitelist — deferred
+- [x] [Review][Defer] `emit_session_event` does not REVOKE from `service_role` — deferred; no service_role caller today
+- [x] [Review][Defer] `search_path = public, extensions, pg_temp` on SECURITY DEFINER (all refs already schema-qualified) — deferred, matches audit_emit pattern
+- [x] [Review][Defer] Playwright regex `/vous êtes déconnecté/i` is case- but not diacritic-insensitive — deferred, tied to the deferred E2E wiring above
+
+**Dismissed as noise (11)** — not recorded, summary only
+
+- Idle RPC 2 s delay before `signOut` (by design per AC5 rationale); no-toast on `/login` (outside AC9 scope); `reason === null` → idle-copy (by design per AC7); runtime-validate `reason` string (TS covers it); style nits (cargo-cult `revoke from anon`, doubled quotes in COMMENT, single-test `describe`, story-tag comments in blame, doubled `no-console` escapes, `v_delim` literal style, story-file bulk inflating diff stats).
 
 ## Dev Notes
 

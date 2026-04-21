@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-21
-# touched: 1-7-sign-out → review (2026-04-21, dev complete)
+# touched: 1-7-sign-out → done (2026-04-21, code review resolved)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -51,7 +51,7 @@ development_status:
   1-4-rate-limit-middleware: done
   1-5-phone-otp-signin: done
   1-6-session-management: done
-  1-7-sign-out: review
+  1-7-sign-out: done
   1-8-ci-pipeline-gates: backlog
   epic-1-retrospective: optional
 

@@ -62,10 +62,15 @@ async function readLatestAudit(
 }
 
 function octetLength(bytea: string | null): number {
-  // Supabase JSON returns bytea as `\xHEXHEX…`. Strip the `\x` prefix, then
-  // each 2 hex chars = 1 byte.
+  // PostgREST returns bytea as `\xHEXHEX…`. Strip the `\x` prefix and
+  // validate that what remains is strictly even-length hex; otherwise the
+  // function length calc is nonsense and silent test success could mask a
+  // representation drift (e.g. base64 or decoded bytes).
   if (bytea === null) return 0;
   const hex = bytea.startsWith("\\x") ? bytea.slice(2) : bytea;
+  if (!/^[0-9a-f]*$/i.test(hex) || hex.length % 2 !== 0) {
+    throw new Error(`octetLength: unexpected bytea representation (len=${bytea.length})`);
+  }
   return hex.length / 2;
 }
 

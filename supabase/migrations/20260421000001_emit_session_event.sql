@@ -49,7 +49,11 @@ begin
   end if;
 
   if p_reason is null or p_reason not in ('explicit', 'idle') then
-    raise exception 'emit_session_event: p_reason must be ''explicit'' or ''idle'' (got %)', p_reason;
+    -- Quote the caller-supplied value so attacker-controlled text cannot
+    -- corrupt log parsing (e.g. injected newlines). quote_nullable(NULL)
+    -- yields the literal string NULL rather than an empty substitution.
+    raise exception 'emit_session_event: p_reason must be ''explicit'' or ''idle'' (got %)',
+      quote_nullable(p_reason);
   end if;
 
   v_timestamp := clock_timestamp();
