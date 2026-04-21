@@ -385,6 +385,28 @@ describe("rate-limit worker", () => {
     }
   });
 
+  it("(story 1.8) GET /health → 200 { ok: true } without KV / env / auth", async () => {
+    // Readiness probe for CI's `wrangler dev` startup. MUST short-circuit
+    // before any of the fail-early paths (config_missing, auth, KV).
+    const failingKv = makeFailingKv();
+    const env: Env = {
+      RATE_LIMIT_KV: failingKv,
+      // Deliberately empty — /health must still respond 200.
+      SUPABASE_PROJECT_URL: "",
+      RATE_LIMIT_PER_MINUTE: "100",
+    };
+    const req = new Request("https://safaricash-api.example.workers.dev/health", {
+      method: "GET",
+    });
+    const res = await handler.fetch(req, env, ctx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toBe("application/json");
+    const body = (await res.json()) as { ok: boolean };
+    expect(body.ok).toBe(true);
+    // And no KV operation was attempted (would have thrown).
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("missing SUPABASE_PROJECT_URL → 500 with config_missing log", async () => {
     const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
     try {

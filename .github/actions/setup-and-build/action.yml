@@ -1,0 +1,40 @@
+name: Setup, install, lint, typecheck, build
+description: |
+  Story 1.8 — shared CI preamble used by both ci.yml (lint-unit job) and
+  deploy.yml (preview/production build). Centralising the gate here keeps
+  the two workflows aligned: a new required check added in one place cannot
+  silently skip in the other.
+
+outputs:
+  dist-path:
+    description: Absolute path to the build output directory.
+    value: ${{ github.workspace }}/dist
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: ".nvmrc"
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Lint (ESLint, max-warnings=0)
+      shell: bash
+      run: npm run lint
+
+    - name: Format check (Prettier)
+      shell: bash
+      run: npx prettier --check .
+
+    - name: Type-check
+      shell: bash
+      run: npx tsc --noEmit
+
+    - name: Production build
+      shell: bash
+      run: npm run build

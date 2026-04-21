@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { expectNoA11yViolations } from "./fixtures/axe";
+
 test("loads the SafariCash dev server and lands on /login with the welcome heading", async ({
   page,
 }) => {
@@ -9,4 +11,5 @@ test("loads the SafariCash dev server and lands on /login with the welcome headi
   await expect(
     page.getByRole("heading", { level: 1, name: /bienvenue sur safaricash/i }),
   ).toBeVisible();
+  await expectNoA11yViolations(page, "smoke /login");
 });

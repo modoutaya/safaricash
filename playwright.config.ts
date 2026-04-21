@@ -2,6 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // Story 1.8 — Playwright picks up *.spec.ts only. Fixture insurance
+  // tests live at tests/e2e/fixtures/*.test.ts and run via Vitest instead.
+  testMatch: /.*\.spec\.ts$/,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

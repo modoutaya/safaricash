@@ -1,27 +1,122 @@
-# Cloudflare Pages preview + production deploy.
-#
-# INTENTIONAL PLACEHOLDER — Story 1.1 (Project Bootstrap) only stages the file.
-# This workflow is intentionally disabled until:
-#   - the Cloudflare API token (`CLOUDFLARE_API_TOKEN`) and account ID
-#     (`CLOUDFLARE_ACCOUNT_ID`) are provisioned in repo secrets
-#   - the Cloudflare Pages project is created and named (currently expected:
-#     `safaricash`)
-#   - Story 1.2 (Supabase Foundation) has wired the production env vars so
-#     the build does not deploy a half-configured artefact
-#
-# Wiring this workflow on is tracked as a follow-up in the EPIC-1 sprint.
-# When activated, replicate the lint + typecheck + test gates from ci.yml and
-# add the deploy step using `cloudflare/pages-action` (or `wrangler pages deploy`).
+name: Deploy (preview + production)
 
-name: Deploy (placeholder — disabled)
+# Story 1.8 — activated the previously placeholder workflow.
+#
+# Behaviour:
+#   - On `pull_request` against main → builds + deploys a PREVIEW to
+#     Cloudflare Pages + posts an idempotent "Preview: <url>" comment.
+#   - On `push` to main → builds + deploys to the PRODUCTION branch on
+#     Cloudflare Pages.
+#
+# Gating:
+#   - The deploy job runs ONLY if `vars.CLOUDFLARE_ENABLED == 'true'`.
+#     Until the repo operator has provisioned Cloudflare (see
+#     docs/RUNBOOK.md § Cloudflare Pages activation), the workflow lands
+#     a no-op "preflight" step so PR status remains green.
+#
+# Required repo secrets (set by operator BEFORE flipping CLOUDFLARE_ENABLED):
+#   - CLOUDFLARE_API_TOKEN   — Cloudflare API token scoped to Pages:Edit.
+#   - CLOUDFLARE_ACCOUNT_ID  — Cloudflare account UUID.
+#
+# Required repo variables:
+#   - CLOUDFLARE_ENABLED     — "true" once the project is provisioned.
+#   - CLOUDFLARE_PROJECT_NAME — Pages project name (e.g. "safaricash").
 
 on:
-  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  deployments: write
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  noop:
-    name: Placeholder — see file header
+  # --------------------------------------------------------------------------
+  # Preflight — runs unconditionally so the workflow ALWAYS lands a status on
+  # the PR. When Cloudflare is not enabled, this is the only job and it
+  # passes with a no-op; once the operator flips the variable, the deploy
+  # job below takes over.
+  # --------------------------------------------------------------------------
+  preflight:
+    name: Preflight (Cloudflare enabled?)
     runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
     steps:
-      - name: Notice
-        run: echo "Cloudflare Pages deploy is intentionally disabled. See workflow header for activation criteria."
+      - name: Resolve CLOUDFLARE_ENABLED
+        id: check
+        run: |
+          if [ "${{ vars.CLOUDFLARE_ENABLED }}" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Cloudflare deploy ENABLED."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Cloudflare deploy disabled — see docs/RUNBOOK.md § Cloudflare Pages activation."
+          fi
+
+  deploy:
+    name: Build and deploy to Cloudflare Pages
+    needs: preflight
+    if: ${{ needs.preflight.outputs.enabled == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+    outputs:
+      url: ${{ steps.pages-deploy.outputs.deployment-url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup + install + lint + typecheck + build
+        uses: ./.github/actions/setup-and-build
+
+      - name: Determine deploy branch
+        id: branch
+        run: |
+          # On PR → github.head_ref (e.g. "feat/1-8-ci-gates").
+          # On push to main → use "main".
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ref="${{ github.head_ref }}"
+          else
+            ref="main"
+          fi
+          echo "branch=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Cloudflare Pages
+        id: pages-deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            pages deploy dist
+            --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }}
+            --branch=${{ steps.branch.outputs.branch }}
+
+      - name: Post / update preview URL comment
+        if: github.event_name == 'pull_request' && steps.pages-deploy.outputs.deployment-url != ''
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            <!-- cf-preview-url -->
+            :white_check_mark: Preview: ${{ steps.pages-deploy.outputs.deployment-url }}
+
+            _(updates on every push to this PR)_
+        # NOTE: peter-evans/create-or-update-comment@v4 without `comment-id`
+        # creates a new comment. To dedupe across pushes we rely on the
+        # `<!-- cf-preview-url -->` marker; a follow-up (once the first
+        # deploy lands) can switch to `find-and-update` using this marker.
