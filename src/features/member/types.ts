@@ -6,6 +6,9 @@
 
 import { z } from "zod";
 
+import type { StatusBadgeKind } from "@/components/domain/StatusBadge";
+import { isValidSenegalPhone } from "@/features/auth/ui/phoneFormat";
+
 // ---------------------------------------------------------------------------
 // Enum shapes — mirrors public.{members_status_enum,cycles_status_enum}
 // (supabase/migrations/20260419000001_init_schema.sql:46-48).
@@ -53,7 +56,6 @@ export type TransactionTimestamp = z.infer<typeof transactionTimestampSchema>;
 
 // StatusBadge owns the authoritative DisplayStatus union; re-exported here
 // so member-feature consumers get both types from one barrel import.
-import type { StatusBadgeKind } from "@/components/domain/StatusBadge";
 
 /** The UX-level status used by the list UI. `hidden` rows are dropped
  *  before reaching the UI — the component type is DisplayStatus. */
@@ -72,3 +74,30 @@ export interface MemberWithMeta {
 
 /** TanStack Query key — exported for downstream stories to invalidate. */
 export const MEMBERS_QUERY_KEY = ["members", "list"] as const;
+
+// ---------------------------------------------------------------------------
+// Story 2.2 — manual member creation.
+// ---------------------------------------------------------------------------
+
+/** Story 2.2 — UX threshold for "Ajouter un membre" CTA placement.
+ *  ≤ this many visible members → header button (visible without scroll).
+ *  > this many → FAB (ergonomic on long-scroll lists). */
+export const MEMBER_HEADER_CTA_THRESHOLD = 10;
+
+/** Form input shape for the manual create-member flow. Used by both the
+ *  MemberForm (RHF resolver) and useCreateMember (defense-in-depth re-parse). */
+export const createMemberInputSchema = z.object({
+  name: z.string().trim().min(2, "Au moins 2 caractères").max(80, "Maximum 80 caractères"),
+  // Empty string is valid (collector may not have the phone yet — common
+  // for cash-only savers). Non-empty must be a Senegal E.164 mobile.
+  phoneNumber: z.union([
+    z.literal(""),
+    z.string().refine(isValidSenegalPhone, "Numéro invalide (format +221XXXXXXXXX)"),
+  ]),
+  dailyAmount: z.coerce
+    .number()
+    .int("Montant entier requis")
+    .min(100, "Minimum 100 FCFA")
+    .max(100000, "Maximum 100 000 FCFA"),
+});
+export type CreateMemberInput = z.infer<typeof createMemberInputSchema>;

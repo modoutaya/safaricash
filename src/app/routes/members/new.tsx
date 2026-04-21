@@ -1,24 +1,39 @@
-// Story 1.5 — /members/new placeholder. Story 2.2 will ship the real
-// creation flow.
+// Story 2.2 — /members/new route host.
+//
+// Mounts <MemberForm> and owns post-submit navigation (mirror of
+// LoginRoute from Story 1.5b — the form itself is navigation-agnostic).
 
-import { Link } from "react-router-dom";
+import { ChevronLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { MemberForm } from "@/features/member";
+import { useT } from "@/i18n/useT";
 
 export default function MembersNewRoute() {
+  const navigate = useNavigate();
+  const t = useT();
+
   return (
-    <section className="mx-auto flex w-full max-w-sm flex-col items-center gap-6 px-4 py-8 text-center">
-      <div aria-hidden="true" className="text-[64px] leading-none opacity-30">
-        👤
-      </div>
-      <h1 className="text-title-1 text-text-primary">Création de membre</h1>
-      <p className="text-body-1 text-text-secondary">
-        Story 2.2 câble le formulaire de création de membre. Cette page est un placeholder
-        d&apos;atterrissage depuis l&apos;écran vide.
-      </p>
-      <Button asChild variant="outline" size="lg" className="w-full">
-        <Link to="/members">Retour aux membres</Link>
-      </Button>
+    <section className="mx-auto flex w-full max-w-md flex-col gap-4 py-6">
+      <header className="flex items-center gap-2 px-4">
+        <button
+          type="button"
+          onClick={() => navigate("/members")}
+          aria-label={t("members.create.back_label")}
+          className="flex h-11 w-11 items-center justify-center rounded-md text-text-secondary hover:bg-neutral-100 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+        >
+          <ChevronLeft size={24} aria-hidden />
+        </button>
+      </header>
+
+      <MemberForm
+        onSuccess={(_memberId, values) => {
+          toast.success(t("members.create.success_toast", { name: values.name }));
+          navigate("/members", { replace: true });
+        }}
+        onCancel={() => navigate("/members")}
+      />
     </section>
   );
 }

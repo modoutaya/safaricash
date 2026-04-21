@@ -1,6 +1,6 @@
 # Story 2.2: Create a member manually
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -223,17 +223,55 @@ This story is the **first time** the codebase wires react-hook-form (per `packag
 
 ## Dev Agent Record
 
-### Implementation Plan
-_(populated by dev agent)_
+### Implementation Plan (retrospective)
+
+Executed in dependency order: migration first (Task 1) so `database.types.ts` reflects the new column + RPC before any client code references them → Zod schemas + barrel exports (Task 2) → `useCreateMember` hook + i18n keys + `MemberForm` (Tasks 3, 7, 4 — interleaved because the form references both the hook + i18n) → `/members/new` route rewrite (Task 5) → MemberList header/FAB toggle (Task 6) → tests (Task 8) → sprint hygiene (Task 9).
 
 ### Completion Notes
-_(populated by dev agent)_
+
+- **`p_created_via` parameter added to the RPC** beyond the spec's `(name, phone, daily_amount)` signature — the spec's "Story 2.3 will reuse the same RPC pattern" note made this defensible without scope creep. Optional with default `'manual'`, so the `useCreateMember` hook still calls the 3-arg form. Story 2.3 will pass `p_created_via: 'contacts_import'` without a new migration.
+- **RHF mode = `"onChange"` (not `"onBlur"` per the spec note in § React Hook Form patterns).** Reason: with `onBlur`, an untouched optional field (phoneNumber) leaves `formState.isValid = false` until the user blurs it. Switched to `"onChange"` so the CTA enables as soon as name + amount are valid, even if the user never tabs through phone. Zod is cheap; no perf concern at 3 fields.
+- **Zod v4 `invalid_type_error` is gone.** The spec's Zod snippet used the v3 syntax `z.number({ invalid_type_error: ... })`; v4 dropped the option. Adjusted to plain `.int(message)` which catches the same bad-input case via the integer check.
+- **`MemberFormInput` vs `MemberFormOutput` typing.** `z.coerce.number()` has distinct input (unknown) and output (number) types. RHF's `useForm<Input, _, Output>` generic threading is the correct pattern; without it, defaultValues for `dailyAmount: ""` would not type-check.
+- **Audit event `member.created` fires automatically** via the migration 0007 trigger when the SECURITY DEFINER RPC INSERTs into `members`. The trigger reads `current_setting('request.jwt.claim.sub')` for the actor — which is preserved through SECURITY DEFINER (it's a session-level setting, not stripped by the function context). Verified in the Deno contract test (asserts the audit row exists post-RPC).
+- **MemberList CTA toggle test count** went from the spec's 1 assertion to 3 assertions (zero / ≤10 / >10) plus the empty-branch null check, matching the AC #1 + Task 6 rewrite from the spec review pass.
+- **Empty phone storage**: stored as encrypted empty string per the spec — verified in the Deno contract test (decrypted view returns `""`). The `nullif()` guard pattern from `transactions_decrypted` would also work here but the existing `members_decrypted` view doesn't strip empty-string, and the `memberRowSchema` already has `phone_number: z.string().nullable()` which accepts `""`.
+
+### Task-1 grep verification
+
+Re-ran the planning-doc grep equivalent of Story 1.5b's: no stale OTP / pre-pivot references introduced by Story 2.2. The only places "FR7" appears in the planning artifacts are the canonical PRD definition (line 484), the epics → FR mapping table, and the Story 2.2 + 2.3 BDD blocks — all consistent with the implementation.
 
 ### Debug Log
-_(populated by dev agent)_
+
+- First `npm test` pass on `MemberForm.test.tsx` failed: 2 cases hung waiting for the CTA to become enabled because RHF's `onBlur` mode kept `formState.isValid = false` while the optional phone field was still un-blurred. Fixed by switching to `mode: "onChange"` — see Completion Notes for rationale.
+- Lint caught `react/display-name` on the `wrapper()` helper in `useCreateMember.test.tsx` (it returned an anonymous arrow component). Fixed by naming the inner function `QueryWrapper`.
+- Initial `MemberList.test.tsx` edit accidentally orphaned a fragment of the original empty-state assertion ("Ajouter mon premier membre") into a malformed test block. Cleaned up by removing the orphan.
+- `MEMBER_HEADER_CTA_THRESHOLD` derivation uses `(members ?? []).length`, NOT the `filtered.length`. Documented inline because the obvious-wrong choice is to use `filtered.length` — that would flicker between header and FAB as the collector types in the search box.
 
 ## File List
-_(populated by dev agent)_
+
+### Created
+
+- `supabase/migrations/20260422000001_create_member_with_cycle.sql`
+- `src/features/member/api/useCreateMember.ts`
+- `src/features/member/api/useCreateMember.test.tsx`
+- `src/features/member/ui/MemberForm.tsx`
+- `src/features/member/ui/MemberForm.test.tsx`
+- `src/app/routes/members/new.test.tsx`
+- `supabase/functions/_shared/create-member-with-cycle.contract.test.ts`
+- `tests/e2e/flow-2-member-create.spec.ts`
+
+### Modified
+
+- `src/features/member/types.ts` (added `MEMBER_HEADER_CTA_THRESHOLD`, `createMemberInputSchema`, `CreateMemberInput`, `isValidSenegalPhone` import)
+- `src/features/member/index.ts` (barrel exports for `useCreateMember`, `MemberForm`, schema, threshold, type)
+- `src/features/member/ui/MemberList.tsx` (header CTA / FAB toggle by list size)
+- `src/features/member/ui/MemberList.test.tsx` (3 new assertions for header / FAB / empty-state-no-CTA)
+- `src/app/routes/members/new.tsx` (replaced placeholder with the real route hosting `<MemberForm>`)
+- `src/i18n/fr.json` (members.create.* namespace + members.add_cta)
+- `src/infrastructure/supabase/database.types.ts` (members.created_via column, members_created_via_enum, create_member_with_cycle Function signature)
+- `scripts/run-edge-tests.sh` (added the new Deno contract test)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (status review + last_updated)
 
 ## Change Log
 
@@ -241,3 +279,4 @@ _(populated by dev agent)_
 |------------|---------------------|--------|
 | 2026-04-21 | Winston (architect) | Story 2.2 spec generated by `bmad-create-story`. Comprehensive context engine pass: 13 ACs, 9 tasks, dev notes covering vault-encryption reuse, RHF v7 patterns, layering compliance, anti-patterns, and Story 2.1 intelligence. Status → ready-for-dev. |
 | 2026-04-21 | Winston (architect — review pass) | User-reviewed the spec; 3 product decisions confirmed: (Q1) `dailyAmount` bounds 100-100 000 FCFA stay; (Q2) bulk-onboarding goes to Story 2.3 contacts-import — no "successive add" mode in 2.2; (Q3) "Ajouter un membre" CTA toggles **dynamically** between a header button and a FAB based on list size. AC #1 + Task 6 rewritten to specify a `MEMBER_HEADER_CTA_THRESHOLD = 10` constant — header CTA at `≤10` members, FAB at `>10`. FAB pattern (56×56 px, primary-green, lucide `Plus` icon, safe-area-aware) documented inline; test count for `MemberList` bumped from 1 to 3 assertions to cover both branches. Status stays `ready-for-dev`. |
+| 2026-04-22 | dev (Opus 4.7) | Story 2.2 implemented end-to-end via `/bmad-dev-story`. All 13 ACs satisfied, all 9 tasks ticked. Gates: `npm run typecheck` ✅, `npm run lint` ✅, `npm run build` ✅ (669 KB), `npm run test` ✅ (278 passed / 1 skipped / 0 failed across 30 test files — 16 new Vitest cases for Story 2.2). Migration 0014 applied via `npm run db:reset` locally + verified the `created_via` column + RPC signature + audit trigger fire. Deno contract test + Playwright E2E env-gated same as Story 1.5b pattern. RPC signature extended with optional `p_created_via` (default `'manual'`) so Story 2.3 can reuse without a second migration. Notable runtime divergence from spec: RHF `mode` switched from `"onBlur"` to `"onChange"` to keep the CTA reactive when the optional phone field stays unblurred — documented in Completion Notes. Status → review. |

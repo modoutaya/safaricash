@@ -67,6 +67,37 @@
     "status_badge_avance": "Avance",
     "status_badge_termine": "Terminé",
     "amount_per_day": "{amount} F CFA / jour",
-    "load_error": "Impossible de charger la liste des membres. Réessayez dans un instant."
+    "load_error": "Impossible de charger la liste des membres. Réessayez dans un instant.",
+    "add_cta": "Ajouter un membre",
+    "create": {
+      "title": "Nouveau membre",
+      "subtitle": "Saisissez les coordonnées du nouveau saver pour démarrer son cycle de 30 jours.",
+      "back_label": "Retour aux membres",
+      "field": {
+        "name_label": "Nom",
+        "name_placeholder": "Awa Diallo",
+        "phone_label": "Numéro de téléphone (optionnel)",
+        "phone_placeholder": "+221 77 791 58 98",
+        "amount_label": "Cotisation quotidienne (FCFA)",
+        "amount_helper": "Entre 100 et 100 000 FCFA"
+      },
+      "cta_submit": "Ajouter ce membre",
+      "cta_submitting": "Ajout en cours…",
+      "cta_cancel": "Annuler",
+      "error": {
+        "name_required": "Au moins 2 caractères",
+        "name_too_long": "Maximum 80 caractères",
+        "phone_invalid": "Numéro invalide (format +221XXXXXXXXX)",
+        "amount_required": "Montant requis",
+        "amount_min": "Minimum 100 FCFA",
+        "amount_max": "Maximum 100 000 FCFA",
+        "amount_integer": "Montant entier requis",
+        "unauthorized": "Vous devez être reconnecté pour ajouter un membre",
+        "duplicate_phone": "Un membre avec ce numéro existe déjà",
+        "network": "Pas de réseau — vérifiez votre connexion",
+        "unknown": "Erreur inattendue — réessayez"
+      },
+      "success_toast": "{name} ajouté à votre route ✓"
+    }
   }
 }

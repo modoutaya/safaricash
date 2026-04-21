@@ -8,16 +8,18 @@
 //   success + search no match  → no_search_match_headline / subtext.
 //   success + ≥1 member        → search box + filter chips + card list.
 
+import { Plus } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/domain/EmptyState";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
 
 import { normalizeForSearch } from "../api/normalizeForSearch";
 import { useMembers } from "../api/useMembers";
-import type { DisplayStatus, MemberWithMeta } from "../types";
+import { MEMBER_HEADER_CTA_THRESHOLD, type DisplayStatus, type MemberWithMeta } from "../types";
 import { MemberCard } from "./MemberCard";
 
 const ALL_CHIPS: readonly DisplayStatus[] = ["actif", "avance", "termine"] as const;
@@ -94,12 +96,24 @@ export function MemberList(): JSX.Element {
     });
   };
 
+  // Story 2.2 — "Ajouter un membre" CTA placement: header button at ≤10
+  // members, FAB at >10. Threshold lives in types.ts for one-line tweaks.
+  // Driven by the TOTAL members count (not the filtered/search subset) so
+  // the affordance doesn't flicker while the collector types.
+  const useFab = (members ?? []).length > MEMBER_HEADER_CTA_THRESHOLD;
+
   return (
     <section
       className="mx-auto flex w-full max-w-2xl flex-col gap-4 p-4"
       aria-label={t("members.title")}
     >
       <h1 className="text-title-1 text-text-primary">{t("members.title")}</h1>
+
+      {!useFab ? (
+        <Button asChild size="lg" className="w-full">
+          <Link to="/members/new">{t("members.add_cta")}</Link>
+        </Button>
+      ) : null}
 
       <input
         type="search"
@@ -148,6 +162,16 @@ export function MemberList(): JSX.Element {
           ))}
         </ul>
       )}
+
+      {useFab ? (
+        <Link
+          to="/members/new"
+          aria-label={t("members.add_cta")}
+          className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary-500 text-primary-foreground shadow-lg hover:bg-primary-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 [padding-bottom:env(safe-area-inset-bottom)]"
+        >
+          <Plus size={24} aria-hidden />
+        </Link>
+      ) : null}
     </section>
   );
 }

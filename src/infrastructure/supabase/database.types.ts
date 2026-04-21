@@ -200,6 +200,7 @@ export type Database = {
         Row: {
           collector_id: string;
           created_at: string;
+          created_via: Database["public"]["Enums"]["members_created_via_enum"];
           daily_amount: number;
           id: string;
           name_encrypted: string;
@@ -210,6 +211,7 @@ export type Database = {
         Insert: {
           collector_id: string;
           created_at?: string;
+          created_via?: Database["public"]["Enums"]["members_created_via_enum"];
           daily_amount: number;
           id?: string;
           name_encrypted: string;
@@ -220,6 +222,7 @@ export type Database = {
         Update: {
           collector_id?: string;
           created_at?: string;
+          created_via?: Database["public"]["Enums"]["members_created_via_enum"];
           daily_amount?: number;
           id?: string;
           name_encrypted?: string;
@@ -504,6 +507,15 @@ export type Database = {
     };
     Functions: {
       canonical_jsonb: { Args: { j: Json }; Returns: string };
+      create_member_with_cycle: {
+        Args: {
+          p_name: string;
+          p_phone_number: string;
+          p_daily_amount: number;
+          p_created_via?: Database["public"]["Enums"]["members_created_via_enum"];
+        };
+        Returns: string;
+      };
       emit_session_event: {
         Args: { p_reason: string };
         Returns: undefined;
@@ -517,6 +529,7 @@ export type Database = {
       cycles_status_enum: "active" | "with_advance" | "completed" | "settled";
       disputes_status_enum: "open" | "resolved" | "dismissed";
       disputes_via_enum: "receipt_url" | "support_email" | "support_phone";
+      members_created_via_enum: "manual" | "contacts_import";
       members_status_enum: "active" | "paused" | "completed" | "deleted";
       sms_queue_status_enum: "queued" | "sent" | "delivered" | "failed" | "abandoned";
       transactions_kind_enum: "contribution" | "rattrapage" | "advance";
@@ -651,6 +664,7 @@ export const Constants = {
       cycles_status_enum: ["active", "with_advance", "completed", "settled"],
       disputes_status_enum: ["open", "resolved", "dismissed"],
       disputes_via_enum: ["receipt_url", "support_email", "support_phone"],
+      members_created_via_enum: ["manual", "contacts_import"],
       members_status_enum: ["active", "paused", "completed", "deleted"],
       sms_queue_status_enum: ["queued", "sent", "delivered", "failed", "abandoned"],
       transactions_kind_enum: ["contribution", "rattrapage", "advance"],
