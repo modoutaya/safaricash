@@ -47,9 +47,17 @@ function buildRequest(jwt: string, body: unknown): Request {
   });
 }
 
+// We match on the Termii path ("/api/sms/send") rather than the host
+// because auth-sms-hook/index.test.ts sets TERMII_API_BASE_URL=
+// https://termii.test.local at module load, and Deno parses all test
+// files before running any test — so when the re-auth and auth-sms-hook
+// files run in the same `deno test` invocation, re-auth's handler sees
+// the .test.local host. Path-based matching stays correct regardless.
+const TERMII_SEND_PATH = "/api/sms/send";
+
 function termiiMock(otpHolder: { lastBody: string }) {
   return installFetchRecorder({
-    matchUrl: (url) => url.includes("termii.com"),
+    matchUrl: (url) => url.includes(TERMII_SEND_PATH),
     responder: (call) => {
       const parsed = call.body ? JSON.parse(call.body) : {};
       otpHolder.lastBody = parsed.sms ?? "";
@@ -400,7 +408,7 @@ Deno.test({
     await ensureCollectors();
     await clearChallenges();
     const recorder = installFetchRecorder({
-      matchUrl: (url) => url.includes("termii.com"),
+      matchUrl: (url) => url.includes(TERMII_SEND_PATH),
       responder: () =>
         new Response(JSON.stringify({ error: "upstream down" }), {
           status: 500,
@@ -440,7 +448,7 @@ Deno.test({
     await clearChallenges();
     let termiiCalls = 0;
     const recorder = installFetchRecorder({
-      matchUrl: (url) => url.includes("termii.com"),
+      matchUrl: (url) => url.includes(TERMII_SEND_PATH),
       responder: () => {
         termiiCalls++;
         return new Response(JSON.stringify({ error: "upstream down" }), {
