@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+# Story 1.8 — Conventional Commits validator.
+# Validates the commit message against commitlint.config.cjs. Fails the
+# commit on any high-severity rule violation.
+npx --no -- commitlint --edit "$1"

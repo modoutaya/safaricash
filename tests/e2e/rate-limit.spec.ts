@@ -1,5 +1,7 @@
 // Story 1.4 — rate-limit Worker E2E gate.
 //
+// No UI — axe-core excluded from this spec (Story 1.8 AC 4).
+//
 // Hits the deployed (or `wrangler dev`-served) worker URL 101 times in
 // rapid succession with the same collector JWT and asserts the 101st
 // returns 429 + Retry-After. The worker proxies passes through to

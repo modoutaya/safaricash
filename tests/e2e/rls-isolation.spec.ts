@@ -5,6 +5,8 @@
 // — `webServer` is only used by the smoke spec; this file talks directly to
 // Supabase via @supabase/supabase-js.
 //
+// No UI — axe-core excluded from this spec (Story 1.8 AC 4).
+//
 // Required env (read from .env.local at runtime via `dotenv` config in
 // playwright.config.ts when this story's Phase 2/3 lands):
 //   - SUPABASE_TEST_URL              (defaults to http://127.0.0.1:54321 for local)
@@ -16,6 +18,16 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { expect, test } from "@playwright/test";
+
+import {
+  buildServiceClient,
+  buildAnonClient,
+  cleanupCollector,
+  seedCollectorViaAdmin,
+  seedMembersForCollector,
+  type SeededCollector,
+  type MemberSeed,
+} from "./fixtures/seed-collector";
 
 const SUPABASE_URL = process.env["SUPABASE_TEST_URL"] ?? "http://127.0.0.1:54321";
 const SUPABASE_ANON_KEY = process.env["SUPABASE_TEST_ANON_KEY"] ?? "";
@@ -34,117 +46,7 @@ if (process.env["CI"] === "true" && (!SUPABASE_ANON_KEY || !SUPABASE_SERVICE_ROL
   );
 }
 
-type SeededCollector = {
-  email: string;
-  password: string;
-  userId: string;
-  memberIds: string[];
-  cycleIds: string[];
-  transactionIds: string[];
-};
-
-async function seedCollector(
-  serviceClient: SupabaseClient,
-  label: "A" | "B",
-): Promise<SeededCollector> {
-  const email = `collector-${label.toLowerCase()}-${Date.now()}@safaricash-test.local`;
-  const password = `Test${label}-${Math.random().toString(36).slice(2, 12)}!`;
-
-  // Create the auth user via service-role admin API.
-  const { data: authData, error: authError } = await serviceClient.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-  });
-  if (authError || !authData.user) {
-    throw new Error(`createUser(${label}): ${authError?.message ?? "no user"}`);
-  }
-  const userId = authData.user.id;
-
-  // Insert the public.users profile row (collector role).
-  // Wider entropy than 4 random digits to avoid UNIQUE collisions under
-  // CI parallelism / retry. crypto.randomUUID returns 32 hex chars; first 9
-  // give us 36 bits of entropy fitting a +221 mobile number length.
-  const phone = `+22177${crypto.randomUUID().replace(/-/g, "").slice(0, 9)}`;
-  const { error: usersError } = await serviceClient.from("users").insert({
-    id: userId,
-    phone_number: phone,
-    role: "collector",
-  });
-  if (usersError) throw new Error(`insert users(${label}): ${usersError.message}`);
-
-  // Seed 3 members (using vault_encrypt RPC for the encrypted columns).
-  const memberIds: string[] = [];
-  for (let i = 0; i < 3; i++) {
-    const { data: nameSecret, error: nameSecretErr } = await serviceClient.rpc("vault_encrypt", {
-      plaintext: `Member ${label}-${i + 1}`,
-    });
-    if (nameSecretErr || !nameSecret) {
-      throw new Error(`vault_encrypt(name) returned no secret_id: ${nameSecretErr?.message}`);
-    }
-    const { data: phoneSecret, error: phoneSecretErr } = await serviceClient.rpc("vault_encrypt", {
-      plaintext: `+221770111${i}${i}${i}${i}`,
-    });
-    if (phoneSecretErr || !phoneSecret) {
-      throw new Error(`vault_encrypt(phone) returned no secret_id: ${phoneSecretErr?.message}`);
-    }
-    const { data: member, error } = await serviceClient
-      .from("members")
-      .insert({
-        collector_id: userId,
-        name_encrypted: nameSecret,
-        phone_number_encrypted: phoneSecret,
-        daily_amount: 500,
-        status: "active",
-      })
-      .select("id")
-      .single();
-    if (error || !member) throw new Error(`insert members(${label}, ${i}): ${error?.message}`);
-    memberIds.push(member.id);
-  }
-
-  // Seed 3 cycles (one per member) and 3 transactions (one per cycle).
-  const cycleIds: string[] = [];
-  const transactionIds: string[] = [];
-  for (let i = 0; i < 3; i++) {
-    const memberId = memberIds[i] as string;
-    const { data: cycle, error: cycleErr } = await serviceClient
-      .from("cycles")
-      .insert({
-        collector_id: userId,
-        member_id: memberId,
-        cycle_number: 1,
-        start_date: "2026-04-19",
-        end_date: "2026-05-18",
-        status: "active",
-      })
-      .select("id")
-      .single();
-    if (cycleErr || !cycle) throw new Error(`insert cycles(${label}, ${i}): ${cycleErr?.message}`);
-    cycleIds.push(cycle.id);
-
-    const { data: amountSecret } = await serviceClient.rpc("vault_encrypt", {
-      plaintext: "500",
-    });
-    const { data: tx, error: txErr } = await serviceClient
-      .from("transactions")
-      .insert({
-        collector_id: userId,
-        member_id: memberId,
-        cycle_id: cycle.id,
-        kind: "contribution",
-        amount_encrypted: amountSecret,
-        cycle_day: 1,
-        source: "online",
-      })
-      .select("id")
-      .single();
-    if (txErr || !tx) throw new Error(`insert transactions(${label}, ${i}): ${txErr?.message}`);
-    transactionIds.push(tx.id);
-  }
-
-  return { email, password, userId, memberIds, cycleIds, transactionIds };
-}
+type RlsFixture = { collector: SeededCollector; members: MemberSeed[] };
 
 test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
   // Tests share seeded collector accounts via beforeAll/afterAll. Must run
@@ -160,23 +62,26 @@ test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
   );
 
   let serviceClient: SupabaseClient;
-  let collectorA: SeededCollector;
-  let collectorB: SeededCollector;
+  let collectorA: RlsFixture;
+  let collectorB: RlsFixture;
 
   test.beforeAll(async () => {
-    serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-    collectorA = await seedCollector(serviceClient, "A");
-    collectorB = await seedCollector(serviceClient, "B");
+    serviceClient = buildServiceClient();
+    const anon = buildAnonClient();
+    const seededA = await seedCollectorViaAdmin(serviceClient, anon, "A");
+    const seededB = await seedCollectorViaAdmin(serviceClient, anon, "B");
+    const membersA = await seedMembersForCollector(serviceClient, seededA, 3, "A");
+    const membersB = await seedMembersForCollector(serviceClient, seededB, 3, "B");
+    collectorA = { collector: seededA, members: membersA };
+    collectorB = { collector: seededB, members: membersB };
   });
 
   test.afterAll(async () => {
-    if (collectorA?.userId) {
-      await serviceClient.auth.admin.deleteUser(collectorA.userId);
+    if (collectorA?.collector?.userId) {
+      await cleanupCollector(serviceClient, collectorA.collector);
     }
-    if (collectorB?.userId) {
-      await serviceClient.auth.admin.deleteUser(collectorB.userId);
+    if (collectorB?.collector?.userId) {
+      await cleanupCollector(serviceClient, collectorB.collector);
     }
   });
 
@@ -185,8 +90,8 @@ test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     const { error: signInErr } = await clientA.auth.signInWithPassword({
-      email: collectorA.email,
-      password: collectorA.password,
+      email: collectorA.collector.email,
+      password: collectorA.collector.password,
     });
     expect(signInErr).toBeNull();
 
@@ -199,7 +104,7 @@ test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
       // we actually got our rows back.
       expect(data!.length, `${table}: expected exactly 3 rows for collector A`).toBe(3);
       for (const row of data!) {
-        expect(row.collector_id).toBe(collectorA.userId);
+        expect(row.collector_id).toBe(collectorA.collector.userId);
       }
     }
     // sms_queue and disputes weren't seeded by this test — assert empty
@@ -208,7 +113,7 @@ test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
       const { data, error } = await clientA.from(table).select("collector_id");
       expect(error, `select ${table}: ${error?.message}`).toBeNull();
       for (const row of data ?? []) {
-        expect(row.collector_id).toBe(collectorA.userId);
+        expect(row.collector_id).toBe(collectorA.collector.userId);
       }
     }
 
@@ -218,7 +123,7 @@ test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
       .select("collector_id");
     expect(auditErr).toBeNull();
     for (const row of auditRows ?? []) {
-      expect(row.collector_id).toBe(collectorA.userId);
+      expect(row.collector_id).toBe(collectorA.collector.userId);
     }
   });
 
@@ -227,11 +132,11 @@ test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     await clientA.auth.signInWithPassword({
-      email: collectorA.email,
-      password: collectorA.password,
+      email: collectorA.collector.email,
+      password: collectorA.collector.password,
     });
 
-    const targetMember = collectorB.memberIds[0] as string;
+    const targetMember = collectorB.members[0]!.memberId;
     const { data, error } = await clientA
       .from("members")
       .update({ daily_amount: 9999 })
@@ -255,11 +160,11 @@ test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     await clientA.auth.signInWithPassword({
-      email: collectorA.email,
-      password: collectorA.password,
+      email: collectorA.collector.email,
+      password: collectorA.collector.password,
     });
 
-    const targetMember = collectorB.memberIds[0] as string;
+    const targetMember = collectorB.members[0]!.memberId;
     const { data, error } = await clientA.from("members").delete().eq("id", targetMember).select();
 
     expect(error).toBeNull();
@@ -278,18 +183,18 @@ test.describe("RLS per-collector isolation (NFR-S5 release gate)", () => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
     await clientA.auth.signInWithPassword({
-      email: collectorA.email,
-      password: collectorA.password,
+      email: collectorA.collector.email,
+      password: collectorA.collector.password,
     });
 
     const { error } = await clientA.from("audit_log").insert({
       event_id: "00000000-0000-4000-8000-000000000099",
       event_type: "member.created",
-      collector_id: collectorA.userId,
-      entity_id: collectorA.memberIds[0],
+      collector_id: collectorA.collector.userId,
+      entity_id: collectorA.members[0]!.memberId,
       entity_table: "members",
       timestamp: new Date().toISOString(),
-      actor: collectorA.userId,
+      actor: collectorA.collector.userId,
       source: "online",
       payload: {},
       entry_hash: "\\x00",

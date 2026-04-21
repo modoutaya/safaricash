@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,10 +24,38 @@ env:
   SUPABASE_LOCAL_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
 
 jobs:
-  build-and-test:
-    name: Lint • Typecheck • Unit tests • Build • E2E
+  # ---------------------------------------------------------------------------
+  # Story 1.8 — two parallel jobs to halve wall-clock. lint-unit surfaces
+  # lint / typecheck / build / coverage fast; e2e-integration runs the
+  # Supabase + Playwright + Deno + wrangler gate.
+  # ---------------------------------------------------------------------------
+  lint-unit:
+    name: Lint • Typecheck • Unit tests • Build
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup + install + lint + typecheck + build
+        uses: ./.github/actions/setup-and-build
+
+      - name: Unit tests with coverage (Vitest)
+        run: npm run test -- --run --coverage
+
+      - name: Upload coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary
+          path: coverage/
+          retention-days: 7
+
+  e2e-integration:
+    name: Supabase • Playwright • axe • RLS • wrangler • Deno
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -41,18 +70,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint (ESLint, max warnings 0)
-        run: npm run lint
-
-      - name: Format check (Prettier)
-        run: npx prettier --check .
-
-      - name: Type-check
-        run: npx tsc --noEmit
-
-      - name: Production build (validates AC #2)
-        run: npm run build
-
       # ----- Local Supabase stack — required by RLS isolation E2E and
       # SQL ↔ TS hash-chain contract test. The stack is excluded of the
       # services we don't need (studio, realtime, storage, edge-runtime, etc.)
@@ -62,9 +79,36 @@ jobs:
           npx supabase start \
             --exclude=studio,inbucket,realtime,storage,edge-runtime,vector,pooler,imgproxy,supavisor
 
-      # ----- Unit tests run AFTER Supabase is up so the contract test
-      # (which talks to the local stack) can execute too.
-      - name: Unit tests + SQL↔TS contract test (Vitest)
+      # ----- Rate-limit Worker dev server — unblocks tests/e2e/rate-limit.spec.ts.
+      # wrangler dev binds KV to Miniflare's in-memory impl, so no Cloudflare
+      # account or real KV namespace is needed for CI.
+      - name: Start wrangler dev (rate-limit worker)
+        run: |
+          # Run wrangler dev in the background; redirect its logs so job
+          # output stays readable on failure.
+          npx wrangler dev \
+            --config workers/rate-limit/wrangler.toml \
+            --port 8787 \
+            --ip 127.0.0.1 \
+            --log-level warn \
+            > /tmp/wrangler-dev.log 2>&1 &
+          echo "WRANGLER_PID=$!" >> "$GITHUB_ENV"
+
+          # Readiness probe — poll /health up to 30 s before proceeding.
+          # Story 1.8 AC 6 adds the /health endpoint specifically to make
+          # this probe deterministic.
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8787/health > /dev/null; then
+              echo "wrangler dev ready after ${i}x 0.5s polls"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "wrangler dev did not become ready within 30s — last logs:" >&2
+          cat /tmp/wrangler-dev.log >&2 || true
+          exit 1
+
+      - name: Unit tests (Vitest) — smoke before E2E
         env:
           SUPABASE_TEST_URL: http://127.0.0.1:54321
           SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ env.SUPABASE_LOCAL_SERVICE_ROLE_KEY }}
@@ -91,11 +135,18 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright install-deps chromium
 
-      - name: E2E tests (Playwright + RLS isolation release gate)
+      - name: E2E tests (Playwright + axe + RLS isolation + session fixtures)
         env:
+          # RLS spec + OTP tests hit Supabase via the service-role admin API.
           SUPABASE_TEST_URL: http://127.0.0.1:54321
           SUPABASE_TEST_ANON_KEY: ${{ env.SUPABASE_LOCAL_ANON_KEY }}
           SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ env.SUPABASE_LOCAL_SERVICE_ROLE_KEY }}
+          # Story 1.8 — enables the seedCollector fixture so the three
+          # previously-skipped specs (flow-5-signout, session-idle-timeout,
+          # flow-5-login OTP-verify) actually run in CI.
+          SUPABASE_TEST_SEED_READY: "1"
+          # Story 1.8 — rate-limit.spec.ts auto-detects this.
+          WORKER_BASE_URL: http://127.0.0.1:8787
           # Vite reads VITE_* from process.env; without these the dev server
           # spawned by playwright.config.ts crashes at module-load in
           # src/infrastructure/supabase/env.ts and React never mounts.
@@ -104,6 +155,14 @@ jobs:
         run: npx playwright test
 
       # ----- Edge Function tests (Deno) — Story 1.3 onward.
+      - name: Cache Deno deps
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/deno
+            ~/.deno
+          key: ${{ runner.os }}-deno-${{ hashFiles('deno.lock') }}
+
       - name: Setup Deno
         uses: denoland/setup-deno@v1
         with:
@@ -117,6 +176,13 @@ jobs:
           TERMII_API_KEY: mock-key-not-used-in-tests
         run: npm run test:edge
 
+      - name: Stop wrangler dev
+        if: always()
+        run: |
+          if [ -n "${WRANGLER_PID:-}" ]; then
+            kill "$WRANGLER_PID" 2>/dev/null || true
+          fi
+
       - name: Stop local Supabase stack
         if: always()
         run: npx supabase stop --no-backup || true
@@ -128,3 +194,44 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
+
+      - name: Upload wrangler dev logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wrangler-dev-log
+          path: /tmp/wrangler-dev.log
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Story 1.8 — conventional-commits enforcement. PR-only because a direct
+  # push to main has no base SHA for the commit range.
+  # ---------------------------------------------------------------------------
+  commitlint:
+    name: Commitlint (Conventional Commits)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # commitlint needs the full range between base and head.
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate commit range
+        run: |
+          npx commitlint \
+            --from=${{ github.event.pull_request.base.sha }} \
+            --to=${{ github.event.pull_request.head.sha }} \
+            --verbose

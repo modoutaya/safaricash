@@ -81,6 +81,20 @@ function safeInstance(rawUrl: string): string {
 export default {
   async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     // ---------------------------------------------------------------------
+    // 0. Story 1.8 — unauthenticated /health endpoint. Used by CI's
+    //    wrangler-dev readiness probe (before the rate-limit spec runs).
+    //    MUST come before any env check / auth / KV — the probe runs in
+    //    the first ~500ms of wrangler boot, and a rate-limit miss or env
+    //    misread on /health would make CI flaky.
+    // ---------------------------------------------------------------------
+    if (new URL(request.url).pathname === "/health") {
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
+
+    // ---------------------------------------------------------------------
     // 1. CORS preflight short-circuit. Frontend (*.pages.dev) → worker
     //    (*.workers.dev) is cross-origin; browser sends OPTIONS first.
     //    Don't consult KV — preflight is idempotent + safe.

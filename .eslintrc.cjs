@@ -51,6 +51,20 @@ module.exports = {
       "warn",
       { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
     ],
+    // Story 1.8 — jsx-a11y rule upgrades beyond the `recommended` preset.
+    // Rationale documented in story 1-8-ci-pipeline-gates.md § AC 5.
+    "jsx-a11y/no-autofocus": "error",
+    "jsx-a11y/label-has-associated-control": ["error", { assert: "either" }],
+    // react-router-dom's <Link to="..."> is a valid anchor; teach the rule
+    // so the existing codebase doesn't trip on it.
+    "jsx-a11y/anchor-is-valid": [
+      "error",
+      {
+        components: ["Link"],
+        specialLink: ["to"],
+        aspects: ["noHref", "invalidHref", "preferButton"],
+      },
+    ],
     // Cross-feature internal imports must go through the feature's index.ts barrel.
     // Severity is "error" so CI's --max-warnings=0 is not the only thing keeping
     // layering honest.
@@ -84,7 +98,14 @@ module.exports = {
     {
       files: ["**/*.test.{ts,tsx}", "tests/**/*.{ts,tsx}"],
       env: { node: true },
-      rules: { "no-restricted-syntax": "off" },
+      rules: {
+        "no-restricted-syntax": "off",
+        // Playwright fixtures pass a `use(value)` callback — react-hooks
+        // misidentifies it as a React Hook. Tests never render React hooks
+        // anyway (RTL uses render()), so the rule is safe to disable in
+        // the tests/ tree.
+        "react-hooks/rules-of-hooks": "off",
+      },
     },
     {
       // Config files at the root are linted — but they may legitimately import
