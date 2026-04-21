@@ -157,7 +157,7 @@ export function MemberForm({ onSuccess, onCancel }: MemberFormProps) {
             {form.formState.errors.dailyAmount.message}
           </p>
         ) : (
-          <p id="member-amount-helper" className="text-body-2 text-text-tertiary">
+          <p id="member-amount-helper" className="text-body-2 text-text-secondary">
             {t("members.create.field.amount_helper")}
           </p>
         )}
