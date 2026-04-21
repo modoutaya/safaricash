@@ -1,9 +1,8 @@
-// Story 1.5 — React Router v7 data-router config.
+// React Router v7 data-router config.
 //
 // Structure:
 //   /
-//   ├── /login                     (public, LoginRoute)
-//   ├── /non-registered            (public, NonRegisteredRoute)
+//   ├── /login                     (public, LoginRoute — phone + password)
 //   └── (ProtectedRoute)
 //       └── AppLayout (<Outlet>)
 //           ├── /dashboard         (Story 9.1 placeholder)
@@ -11,8 +10,11 @@
 //           ├── /members/new       (Story 2.2 placeholder)
 //           └── /settings          (Plus tab; Story 1.7 sign-out)
 //
-// React Router v7 data-router (`createBrowserRouter`) is the committed API
-// per architecture.md; legacy <BrowserRouter> is an anti-pattern here.
+// /non-registered was removed in Story 1.5b (PRD v1.3 auth pivot):
+// signInWithPassword returns invalid_credentials for both unregistered
+// phones and wrong passwords — a stronger property than the prior
+// registration-existence oracle. Forgot-password users follow the inline
+// "Mot de passe oublié ?" tel: link on /login.
 
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
@@ -23,7 +25,6 @@ import DashboardRoute from "@/app/routes/dashboard";
 import LoginRoute from "@/app/routes/login";
 import MembersRoute from "@/app/routes/members";
 import MembersNewRoute from "@/app/routes/members/new";
-import NonRegisteredRoute from "@/app/routes/non-registered";
 import SettingsRoute from "@/app/routes/settings";
 
 export const router = createBrowserRouter([
@@ -31,7 +32,6 @@ export const router = createBrowserRouter([
     element: <RouterRoot />,
     children: [
       { path: "/login", element: <LoginRoute /> },
-      { path: "/non-registered", element: <NonRegisteredRoute /> },
       {
         element: <ProtectedRoute />,
         children: [
@@ -47,9 +47,7 @@ export const router = createBrowserRouter([
           },
         ],
       },
-      // Catch-all: funnel unknown paths back to login. Session-required
-      // routes that don't match a child path would 404 — funneling keeps
-      // the UX forgiving at MVP.
+      // Catch-all: funnel unknown paths back to login.
       { path: "*", element: <Navigate to="/login" replace /> },
     ],
   },

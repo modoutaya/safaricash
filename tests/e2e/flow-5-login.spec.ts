@@ -1,25 +1,25 @@
-// Story 1.5 — Flow 5 login end-to-end test.
-// Story 1.8 — axe-core a11y scans + a 4th authenticated-session E2E.
+// Story 1.5b — Flow 5 login end-to-end (PRD v1.3 password pivot).
 //
-// What this spec covers today:
-//   1. The public /login page renders the welcome copy and phone input.
-//   2. An unregistered phone lands on /non-registered via the RPC gate
-//      (no Termii call — verified by watching for the dead-end screen).
-//   3. The "Appeler SafariCash" CTA exposes a tel: link with the full
-//      +221 prefix (R-OP1 / AC #4).
-//   4. A pre-authenticated collector lands on the protected tree and the
-//      /members empty-state renders its CTA. The full "enter 6 digits via
-//      the OtpStep UI" drive-through remains deferred (OTP read-out of
-//      Supabase's auth schema requires either a test-only RPC or direct
-//      `auth.one_time_tokens` exposure via PostgREST; both are plan-
-//      dependent — the OtpStep UI is covered by Vitest component tests).
-//      This 4th test validates the post-auth handoff end-to-end: session
-//      present in localStorage → `ProtectedRoute` accepts → `/members` +
-//      empty-state render + axe-clean.
+// What this spec covers:
+//   1. The public /login page renders the welcome copy + phone + password
+//      fields + "Se connecter" CTA (disabled).
+//   2. CTA remains disabled until BOTH the phone is a valid +221 mobile
+//      AND the password field has a character.
+//   3. The "Mot de passe oublié ?" link is a tel: anchor pointing at the
+//      founder support phone (R-OP1).
+//   4. A pre-authenticated collector (seeded via the shared fixture) lands
+//      on the protected tree and the /members empty-state renders + is
+//      axe-clean.
+//
+// What is intentionally NOT covered:
+//   - Full "drive the form with a real phone+password sign-in" integration
+//     is out of scope at this iteration — the shared seed fixture uses
+//     email-based seeding, and a parallel phone-seed fixture is scope
+//     creep for this story. The Supabase-side signInWithPassword path is
+//     covered by supabase/functions/re-auth/index.test.ts.
 //
 // Env contract:
-//   - Tests 1 and 2 (no-env branches) always run.
-//   - Test 3 (unregistered phone) requires SUPABASE_TEST_URL + ANON_KEY.
+//   - Tests 1–3 (public-surface assertions) always run, no env needed.
 //   - Test 4 requires SUPABASE_TEST_SEED_READY=1 (Story 1.8's CI fixture).
 
 import { expect as playwrightExpect, test as playwrightTest } from "@playwright/test";
@@ -27,73 +27,52 @@ import { expect as playwrightExpect, test as playwrightTest } from "@playwright/
 import { expect, test, E2E_SEED_READY } from "./fixtures/seed-collector";
 import { expectNoA11yViolations } from "./fixtures/axe";
 
-const ENV_OK = !!process.env["SUPABASE_TEST_URL"] && !!process.env["SUPABASE_TEST_ANON_KEY"];
-
-// Tests 1–3 don't need the seedCollector fixture (no authenticated session
-// required). Use the plain Playwright `test` for them to avoid firing the
-// fixture's setup/teardown needlessly.
-playwrightTest.describe("Flow 5 — collector login (public surface)", () => {
+playwrightTest.describe("Flow 5 — collector login (public surface, password flow)", () => {
   playwrightTest(
-    "loads /login welcome screen with phone input + send-code CTA",
+    "loads /login welcome screen with phone + password + sign-in CTA",
     async ({ page }) => {
       await page.goto("/login");
       await playwrightExpect(
         page.getByRole("heading", { level: 1, name: /bienvenue sur safaricash/i }),
       ).toBeVisible();
       await playwrightExpect(page.getByLabel("Numéro de téléphone")).toBeVisible();
-      await playwrightExpect(
-        page.getByRole("button", { name: /recevoir le code/i }),
-      ).toBeDisabled();
-      await expectNoA11yViolations(page, "/login phone-step");
+      // exact: true — the show/hide toggle's aria-label is
+      // "Afficher le mot de passe" which would substring-match "Mot de passe".
+      await playwrightExpect(page.getByLabel("Mot de passe", { exact: true })).toBeVisible();
+      await playwrightExpect(page.getByRole("button", { name: /se connecter/i })).toBeDisabled();
+      await expectNoA11yViolations(page, "/login phone-password screen");
     },
   );
 
-  playwrightTest("disables the CTA until a valid +221 phone is entered", async ({ page }) => {
+  playwrightTest(
+    "enables the CTA only when phone is valid AND password is non-empty",
+    async ({ page }) => {
+      await page.goto("/login");
+      const cta = page.getByRole("button", { name: /se connecter/i });
+      const phone = page.getByLabel("Numéro de téléphone");
+      // exact: true — see note in the previous test.
+      const password = page.getByLabel("Mot de passe", { exact: true });
+
+      await phone.fill("+221777915898");
+      await playwrightExpect(cta).toBeDisabled(); // still no password
+      await password.fill("anything");
+      await playwrightExpect(cta).toBeEnabled();
+
+      // Clearing the password re-disables.
+      await password.fill("");
+      await playwrightExpect(cta).toBeDisabled();
+    },
+  );
+
+  playwrightTest("'Mot de passe oublié ?' link opens a tel: to the founder", async ({ page }) => {
     await page.goto("/login");
-    const cta = page.getByRole("button", { name: /recevoir le code/i });
-    const input = page.getByLabel("Numéro de téléphone");
-    await input.fill("123");
-    await playwrightExpect(cta).toBeDisabled();
-    await input.fill("+221777915898");
-    await playwrightExpect(cta).toBeEnabled();
-  });
-
-  playwrightTest("routes an unregistered phone to /non-registered dead-end", async ({ page }) => {
-    playwrightTest.skip(!ENV_OK, "SUPABASE_TEST_URL / SUPABASE_TEST_ANON_KEY not set");
-
-    await page.goto("/login");
-    const input = page.getByLabel("Numéro de téléphone");
-    // A random +221 phone that (almost certainly) is not provisioned.
-    // Senegal E.164 = +221 + 9 digits; we lock the first two ("77", a valid
-    // mobile prefix) and generate the remaining 7 randomly.
-    const randomPhone = `+22177${Math.floor(1e6 + Math.random() * 9e6)
-      .toString()
-      .slice(-7)}`;
-    await input.fill(randomPhone);
-    await page.getByRole("button", { name: /recevoir le code/i }).click();
-
-    await playwrightExpect(page).toHaveURL(/\/non-registered$/);
-    await playwrightExpect(
-      page.getByRole("heading", { name: /numéro non enregistré/i }),
-    ).toBeVisible();
-
-    // Founder support phone exposed as tel:+221777915898 (single-source-of-
-    // truth constant in src/lib/contact.ts).
-    const callCta = page.getByRole("link", { name: /appeler safaricash/i });
-    await playwrightExpect(callCta).toHaveAttribute("href", "tel:+221777915898");
-    // TODO (Story 2.6 — destructive-button audit): `color-contrast` fires on
-    // the destructive foreground/background pair (text-destructive-text over
-    // bg-destructive-bg ≈ 3.0:1, fails AA body-text). This is the exact
-    // follow-up the Story 1.1 deferred-work entry reserved for Story 2.6
-    // (first real destructive flow). Waiver until then.
-    await expectNoA11yViolations(page, "/non-registered dead-end", {
-      disableRules: ["color-contrast"],
-    });
+    const link = page.getByRole("link", { name: /mot de passe oublié/i });
+    // FOUNDER_SUPPORT_PHONE lives in src/lib/contact.ts; validated by the
+    // unit tests. Here we only assert the tel: prefix + +221 country code.
+    await playwrightExpect(link).toHaveAttribute("href", /^tel:\+221/);
   });
 });
 
-// Test 4 uses the seedCollector fixture (pre-auth session). Different
-// describe so we don't pay the seed/teardown on the no-auth tests above.
 test.describe("Flow 5 — post-authenticated-session landing", () => {
   test.skip(
     !E2E_SEED_READY,
@@ -105,19 +84,11 @@ test.describe("Flow 5 — post-authenticated-session landing", () => {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructured for fixture effect
     seededCollector: _seededCollector,
   }) => {
-    // `/` → ProtectedRoute (session present) → Navigate to /dashboard
-    // (router.tsx:41). Navigate explicitly to /members so we hit the
-    // empty-state branch — the newly seeded collector has 0 members.
     await page.goto("/members");
 
-    // The EmptyState renders its `headline` prop as the <h1>, which per
-    // src/i18n/fr.json `login.empty_state_headline` is "Aucun membre pour
-    // l'instant" (NOT "Membres" — that heading only appears once the
-    // non-empty list lands in Story 2.1).
     await expect(
       page.getByRole("heading", { level: 1, name: /aucun membre pour l'instant/i }),
     ).toBeVisible();
-    // EmptyState CTA from UX spec § Member list empty state.
     await expect(page.getByRole("button", { name: /ajouter mon premier membre/i })).toBeVisible();
 
     await expectNoA11yViolations(page, "/members empty-state");

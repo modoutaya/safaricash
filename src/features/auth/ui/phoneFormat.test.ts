@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatE164, isValidSenegalPhone, maskPhone } from "@/features/auth/ui/phoneFormat";
+import { formatE164, isValidSenegalPhone } from "@/features/auth/ui/phoneFormat";
 
 describe("formatE164", () => {
   it("keeps a well-formed +221 E.164 untouched", () => {
@@ -54,16 +54,5 @@ describe("isValidSenegalPhone", () => {
     ["+221A77915898", false],
   ])("isValidSenegalPhone(%s) → %s", (input, expected) => {
     expect(isValidSenegalPhone(input)).toBe(expected);
-  });
-});
-
-describe("maskPhone", () => {
-  it("masks the 3rd national digit for a valid Senegal mobile", () => {
-    expect(maskPhone("+221777915898")).toBe("+221 77 X 91 58 98");
-  });
-
-  it("returns the input unchanged when not a valid Senegal mobile", () => {
-    expect(maskPhone("+33612345678")).toBe("+33612345678");
-    expect(maskPhone("")).toBe("");
   });
 });

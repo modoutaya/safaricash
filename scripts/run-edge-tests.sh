@@ -29,7 +29,5 @@ export TERMII_API_KEY="${TERMII_API_KEY:-mock-key-not-used-in-tests}"
 # the package-lock.json resolution.
 deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=auto \
   supabase/functions/re-auth/index.test.ts \
-  supabase/functions/auth-sms-hook/index.test.ts \
-  supabase/functions/_shared/check-collector-registered.contract.test.ts \
   supabase/functions/_shared/emit-session-event.contract.test.ts \
   "$@"

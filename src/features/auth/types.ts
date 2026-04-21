@@ -1,9 +1,8 @@
-// Story 1.5 — Auth feature Zod schemas.
-//
-// Phone validation lives here so the LoginForm, useLogin hook, and any
-// future re-auth replay share the same regex. Senegal is the only Termii-
-// supported market at MVP; future expansion (Mali 223, Côte d'Ivoire 225)
-// would extend this module, not copy its regex across call sites.
+// Auth feature Zod schemas.
+// Phone + credentials validation lives here so the LoginForm, useLogin
+// hook, and /re-auth Edge Function share the same regex + length floor.
+// Senegal is the only market at MVP; future WAEMU expansion extends this
+// module instead of copying regexes across call sites.
 
 import { z } from "zod";
 
@@ -17,11 +16,23 @@ export const PhoneSchema = z
 
 export type Phone = z.infer<typeof PhoneSchema>;
 
-/** Zod schema for the 6-digit SMS OTP. */
-export const OtpSchema = z
+/** Zod schema for the collector password. Minimum 6 characters mirrors
+ *  Supabase Auth's server-side floor — nothing stronger at MVP per
+ *  Story 1.5b AC #13 (password complexity deferred). */
+export const PasswordSchema = z
   .string()
-  .regex(/^\d{6}$/, "Code à 6 chiffres")
-  .describe("6-digit OTP");
+  .min(6, "Mot de passe trop court")
+  .describe("Collector password (≥ 6 chars)");
+
+export type Password = z.infer<typeof PasswordSchema>;
+
+/** Composed credentials schema consumed by LoginForm + useLogin. */
+export const CredentialsSchema = z.object({
+  phone: PhoneSchema,
+  password: PasswordSchema,
+});
+
+export type Credentials = z.infer<typeof CredentialsSchema>;
 
 // Story 1.6 — useIdleTimeout hook contract.
 export interface IdleTimeoutConfig {

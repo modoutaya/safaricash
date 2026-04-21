@@ -34,45 +34,18 @@ export const KNOWN_PROBLEMS = {
     type: `${PROBLEM_BASE}/request/invalid`,
     title: "Invalid request",
   },
-  otp_invalid: {
+  // Story 1.5b — password re-auth (PRD v1.3). Replaces the otp_* keys from
+  // Story 1.3. The Edge Function never returns enumeration-distinguishing
+  // errors: "credentials_invalid" covers both unknown phone and wrong password.
+  credentials_invalid: {
     status: 401,
-    type: `${PROBLEM_BASE}/otp/invalid`,
-    title: "Invalid OTP",
+    type: `${PROBLEM_BASE}/credentials/invalid`,
+    title: "Invalid credentials",
   },
-  otp_expired: {
-    status: 410,
-    type: `${PROBLEM_BASE}/otp/expired`,
-    title: "OTP expired",
-  },
-  otp_already_used: {
-    status: 409,
-    type: `${PROBLEM_BASE}/otp/already_used`,
-    title: "OTP already used",
-  },
-  otp_locked: {
+  rate_limited: {
     status: 429,
-    type: `${PROBLEM_BASE}/otp/locked`,
+    type: `${PROBLEM_BASE}/rate/limited`,
     title: "Too many attempts",
-  },
-  otp_resend_too_soon: {
-    status: 429,
-    type: `${PROBLEM_BASE}/otp/resend_too_soon`,
-    title: "Resend too soon",
-  },
-  otp_delivery_failed: {
-    status: 502,
-    type: `${PROBLEM_BASE}/otp/delivery_failed`,
-    title: "OTP delivery failed",
-  },
-  challenge_not_found: {
-    status: 404,
-    type: `${PROBLEM_BASE}/challenge/not_found`,
-    title: "Challenge not found",
-  },
-  confirmation_invalid: {
-    status: 403,
-    type: `${PROBLEM_BASE}/confirmation/invalid`,
-    title: "Confirmation token invalid or expired",
   },
   internal_unexpected: {
     status: 500,

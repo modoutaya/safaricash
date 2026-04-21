@@ -15,17 +15,19 @@ npm run dev        # vite dev server on http://localhost:5173
 
 ## Scripts
 
-| Script               | Purpose                                       |
-| -------------------- | --------------------------------------------- |
-| `npm run dev`        | Vite dev server with HMR                      |
-| `npm run build`      | Type-check + production build (emits `dist/`) |
-| `npm run preview`    | Preview the production build locally          |
-| `npm run test`       | Vitest unit + component tests (single run)    |
-| `npm run test:watch` | Vitest in watch mode                          |
-| `npm run test:e2e`   | Playwright end-to-end tests                   |
-| `npm run lint`       | ESLint over `.ts` / `.tsx`                    |
-| `npm run typecheck`  | TypeScript strict check (`tsc --noEmit`)      |
-| `npm run format`     | Prettier write across the repo                |
+| Script                                    | Purpose                                       |
+| ----------------------------------------- | --------------------------------------------- |
+| `npm run dev`                             | Vite dev server with HMR                      |
+| `npm run build`                           | Type-check + production build (emits `dist/`) |
+| `npm run preview`                         | Preview the production build locally          |
+| `npm run test`                            | Vitest unit + component tests (single run)    |
+| `npm run test:watch`                      | Vitest in watch mode                          |
+| `npm run test:e2e`                        | Playwright end-to-end tests                   |
+| `npm run lint`                            | ESLint over `.ts` / `.tsx`                    |
+| `npm run typecheck`                       | TypeScript strict check (`tsc --noEmit`)      |
+| `npm run format`                          | Prettier write across the repo                |
+| `npm run provision-collector -- <args>`   | Create a pre-provisioned collector (founder)  |
+| `npm run reset-collector-password -- <a>` | Reset an existing collector's password        |
 
 ## Stack
 
@@ -36,7 +38,7 @@ npm run dev        # vite dev server on http://localhost:5173
 - **Animation:** framer-motion (purposeful only)
 - **Routing:** react-router-dom v7
 - **Backend (Story 1.2+):** Supabase (Postgres + Auth + Edge Functions + Vault)
-- **Auth (Story 1.5):** Supabase Auth phone-OTP (no password, no email fallback) via a custom **Send SMS Hook** → Termii. Pre-provisioned collectors only — see `supabase/functions/auth-sms-hook/README.md`.
+- **Auth (PRD v1.3, Story 1.5b):** Supabase phone + password (`signInWithPassword`). Pre-provisioned collectors only — the founder creates accounts via `npm run provision-collector` and communicates the default password out-of-band (WhatsApp / call). See § Operator runbook — collector provisioning.
 - **Hosting:** Cloudflare Pages (frontend) + Cloudflare Workers (rate-limit middleware front of Supabase Edge Functions; receipt URL)
 - **Testing:** Vitest + Testing Library + Playwright + axe-core
 
@@ -80,3 +82,77 @@ The exact field names in the Supabase dashboard evolve between versions; if they
 The earliest expiry wins: a misconfigured dashboard (e.g., 90-day refresh token) would silently violate NFR-S4, but the client guard fails closed at 30 days regardless.
 
 See `_bmad-output/planning-artifacts/prd.md` § NFR-S4 and `_bmad-output/implementation-artifacts/1-6-session-management.md` for the full spec.
+
+## Operator runbook — collector provisioning (Story 1.5b)
+
+The MVP auth model is **invite-only, pre-provisioned**: the founder creates each collector account and communicates the default password out-of-band (WhatsApp or phone call). There is no self-service sign-up and no self-service password reset at MVP.
+
+### Onboard a new collector
+
+```bash
+# Replace <phone> and <password> below. Use a generated password
+# (e.g., `openssl rand -base64 12`) rather than anything guessable.
+npm run provision-collector -- --phone +221771234567 --password '<defaultPassword>'
+```
+
+`public.users` is minimal at MVP — only `id`, `phone_number`, `role`, `created_at`, `updated_at`. The collector's display name is tracked out-of-band by the founder (pilot-scale bookkeeping). Add a migration + `--name` flag if a server-side display name becomes necessary.
+
+The script:
+
+1. Calls `supabase.auth.admin.createUser({ phone, password, phone_confirm: true })`.
+2. Inserts the matching `public.users` row with `role = 'collector'`.
+3. Prints the credentials for the founder to forward to the collector.
+
+After running, copy-paste the credentials into WhatsApp / call the collector. The collector signs in on `/login` with the phone + password.
+
+### Reset a forgotten password
+
+```bash
+npm run reset-collector-password -- --phone +221771234567 --password '<newDefaultPassword>'
+```
+
+The script calls `supabase.auth.admin.updateUserById`. Communicate the new password out-of-band.
+
+### Required env vars (`.env.local`)
+
+Both scripts need the service-role key, which bypasses RLS and can read / mutate any row:
+
+```ini
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...        # dashboard → Project Settings → API
+```
+
+### Security — service-role key handling
+
+- **Never commit `.env.local`.** It is git-ignored; keep it that way.
+- **Rotate the service-role key immediately** if either of the following happens:
+  - The founder's laptop is lost or stolen.
+  - The laptop disk is ever unencrypted (macOS FileVault OFF / Linux without LUKS).
+- Rotate via Supabase dashboard → Project Settings → API → Reset service_role. Update `.env.local` with the new value.
+
+At MVP scale (one founder, ≤ 10 pilot collectors) this ops posture is accepted. Revisit when a second operator joins or when founder-admin moves to a hosted tool (Retool, custom back-office — OQ7).
+
+### Auth SMS Hook (disabled in v1.3)
+
+SafariCash's Story 1.5 login used a Supabase Auth "Send SMS Hook" → Termii pipeline to deliver OTPs. Story 1.5b decommissioned that path because Termii's business-KYC requirement blocked a solo founder from activating the gateway. The hook + its Edge Function are gone from the repo; if Termii KYC ever clears and re-enabling OTP becomes desirable, re-add both via a new story. Meanwhile, ensure the **Supabase Dashboard → Auth → Hooks → Send SMS Hook** entry is disabled (toggle off or delete the URL) so that stray `signInWithOtp` calls don't try to reach a deleted endpoint.
+
+### Enabling the phone provider (local dev + cloud)
+
+`signInWithPassword({ phone, password })` requires GoTrue's phone provider to be enabled. Supabase only flips this flag ON when at least one SMS provider (Twilio / MessageBird / Vonage / Textlocal) is registered — there is no bare phone-provider toggle.
+
+**Local dev** is already configured in `supabase/config.toml`: the `[auth.sms.twilio]` block declares Twilio with dummy `account_sid` / `message_service_sid` and an env-sourced `auth_token`. Export any value for the env var before `supabase start`:
+
+```bash
+export SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN="dummy-local-token-never-used"
+npm run db:start
+```
+
+The dummy credentials are never called — the 1.5b flow never dispatches SMS for auth; the provider entry exists purely to flip `GOTRUE_EXTERNAL_PHONE_ENABLED=true`.
+
+**Cloud deploy** needs the same flag flipped in the Supabase project. In **Dashboard → Auth → Providers → Phone**, toggle the provider on. Supabase Cloud typically requires a real SMS provider (Twilio) to be configured here too — if Termii KYC hasn't cleared, either:
+
+1. Use a temporary Twilio trial (unused, purely to flip the flag), OR
+2. Contact Supabase support about the "phone auth without SMS" case, OR
+3. Accept OTP-via-Twilio as the path once you can justify the cost.
+
+This operator gap is tracked in `_bmad-output/implementation-artifacts/deferred-work.md` under the PRD v1.3 entry.

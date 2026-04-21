@@ -1,17 +1,12 @@
-// Project-wide constants. MUST stay in sync with
-// supabase/functions/_shared/constants.ts (Deno + browser runtimes can't
-// share imports). Story 1.5 (phone-OTP login) reuses these same numerics
-// for sign-in lockout.
-
-export const OTP_LENGTH = 6;
-export const OTP_EXPIRY_MINUTES = 5;
-export const OTP_LOCKOUT_MINUTES = 5;
-export const OTP_MAX_ATTEMPTS = 3;
-export const OTP_RESEND_COOLDOWN_SECONDS = 30;
-export const CONFIRMATION_TOKEN_EXPIRY_MINUTES = 2;
-
-// FOUNDER_SUPPORT_PHONE moved to src/lib/contact.ts (single source of truth
-// per Story 1.5 AC #4 + R-OP1). Do NOT re-introduce it here.
+// Project-wide constants.
+//
+// Story 1.5b — OTP_* constants were removed after PRD v1.3 pivoted auth
+// to `signInWithPassword`. Server-side abuse defence now lives in
+// Supabase Auth's native per-identifier rate limit, so there are no
+// client-side OTP length / lockout / cooldown numerics to share.
+//
+// FOUNDER_SUPPORT_PHONE is in src/lib/contact.ts (single source of
+// truth per Story 1.5 AC #4 + R-OP1). Do NOT re-introduce it here.
 
 // Story 1.6 — NFR-S4 collector session policy.
 // 30-min idle timeout (client-side; Supabase Auth has no native idle concept).

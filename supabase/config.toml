@@ -248,8 +248,15 @@ otp_expiry = 3600
 # content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]
-# Allow/disallow new user signups via SMS to your project.
-enable_signup = false
+# Story 1.5b — PRD v1.3 auth pivot. Phone provider MUST be enabled for
+# `signInWithPassword({ phone, password })` to work. Setting enable_signup
+# to `true` is the only way to activate the phone provider in Supabase
+# CLI config — BUT our pre-provisioned model is enforced at the UI layer
+# (no LoginForm signup path) and at the schema layer (no `public.users`
+# row = no RLS-scoped data access even if a stray auth.users row gets
+# created via a direct API call).
+# Trade-off logged in deferred-work.md under "PRD v1.3 auth pivot".
+enable_signup = true
 # If enabled, users need to confirm their phone number before signing in.
 enable_confirmations = false
 # Template for sending OTP to users
@@ -278,13 +285,24 @@ max_frequency = "5s"
 # enabled = true
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
 
-# Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
+# Story 1.5b — the phone provider in GoTrue is gated by the presence of
+# ANY enabled SMS provider (Twilio / MessageBird / Vonage / Textlocal).
+# The CLI does not expose a bare `GOTRUE_EXTERNAL_PHONE_ENABLED=true`
+# toggle, so we declare Twilio with dummy credentials to flip the flag.
+# Our flow is password-only (no SMS ever dispatched for auth in v1.3),
+# so these values are never called — the provider entry exists purely
+# to flip phone_provider_enabled. When Termii business-KYC clears and
+# OTP re-enters scope, replace these dummies with real credentials +
+# wire the Send SMS Hook back in.
 [auth.sms.twilio]
-enabled = false
-account_sid = ""
-message_service_sid = ""
-# DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
-auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
+enabled = true
+account_sid = "ACdummy-safaricash-local-dev"
+message_service_sid = "MGdummy-safaricash-local-dev"
+# Dummy token — the 1.5b password flow NEVER calls Twilio (no SMS is
+# dispatched for auth). If this file ever switches back to a real
+# provider for OTP (post-KYC), revert to env() substitution and set
+# SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN in the local shell + CI secrets.
+auth_token = "dummy-safaricash-never-called"
 
 # Multi-factor-authentication is available to Supabase Pro plan.
 [auth.mfa]
@@ -364,12 +382,10 @@ authorization_url_path = "/oauth/consent"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
-# Story 1.5 — auth-sms-hook is called by Supabase Auth itself (service-to-
-# service, no caller JWT). The platform-level JWT gate MUST be disabled on
-# this function; our own Standard Webhooks HMAC verification is the
-# authentication boundary. See supabase/functions/auth-sms-hook/README.md.
-[functions.auth-sms-hook]
-verify_jwt = false
+# (Removed in Story 1.5b — PRD v1.3 auth pivot.)
+# The [functions.auth-sms-hook] entry disabled the platform-level JWT
+# gate for the Send SMS Hook endpoint. Both the function and the hook
+# were decommissioned along with SMS-OTP login.
 
 [edge_runtime]
 enabled = true
