@@ -248,8 +248,15 @@ otp_expiry = 3600
 # content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]
-# Allow/disallow new user signups via SMS to your project.
-enable_signup = false
+# Story 1.5b — PRD v1.3 auth pivot. Phone provider MUST be enabled for
+# `signInWithPassword({ phone, password })` to work. Setting enable_signup
+# to `true` is the only way to activate the phone provider in Supabase
+# CLI config — BUT our pre-provisioned model is enforced at the UI layer
+# (no LoginForm signup path) and at the schema layer (no `public.users`
+# row = no RLS-scoped data access even if a stray auth.users row gets
+# created via a direct API call).
+# Trade-off logged in deferred-work.md under "PRD v1.3 auth pivot".
+enable_signup = true
 # If enabled, users need to confirm their phone number before signing in.
 enable_confirmations = false
 # Template for sending OTP to users
@@ -278,11 +285,19 @@ max_frequency = "5s"
 # enabled = true
 # uri = "pg-functions://<database>/<schema>/<hook_name>"
 
-# Configure one of the supported SMS providers: `twilio`, `twilio_verify`, `messagebird`, `textlocal`, `vonage`.
+# Story 1.5b — the phone provider in GoTrue is gated by the presence of
+# ANY enabled SMS provider (Twilio / MessageBird / Vonage / Textlocal).
+# The CLI does not expose a bare `GOTRUE_EXTERNAL_PHONE_ENABLED=true`
+# toggle, so we declare Twilio with dummy credentials to flip the flag.
+# Our flow is password-only (no SMS ever dispatched for auth in v1.3),
+# so these values are never called — the provider entry exists purely
+# to flip phone_provider_enabled. When Termii business-KYC clears and
+# OTP re-enters scope, replace these dummies with real credentials +
+# wire the Send SMS Hook back in.
 [auth.sms.twilio]
-enabled = false
-account_sid = ""
-message_service_sid = ""
+enabled = true
+account_sid = "ACdummy-safaricash-local-dev"
+message_service_sid = "MGdummy-safaricash-local-dev"
 # DO NOT commit your Twilio auth token to git. Use environment variable substitution instead:
 auth_token = "env(SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN)"
 

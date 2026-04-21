@@ -135,3 +135,24 @@ At MVP scale (one founder, ≤ 10 pilot collectors) this ops posture is accepted
 ### Auth SMS Hook (disabled in v1.3)
 
 SafariCash's Story 1.5 login used a Supabase Auth "Send SMS Hook" → Termii pipeline to deliver OTPs. Story 1.5b decommissioned that path because Termii's business-KYC requirement blocked a solo founder from activating the gateway. The hook + its Edge Function are gone from the repo; if Termii KYC ever clears and re-enabling OTP becomes desirable, re-add both via a new story. Meanwhile, ensure the **Supabase Dashboard → Auth → Hooks → Send SMS Hook** entry is disabled (toggle off or delete the URL) so that stray `signInWithOtp` calls don't try to reach a deleted endpoint.
+
+### Enabling the phone provider (local dev + cloud)
+
+`signInWithPassword({ phone, password })` requires GoTrue's phone provider to be enabled. Supabase only flips this flag ON when at least one SMS provider (Twilio / MessageBird / Vonage / Textlocal) is registered — there is no bare phone-provider toggle.
+
+**Local dev** is already configured in `supabase/config.toml`: the `[auth.sms.twilio]` block declares Twilio with dummy `account_sid` / `message_service_sid` and an env-sourced `auth_token`. Export any value for the env var before `supabase start`:
+
+```bash
+export SUPABASE_AUTH_SMS_TWILIO_AUTH_TOKEN="dummy-local-token-never-used"
+npm run db:start
+```
+
+The dummy credentials are never called — the 1.5b flow never dispatches SMS for auth; the provider entry exists purely to flip `GOTRUE_EXTERNAL_PHONE_ENABLED=true`.
+
+**Cloud deploy** needs the same flag flipped in the Supabase project. In **Dashboard → Auth → Providers → Phone**, toggle the provider on. Supabase Cloud typically requires a real SMS provider (Twilio) to be configured here too — if Termii KYC hasn't cleared, either:
+
+1. Use a temporary Twilio trial (unused, purely to flip the flag), OR
+2. Contact Supabase support about the "phone auth without SMS" case, OR
+3. Accept OTP-via-Twilio as the path once you can justify the cost.
+
+This operator gap is tracked in `_bmad-output/implementation-artifacts/deferred-work.md` under the PRD v1.3 entry.
