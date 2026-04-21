@@ -41,16 +41,12 @@ jobs:
       - name: Setup + install + lint + typecheck + build
         uses: ./.github/actions/setup-and-build
 
-      - name: Unit tests with coverage (Vitest)
-        run: npm run test -- --run --coverage
-
-      - name: Upload coverage summary
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-summary
-          path: coverage/
-          retention-days: 7
+      # Note: Vitest + coverage run in the e2e-integration job, NOT here.
+      # Reason: src/domain/audit/hashChain.contract.test.ts (NFR-S6 SQL↔TS
+      # parity gate installed by Story 1.2) throws when CI=true without a
+      # reachable Supabase stack. Only the e2e-integration job provisions
+      # that stack. Splitting coverage away would miss the contract-test
+      # branches, so we consolidate all test execution there.
 
   e2e-integration:
     name: Supabase • Playwright • axe • RLS • wrangler • Deno
@@ -108,11 +104,19 @@ jobs:
           cat /tmp/wrangler-dev.log >&2 || true
           exit 1
 
-      - name: Unit tests (Vitest) — smoke before E2E
+      - name: Unit tests with coverage (Vitest + SQL↔TS contract)
         env:
           SUPABASE_TEST_URL: http://127.0.0.1:54321
           SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ env.SUPABASE_LOCAL_SERVICE_ROLE_KEY }}
-        run: npm run test -- --run
+        run: npm run test -- --run --coverage
+
+      - name: Upload coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary
+          path: coverage/
+          retention-days: 7
 
       - name: Resolve Playwright version
         id: playwright-version
