@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-21
-# touched: 2-1-member-list-search → review (2026-04-21, dev complete)
+# touched: 2-1-member-list-search → review (2026-04-21, dev complete); 1-5b-password-auth-switch added (PRD v1.3 auth pivot — Termii KYC blocker)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -49,7 +49,8 @@ development_status:
   1-2-supabase-foundation: done
   1-3-reauth-edge-function: done
   1-4-rate-limit-middleware: done
-  1-5-phone-otp-signin: done
+  1-5-phone-otp-signin: done  # superseded by 1-5b (PRD v1.3 auth pivot — Termii KYC blocker)
+  1-5b-password-auth-switch: ready-for-dev  # rewrites OTP login → signInWithPassword + decommissions auth-sms-hook + check_collector_registered RPC; also rewrites Story 1.3 re-auth Edge Function to password verification
   1-6-session-management: done
   1-7-sign-out: done
   1-8-ci-pipeline-gates: done

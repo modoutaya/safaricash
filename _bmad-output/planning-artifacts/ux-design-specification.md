@@ -860,6 +860,8 @@ flowchart TD
 
 ### Flow 5 — Collector Login (phone + OTP, pre-provisioned accounts)
 
+> **⚠️ STALE — superseded by PRD v1.3 (2026-04-21) / Story 1.5b.** The mermaid flow, OTP step (K/L/M/N), 3-strike client lockout, resend-cooldown, and `/non-registered` dead-end below describe the **retired** SMS-OTP flow. The implemented flow is a **single-screen phone + password login** (`supabase.auth.signInWithPassword`) with a "*Mot de passe oublié ?*" `tel:` link to the founder support number. Driver: Termii business-KYC blocker for a solo founder. Authoritative sources for the current flow: **PRD FR1 / FR3 / FR5 (v1.3)**, **architecture.md § Collector Authentication & Session (v1.3)**, **`_bmad-output/implementation-artifacts/1-5b-password-auth-switch.md`**. This section is left in place as historical context — do NOT implement from it. A full re-skin of Flow 5 for the password path is deferred until the UX spec's next pass.
+
 **Derived from:** FR1 (reinterpreted — see PRD amendments pending below), FR3, FR5, NFR-S4, NFR-S9. **Frequency:** once per session lifecycle (30 days absolute, 30 min idle per NFR-S4).
 
 **Context update:** SafariCash operates an **invite-only / pre-provisioned** model at MVP. Collectors are added to the database manually by the founder during the recruitment phase. The app therefore has no sign-up flow — only sign-in.
