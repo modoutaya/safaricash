@@ -10,8 +10,12 @@ import { SESSION_IDLE_TIMEOUT_MS, SESSION_STARTED_AT_STORAGE_KEY } from "@/lib/c
 // The AuthStateListener mounts two onAuthStateChange subscriptions (the
 // Story 1.5 effect + the Story 1.6 useIdleTimeout hook); we capture BOTH
 // callbacks in an array so tests can dispatch events to all of them at once.
+// Story 1.7 routes idle sign-out through requestSignOut, which calls the
+// emit_session_event RPC before signOut — so the supabase mock must cover
+// rpc as well.
 // ---------------------------------------------------------------------------
 
+const rpcMock = vi.fn();
 const signOutMock = vi.fn();
 const getSessionMock = vi.fn();
 const unsubscribeMock = vi.fn();
@@ -27,8 +31,9 @@ const onAuthStateChangeMock = vi.fn((cb: AuthCallback) => {
 
 vi.mock("@/infrastructure/supabase/client", () => ({
   supabase: {
+    rpc: (fn: string, args: unknown) => rpcMock(fn, args),
     auth: {
-      signOut: () => signOutMock(),
+      signOut: (opts?: unknown) => signOutMock(opts),
       getSession: () => getSessionMock(),
       onAuthStateChange: (cb: AuthCallback) => onAuthStateChangeMock(cb),
     },
@@ -52,7 +57,8 @@ vi.mock("sonner", () => ({
 
 // ---------------------------------------------------------------------------
 
-import { AuthStateListener } from "@/app/providers";
+import { AuthStateListener, queryClient } from "@/app/providers";
+import { signOutStateRef } from "@/features/auth/api/signOut";
 
 const fakeSession = { access_token: "jwt", user: { id: "u1" } } as unknown as Session;
 
@@ -73,6 +79,7 @@ async function emitAuth(event: AuthChangeEvent, session: Session | null): Promis
 describe("AuthStateListener", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    rpcMock.mockReset();
     signOutMock.mockReset();
     getSessionMock.mockReset();
     unsubscribeMock.mockReset();
@@ -83,6 +90,9 @@ describe("AuthStateListener", () => {
     locationRef.pathname = "/members";
     window.localStorage.clear();
     getSessionMock.mockResolvedValue({ data: { session: null } });
+    rpcMock.mockResolvedValue({ data: null, error: null });
+    signOutMock.mockResolvedValue({ error: null });
+    signOutStateRef.reason = null;
   });
 
   afterEach(() => {
@@ -120,8 +130,6 @@ describe("AuthStateListener", () => {
     render(<AuthStateListener />);
     await flushMicrotasks();
 
-    // Seed a session first (same pattern as Story 1.5 — toast only fires on
-    // true session loss, and even then not when already on /login).
     await emitAuth("SIGNED_IN", fakeSession);
     await emitAuth("SIGNED_OUT", null);
 
@@ -131,7 +139,7 @@ describe("AuthStateListener", () => {
 
   // -------------------------------------------------------------------------
   // Story 1.6 — idle timeout drives signOut, which the existing listener
-  // catches. End-to-end coverage through the AuthStateListener surface.
+  // catches. Story 1.7 routes through requestSignOut("idle"): rpc then signOut.
   // -------------------------------------------------------------------------
 
   it("P4: SIGNED_IN → idle IDLE_MS → supabase.auth.signOut() called exactly once", async () => {
@@ -140,10 +148,13 @@ describe("AuthStateListener", () => {
     await emitAuth("SIGNED_IN", fakeSession);
 
     await act(async () => {
-      vi.advanceTimersByTime(SESSION_IDLE_TIMEOUT_MS);
+      await vi.advanceTimersByTimeAsync(SESSION_IDLE_TIMEOUT_MS);
     });
 
     expect(signOutMock).toHaveBeenCalledTimes(1);
+    expect(signOutMock).toHaveBeenCalledWith({ scope: "local" });
+    // Idle path calls the audit RPC with reason="idle".
+    expect(rpcMock).toHaveBeenCalledWith("emit_session_event", { p_reason: "idle" });
   });
 
   it("P5: idle-triggered SIGNED_OUT fires toast + navigate", async () => {
@@ -152,10 +163,8 @@ describe("AuthStateListener", () => {
     await emitAuth("SIGNED_IN", fakeSession);
 
     await act(async () => {
-      vi.advanceTimersByTime(SESSION_IDLE_TIMEOUT_MS);
+      await vi.advanceTimersByTimeAsync(SESSION_IDLE_TIMEOUT_MS);
     });
-
-    // Simulate Supabase Auth emitting SIGNED_OUT in response to signOut().
     await emitAuth("SIGNED_OUT", null);
 
     expect(toastMock).toHaveBeenCalledTimes(1);
@@ -179,5 +188,58 @@ describe("AuthStateListener", () => {
 
     expect(onAuthStateChangeMock).toHaveBeenCalledTimes(2);
     expect(capturedAuthCallbacks.length).toBe(2);
+  });
+
+  // -------------------------------------------------------------------------
+  // Story 1.7 — queryClient.clear + reason-aware toast + ref lifecycle.
+  // -------------------------------------------------------------------------
+
+  it("P8: queryClient.clear() is called when SIGNED_OUT follows an active session", async () => {
+    const clearSpy = vi.spyOn(queryClient, "clear");
+    render(<AuthStateListener />);
+    await flushMicrotasks();
+
+    await emitAuth("SIGNED_IN", fakeSession);
+    clearSpy.mockClear();
+    await emitAuth("SIGNED_OUT", null);
+
+    expect(clearSpy).toHaveBeenCalledTimes(1);
+    clearSpy.mockRestore();
+  });
+
+  it("P9: explicit sign-out path toasts settings.signed_out_success", async () => {
+    render(<AuthStateListener />);
+    await flushMicrotasks();
+
+    await emitAuth("SIGNED_IN", fakeSession);
+    signOutStateRef.reason = "explicit";
+    await emitAuth("SIGNED_OUT", null);
+
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    // useT("settings.signed_out_success") resolves to the French copy.
+    expect(toastMock).toHaveBeenCalledWith("Vous êtes déconnecté");
+  });
+
+  it("P10: idle sign-out path toasts login.session_expired_toast", async () => {
+    render(<AuthStateListener />);
+    await flushMicrotasks();
+
+    await emitAuth("SIGNED_IN", fakeSession);
+    signOutStateRef.reason = "idle";
+    await emitAuth("SIGNED_OUT", null);
+
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(toastMock).toHaveBeenCalledWith("Session expirée, reconnectez-vous");
+  });
+
+  it("P11: signOutStateRef.reason is cleared after the SIGNED_OUT handler runs", async () => {
+    render(<AuthStateListener />);
+    await flushMicrotasks();
+
+    await emitAuth("SIGNED_IN", fakeSession);
+    signOutStateRef.reason = "explicit";
+    await emitAuth("SIGNED_OUT", null);
+
+    expect(signOutStateRef.reason).toBeNull();
   });
 });

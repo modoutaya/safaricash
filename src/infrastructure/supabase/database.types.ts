@@ -564,6 +564,10 @@ export type Database = {
         Args: { p_phone: string };
         Returns: boolean;
       };
+      emit_session_event: {
+        Args: { p_reason: string };
+        Returns: undefined;
+      };
       get_reauth_otp_hmac_key: { Args: never; Returns: string };
       reauth_consume_confirmation: {
         Args: {

@@ -31,4 +31,5 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/re-auth/index.test.ts \
   supabase/functions/auth-sms-hook/index.test.ts \
   supabase/functions/_shared/check-collector-registered.contract.test.ts \
+  supabase/functions/_shared/emit-session-event.contract.test.ts \
   "$@"

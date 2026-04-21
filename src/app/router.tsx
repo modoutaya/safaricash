@@ -8,7 +8,8 @@
 //       └── AppLayout (<Outlet>)
 //           ├── /dashboard         (Story 9.1 placeholder)
 //           ├── /members           (EmptyState when count=0; Story 2.1 extends)
-//           └── /members/new       (Story 2.2 placeholder)
+//           ├── /members/new       (Story 2.2 placeholder)
+//           └── /settings          (Plus tab; Story 1.7 sign-out)
 //
 // React Router v7 data-router (`createBrowserRouter`) is the committed API
 // per architecture.md; legacy <BrowserRouter> is an anti-pattern here.
@@ -23,6 +24,7 @@ import LoginRoute from "@/app/routes/login";
 import MembersRoute from "@/app/routes/members";
 import MembersNewRoute from "@/app/routes/members/new";
 import NonRegisteredRoute from "@/app/routes/non-registered";
+import SettingsRoute from "@/app/routes/settings";
 
 export const router = createBrowserRouter([
   {
@@ -40,6 +42,7 @@ export const router = createBrowserRouter([
               { path: "dashboard", element: <DashboardRoute /> },
               { path: "members", element: <MembersRoute /> },
               { path: "members/new", element: <MembersNewRoute /> },
+              { path: "settings", element: <SettingsRoute /> },
             ],
           },
         ],

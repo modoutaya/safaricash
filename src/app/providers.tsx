@@ -19,6 +19,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { toast, Toaster } from "sonner";
 
+import { requestSignOut, signOutStateRef } from "@/features/auth/api/signOut";
 import { useIdleTimeout } from "@/features/auth/api/useIdleTimeout";
 import { supabase } from "@/infrastructure/supabase/client";
 import { useT } from "@/i18n/useT";
@@ -78,10 +79,22 @@ export function AuthStateListener() {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
         const wasSignedIn = hadSessionRef.current;
+        // Story 1.7 — read + clear the sign-out reason BEFORE any early
+        // return so a legitimate SIGNED_OUT doesn't leak stale state into
+        // the next cycle. `reason === "explicit"` selects a different toast.
+        const reason = signOutStateRef.reason;
+        signOutStateRef.reason = null;
         hadSessionRef.current = false;
         if (!wasSignedIn) return;
+        // Story 1.7 — wipe the TanStack Query cache so a subsequent sign-in
+        // on the same device cannot flash the previous collector's data
+        // (RLS guards server reads, but cached queries would still render
+        // before the new fetch resolves).
+        queryClient.clear();
         if (locationRef.current !== "/login") {
-          toast(t("login.session_expired_toast"));
+          const toastKey =
+            reason === "explicit" ? "settings.signed_out_success" : "login.session_expired_toast";
+          toast(t(toastKey));
           navigate("/login", { replace: true });
         }
         return;
@@ -96,13 +109,16 @@ export function AuthStateListener() {
   }, [navigate, t]);
 
   // Story 1.6 — NFR-S4 idle timeout (30 min) + absolute lifetime (30 days).
-  // On expiry the hook calls supabase.auth.signOut(); the effect above
-  // catches the resulting SIGNED_OUT and handles the toast + redirect.
+  // Story 1.7 — route through requestSignOut so the idle path also emits the
+  // session.signed_out audit event and the listener's toast picks the idle
+  // copy (signOutStateRef.reason = "idle" → "Session expirée, reconnectez-
+  // vous"). The effect above catches the resulting SIGNED_OUT, clears the
+  // query cache, toasts, and navigates to /login.
   useIdleTimeout({
     idleMs: SESSION_IDLE_TIMEOUT_MS,
     absoluteLifetimeMs: SESSION_ABSOLUTE_LIFETIME_MS,
     onExpired: () => {
-      void supabase.auth.signOut();
+      void requestSignOut("idle");
     },
   });
 

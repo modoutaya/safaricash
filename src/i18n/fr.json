@@ -52,5 +52,11 @@
     "empty_state_cta": "Ajouter mon premier membre",
     "sending_code": "Envoi du code…",
     "verifying_code": "Vérification du code…"
+  },
+  "settings": {
+    "title": "Plus",
+    "signout_cta": "Se déconnecter",
+    "signout_loading": "Déconnexion…",
+    "signed_out_success": "Vous êtes déconnecté"
   }
 }
