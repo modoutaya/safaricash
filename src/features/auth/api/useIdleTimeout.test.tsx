@@ -307,6 +307,65 @@ describe("useIdleTimeout", () => {
     expect(cfg.onExpired).toHaveBeenCalledTimes(1);
   });
 
+  // Code-review patch 1: INITIAL_SESSION must arm the hook so a failed
+  // getSession() (Safari private mode, storage throttling) doesn't leave
+  // the idle timer unstarted despite an active session.
+  it("INITIAL_SESSION with a session arms the timer (rescues failed getSession)", async () => {
+    // Force getSession to reject so only INITIAL_SESSION can arm the hook.
+    getSessionMock.mockRejectedValue(new Error("storage access denied"));
+    const cfg = buildConfig();
+    renderHook(() => useIdleTimeout(cfg));
+    await flushMicrotasks();
+
+    await emitAuth("INITIAL_SESSION", fakeSession);
+
+    await act(async () => {
+      vi.advanceTimersByTime(IDLE_MS);
+    });
+    expect(cfg.onExpired).toHaveBeenCalledTimes(1);
+  });
+
+  it("INITIAL_SESSION with no session is a no-op", async () => {
+    const cfg = buildConfig();
+    renderHook(() => useIdleTimeout(cfg));
+    await flushMicrotasks();
+
+    await emitAuth("INITIAL_SESSION", null);
+
+    await act(async () => {
+      vi.advanceTimersByTime(IDLE_MS * 10);
+    });
+    expect(cfg.onExpired).not.toHaveBeenCalled();
+  });
+
+  // Code-review patch 2: armTimer folds the absolute-lifetime end into its
+  // target — the timer fires at min(idleEnd, absoluteEnd) so a continuously
+  // active user still expires at the 30-day boundary.
+  it("armTimer fires at absolute end when absolute end < idle end", async () => {
+    const shortAbsoluteMs = 5_000;
+    // Session started 3s ago → absolute end in 2s. idleMs is 60s (far later).
+    const threeSecondsAgo = new Date(Date.now() - 3_000).toISOString();
+    window.localStorage.setItem(SESSION_STARTED_AT_STORAGE_KEY, threeSecondsAgo);
+    getSessionMock.mockResolvedValue({ data: { session: fakeSession } });
+    const cfg = buildConfig({ absoluteLifetimeMs: shortAbsoluteMs });
+
+    renderHook(() => useIdleTimeout(cfg));
+    await flushMicrotasks();
+
+    // 1 ms before the absolute end — should not fire yet.
+    await act(async () => {
+      vi.advanceTimersByTime(1_999);
+    });
+    expect(cfg.onExpired).not.toHaveBeenCalled();
+
+    // 2 ms more crosses the absolute end → fires, even though idle window
+    // (60s) hasn't elapsed.
+    await act(async () => {
+      vi.advanceTimersByTime(2);
+    });
+    expect(cfg.onExpired).toHaveBeenCalledTimes(1);
+  });
+
   // -------------------------------------------------------------------------
   // TOKEN_REFRESHED observability
   // -------------------------------------------------------------------------

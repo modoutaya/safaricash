@@ -59,21 +59,9 @@ export function useIdleTimeout(config: IdleTimeoutConfig): void {
       }
     };
 
-    const armTimer = (): void => {
-      clearIdleTimer();
-      const remaining = Math.max(
-        0,
-        lastActivityAtRef.current + configRef.current.idleMs - Date.now(),
-      );
-      timerRef.current = setTimeout(() => {
-        timerRef.current = null;
-        void configRef.current.onExpired();
-      }, remaining);
-    };
-
-    const isAbsoluteLifetimeExceeded = (): boolean => {
+    const getAbsoluteEndAt = (): number | null => {
       const raw = window.localStorage.getItem(SESSION_STARTED_AT_STORAGE_KEY);
-      if (raw === null) return false;
+      if (raw === null) return null;
       const startedAt = Date.parse(raw);
       if (Number.isNaN(startedAt)) {
         if (import.meta.env.DEV) {
@@ -82,9 +70,30 @@ export function useIdleTimeout(config: IdleTimeoutConfig): void {
             `[session] corrupt ${SESSION_STARTED_AT_STORAGE_KEY} value, ignoring: ${raw}`,
           );
         }
-        return false;
+        return null;
       }
-      return Date.now() - startedAt >= configRef.current.absoluteLifetimeMs;
+      return startedAt + configRef.current.absoluteLifetimeMs;
+    };
+
+    const isAbsoluteLifetimeExceeded = (): boolean => {
+      const end = getAbsoluteEndAt();
+      return end !== null && Date.now() >= end;
+    };
+
+    const armTimer = (): void => {
+      clearIdleTimer();
+      // AC 3a: the absolute-lifetime check runs on every timer arm — target
+      // is the EARLIER of idle-end and absolute-end so a continuously active
+      // session still expires at the 30-day boundary instead of relying on
+      // the Supabase server-side refresh-token TTL as the sole enforcer.
+      const idleEndAt = lastActivityAtRef.current + configRef.current.idleMs;
+      const absoluteEndAt = getAbsoluteEndAt();
+      const targetAt = absoluteEndAt !== null ? Math.min(idleEndAt, absoluteEndAt) : idleEndAt;
+      const remaining = Math.max(0, targetAt - Date.now());
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        void configRef.current.onExpired();
+      }, remaining);
     };
 
     const handleActivity = (): void => {
@@ -150,12 +159,16 @@ export function useIdleTimeout(config: IdleTimeoutConfig): void {
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (cancelled) return;
 
-      if (event === "SIGNED_IN" && session) {
-        // Only stamp on the FIRST SIGNED_IN of a session. Supabase-js may
-        // emit SIGNED_IN on subsequent page loads when a persisted session
-        // is rehydrated; overwriting would silently extend the 30-day
-        // absolute window. Remove-on-SIGNED_OUT ensures a fresh sign-in
-        // after sign-out produces a fresh window.
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session) {
+        // INITIAL_SESSION fires on page load when a persisted session exists.
+        // If getSession() failed (Safari private mode, storage throttling),
+        // this is the only opportunity to arm the hook — treat it identically
+        // to SIGNED_IN. startSession() guards against double-arming via
+        // activeRef, so a successful getSession() + INITIAL_SESSION pair is safe.
+        //
+        // Only stamp sc_session_started_at on the FIRST sign-in: supabase-js
+        // can emit SIGNED_IN on subsequent page loads (persisted-session rehydration);
+        // overwriting would silently extend the 30-day absolute window.
         if (window.localStorage.getItem(SESSION_STARTED_AT_STORAGE_KEY) === null) {
           window.localStorage.setItem(SESSION_STARTED_AT_STORAGE_KEY, new Date().toISOString());
         }
@@ -186,7 +199,7 @@ export function useIdleTimeout(config: IdleTimeoutConfig): void {
         return;
       }
 
-      // INITIAL_SESSION / USER_UPDATED / PASSWORD_RECOVERY: no-op.
+      // USER_UPDATED / PASSWORD_RECOVERY: no-op.
     });
 
     return () => {

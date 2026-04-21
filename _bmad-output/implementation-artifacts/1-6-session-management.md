@@ -1,6 +1,6 @@
 # Story 1.6: Session management with idle timeout and refresh
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -263,7 +263,16 @@ Claude Opus 4.7 (1M context)
 - `README.md` — appended `## Session policy (NFR-S4)` + operator runbook for Supabase Auth configuration
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` — `1-6-session-management`: `backlog` → `ready-for-dev` → `in-progress` → `review`; `last_updated` → `2026-04-21`
 
+### Review Findings
+
+- [x] [Review][Patch] INITIAL_SESSION event not handled — if `getSession()` fails (Safari private mode, storage corruption), the hook never starts despite an active session [`src/features/auth/api/useIdleTimeout.ts` — `onAuthStateChange` callback] — fixed: INITIAL_SESSION now treated identically to SIGNED_IN
+- [x] [Review][Patch] `armTimer` callback does not check `isAbsoluteLifetimeExceeded()` before calling `onExpired()` — AC 3a requires the absolute-lifetime check to run on every idle-timer fire, not only on mount and SIGNED_IN [`src/features/auth/api/useIdleTimeout.ts:62-72` — `armTimer`] — fixed: `getAbsoluteEndAt()` helper extracted; `armTimer` now targets `min(idleEnd, absoluteEnd)` so the timer fires at the earlier boundary. Closes the "continuously active for 30 days" gap without relying on the server-side refresh-token TTL as sole enforcer. Covered by new unit test `armTimer fires at absolute end when absolute end < idle end`.
+- [x] [Review][Defer] E2E test incomplete — no session seeding, idle timeout cannot fire; Story 1.8 owns CI wiring [`tests/e2e/session-idle-timeout.spec.ts`] — deferred, pre-existing
+- [x] [Review][Defer] `onExpired()` rejection silently swallowed — Supabase clears local state regardless of network result, low practical risk [`src/features/auth/api/useIdleTimeout.ts:70,163`] — deferred, pre-existing
+
 ## Change Log
 
 - 2026-04-21 (Opus 4.7 1M — create-story): Spec created from epics.md Story 1.6, architecture.md § Session / Auth, PRD NFR-S4 / FR6, UX spec § Modal Patterns, and Story 1.5 handoffs. Status → ready-for-dev.
 - 2026-04-21 (Opus 4.7 1M — dev-story): Implemented end-to-end. All 10 ACs + 10 tasks satisfied. 29 new tests (22 unit + 7 integration) all green; 152 / 153 Vitest tests pass (1 skipped). Lint / type-check / Prettier all clean. Status → review.
+- 2026-04-21 (Sonnet 4.6 1M — code-review): 3-layer review (Blind Hunter + Edge Case Hunter + Acceptance Auditor). 2 patches, 2 deferred, 9 dismissed. Status → in-progress.
+- 2026-04-21 (Opus 4.7 1M — dev-story patches): Applied both review patches. (1) `INITIAL_SESSION` now treated identically to `SIGNED_IN` so a failed `getSession()` (Safari private mode) no longer strands the hook. (2) `armTimer` folds `absoluteEnd` into the target via new `getAbsoluteEndAt()` helper — timer now fires at `min(idleEnd, absoluteEnd)`, closing the continuously-active-for-30-days gap. 3 new unit tests (INITIAL_SESSION arm, INITIAL_SESSION null no-op, absolute-end-before-idle fire). 155 / 156 Vitest pass (1 skipped). Status → done.

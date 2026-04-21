@@ -1,5 +1,10 @@
 # Deferred Work
 
+## Deferred from: code review of 1-6-session-management (2026-04-21)
+
+- **E2E test incomplete — no session seeding** — `tests/e2e/session-idle-timeout.spec.ts` navigates to `/members` without a provisioned authenticated session; `getSession()` returns null, idle hook never arms, clock fast-forward cannot trigger expiry. Story 1.8 owns the `seedCollector` fixture + CI wiring. [tests/e2e/session-idle-timeout.spec.ts]
+- **`onExpired()` rejection silently swallowed** — `void configRef.current.onExpired()` discards any rejection from `supabase.auth.signOut()`. In practice Supabase clears local session state even on network failure, so functional impact is low. Revisit if a sign-out failure incident surfaces. [`src/features/auth/api/useIdleTimeout.ts:70,163`]
+
 ## Deferred from: implementation of 1-5-phone-otp-signin (2026-04-20)
 
 - **Termii API base URL was stale in Story 1.3 constants** — Story 1.3 shipped `TERMII_API_BASE_URL_DEFAULT = https://api.ng.termii.com` (legacy), which returns 404 on `/api/sms/send`. Caught during Story 1.5's first real dispatch because Story 1.3 was never exercised against live Termii (deploy gate). Constant updated to `https://v3.api.termii.com` in `supabase/functions/_shared/constants.ts`. No code review finding — this is a "never reached prod before" class of bug. Revisit: when/if Termii migrates again, prefer reading from Termii's OpenAPI discovery rather than hardcoding. [supabase/functions/_shared/constants.ts]
