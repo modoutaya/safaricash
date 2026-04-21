@@ -4,23 +4,28 @@
 // Supabase instance. Uses Playwright's clock API (`page.clock`) to compress
 // 30 minutes into milliseconds without actually waiting.
 //
-// Env-gated for the same reason as Stories 1.3 / 1.4 / 1.5: CI doesn't yet
-// wire a pre-provisioned seed collector + test-mode OTP read. Story 1.8 owns
-// the full CI wiring; until then this spec runs locally when SUPABASE_TEST_URL
-// and SUPABASE_TEST_ANON_KEY are set, and skips cleanly otherwise.
+// Session-seeding is owned by Story 1.8. The spec needs an authenticated
+// session BEFORE advancing the clock (otherwise ProtectedRoute redirects to
+// /login and no idle timer ever arms). We gate on SUPABASE_TEST_SEED_READY
+// (a dedicated flag Story 1.8 will set when the Playwright seedCollector
+// fixture lands) so this spec skips cleanly both locally and in CI until
+// then — the generic SUPABASE_TEST_* pair CI already sets is not enough.
 //
 // `page.clock.install()` MUST be called BEFORE `page.goto()` — installing
 // after a page is loaded cannot patch the already-loaded Date/setTimeout.
 
 import { expect, test } from "@playwright/test";
 
-const ENV_OK = !!process.env["SUPABASE_TEST_URL"] && !!process.env["SUPABASE_TEST_ANON_KEY"];
+const CAN_SEED = process.env["SUPABASE_TEST_SEED_READY"] === "1";
 
 test.describe("Flow 5 — idle-timeout (NFR-S4)", () => {
   test("30 min idle → auto sign-out → lands on /login with session-expired toast", async ({
     page,
   }) => {
-    test.skip(!ENV_OK, "SUPABASE_TEST_URL / SUPABASE_TEST_ANON_KEY not set — Story 1.8 wires CI");
+    test.skip(
+      !CAN_SEED,
+      "SUPABASE_TEST_SEED_READY not set — Story 1.8 wires the Playwright seedCollector fixture",
+    );
 
     // Install the synthetic clock BEFORE any navigation so Date + setTimeout
     // inside the app are patched from the first render.

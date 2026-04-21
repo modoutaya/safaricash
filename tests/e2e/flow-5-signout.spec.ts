@@ -4,24 +4,28 @@
 // /login with the "Vous êtes déconnecté" toast (NOT the idle-timeout
 // "Session expirée" copy — those two paths must be visibly different).
 //
-// Env-gated like every other cross-stack spec in this sprint: skips cleanly
-// when SUPABASE_TEST_URL / SUPABASE_TEST_ANON_KEY are unset. Story 1.8 wires
-// the full CI env (seedCollector fixture + test-mode OTP extraction).
-//
-// The sign-in step is TODO until Story 1.8 lands the fixture; the assertion
-// shape below is the contract that 1.8 will light up.
+// Session-seeding is owned by Story 1.8. Until that story wires a Playwright-
+// side seedCollector helper + sets SUPABASE_TEST_SEED_READY=1, this spec
+// cannot mint an authenticated session, and /settings would redirect to
+// /login via ProtectedRoute. The gate is an explicit, dedicated flag (NOT
+// the generic SUPABASE_TEST_* pair, which CI already sets for Supabase RPC
+// tests) so the spec skips cleanly BOTH locally AND in CI until 1.8 lands.
+// When Story 1.8 exports SUPABASE_TEST_SEED_READY=1 the assertions below
+// light up without further spec changes.
 
 import { expect, test } from "@playwright/test";
 
-const ENV_OK = !!process.env["SUPABASE_TEST_URL"] && !!process.env["SUPABASE_TEST_ANON_KEY"];
+const CAN_SEED = process.env["SUPABASE_TEST_SEED_READY"] === "1";
 
 test.describe("Flow 5 — explicit sign-out (Story 1.7)", () => {
   test("sign out from /settings lands on /login with the explicit toast", async ({ page }) => {
-    test.skip(!ENV_OK, "SUPABASE_TEST_URL / SUPABASE_TEST_ANON_KEY not set — Story 1.8 wires CI");
+    test.skip(
+      !CAN_SEED,
+      "SUPABASE_TEST_SEED_READY not set — Story 1.8 wires the Playwright seedCollector fixture",
+    );
 
     // TODO (Story 1.8): mint an authenticated session via the seedCollector
-    // fixture before navigating. Until then this test is skipped at the
-    // env-gate above.
+    // fixture before navigating.
     await page.goto("/settings");
 
     await page.getByRole("button", { name: /se déconnecter/i }).click();
