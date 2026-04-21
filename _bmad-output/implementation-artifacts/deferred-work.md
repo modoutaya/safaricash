@@ -1,5 +1,16 @@
 # Deferred Work
 
+## Deferred from: PRD v1.3 auth pivot (2026-04-21, Story 1.5b)
+
+- **No forced password-change on first login** — at MVP, the founder-generated default password (communicated via WhatsApp) is kept as the collector's permanent password until the collector calls to request a rotation (R-OP1 path). Risk: a password shared in clear on WhatsApp that becomes permanent is a latent leak vector (stolen / resold phone, compromised WhatsApp account). Accepted trade-off for solo-dev MVP — adding a force-change-on-first-login flow adds UX friction (extra screen, validation, state machine) that pilot collectors don't need for 10-person rollout. **Revisit triggers:** (a) first pilot collector reports credential-reuse concern OR (b) before onboarding the first paying collector post-pilot OR (c) when a second operator joins and starts provisioning (at that point introduce a "must change on first login" flow with a temporary-password flag on `public.users`). [Story 1.5b spec AC #13]
+- **Re-evaluate SMS OTP for auth when Termii business KYC clears** — the pivot to `signInWithPassword` (PRD v1.3) was driven by Termii's business-KYC requirement (letter of incorporation, RCCM, NINEA) which a solo founder cannot yet provide. Once Termii sender ID is activated (or an equivalent WAEMU SMS provider clears KYC), OTP-on-SIM remains strictly stronger than password on a stolen unlocked phone for the re-auth gate (FR5 — cycle settlement, bulk delete, export). **Revisit triggers:** (a) Termii KYC clears OR (b) before onboarding the first paying collector post-pilot. Action at revisit: restore Story 1.3-style OTP re-auth **for sensitive ops only** (keep password login as the default — it costs zero SMS per session), OR introduce a "trusted device" signed cookie that bypasses OTP for a rolling 7 days. [PRD v1.3 amendment, Story 1.5b spec AC #13]
+
+<!-- RESOLVED 2026-04-21 by Story 1.5b (AC #11) — full E2E OTP drive-through no longer applicable; OTP path removed. -->
+<!-- [[closed]] Playwright E2E full OTP-UI drive-through still deferred -->
+
+<!-- RESOLVED 2026-04-21 by Story 1.5b (AC #4) — auth-sms-hook Edge Function itself is removed; vault question moot. -->
+<!-- [[closed]] Supabase Auth hook secret in vault.secrets -->
+
 ## Deferred from: code review of 1-7-sign-out (2026-04-21)
 
 - **`as unknown as AuditRow[]` cast in Deno contract test violates CLAUDE.md "Zod at boundaries"** — `supabase/functions/_shared/emit-session-event.contract.test.ts:~61` bypasses the preferred Zod-parse pattern. Introducing Zod as a Deno dep is out of scope for this review pass. Revisit at the next Deno-side refactor or when a second contract test needs shared shape validation — at that point add a `jsr:@std/...` or `npm:zod` import in a shared `contract-helpers.ts`. [supabase/functions/_shared/emit-session-event.contract.test.ts]

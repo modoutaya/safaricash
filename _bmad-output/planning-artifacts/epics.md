@@ -259,11 +259,11 @@ Every MVP FR is mapped to a specific epic. FR2 is reserved (removed in v1.2). FR
 
 | FR | Epic | Note |
 |---|---|---|
-| FR1 | Epic 1 | Sign-in phone-OTP |
+| FR1 | Epic 1 | Sign-in phone + password (PRD v1.3 — was phone-OTP) |
 | FR2 | — | Reserved (removed v1.2) |
 | FR3 | Epic 1 | Returning sign-in |
 | FR4 | Epic 1 | Sign-out |
-| FR5 | Epic 1 (built once, dedicated re-auth Edge Function story); consumed by Epic 2 (bulk delete), Epic 7 (settlement), Epic 9 (export) | Cross-cutting re-auth gate — implemented once, gated per consumer |
+| FR5 | Epic 1 (built once — password re-auth per PRD v1.3; Story 1.3 rewritten); consumed by Epic 2 (bulk delete), Epic 7 (settlement), Epic 9 (export) | Cross-cutting re-auth gate — implemented once, gated per consumer |
 | FR6 | Epic 1 | Idle session expiry |
 | FR7 | Epic 2 | Create member manually |
 | FR8 | Epic 2 | Bulk import via device contacts (opt-in) |
@@ -316,13 +316,15 @@ Ten MVP epics organised around user value. Implementation order: **1 → 2 → 3
 
 ### Epic 1: Collector Onboarding & Sign-In
 
-**Goal:** Ibrahim can open the app, sign in with his pre-provisioned phone number, and land in a functional authenticated session. This epic also establishes the cross-cutting platform foundation (project bootstrap, Supabase schema + RLS + Vault, audit log with hash chain, CI pipeline, re-auth Edge Function, rate limiting) that every subsequent epic depends on.
+**Goal:** Ibrahim can open the app, sign in with his pre-provisioned phone number + password, and land in a functional authenticated session. This epic also establishes the cross-cutting platform foundation (project bootstrap, Supabase schema + RLS + Vault, audit log with hash chain, CI pipeline, re-auth Edge Function, rate limiting) that every subsequent epic depends on.
 
 **FRs covered:** FR1, FR3, FR4, FR5 (dedicated re-auth Edge Function built here), FR6, FR44 (audit log scaffold), FR45 (retention config), FR46 (RLS policies), FR47 (Vault setup), FR49 (rate limits)
 
 **Additional coverage:** AR1 (bootstrap), AR2 (Supabase Paris), AR3 (Cloudflare Pages), AR4 (schema migrations), AR5 (Vault), AR6 (RLS automated test), AR7 (audit trigger), AR11 (re-auth Edge Function), AR14 (CI pipeline), AR17 (CLAUDE.md), AR18 (Supabase Studio provisioning), AR19 (i18n scaffolding), AR21 (runbook initial)
 
-**User outcome:** Ibrahim receives a WhatsApp link, opens the app URL, enters his phone, receives an OTP, signs in, and lands on an empty member list with a "*Ajouter mon premier membre*" CTA. The session persists 30 days with 30-min idle refresh.
+**User outcome:** Ibrahim receives a WhatsApp message from the founder containing the app URL and his default password, opens the app, enters his phone + password, signs in, and lands on an empty member list with a "*Ajouter mon premier membre*" CTA. The session persists 30 days with 30-min idle refresh.
+
+**PRD v1.3 amendment — auth pivot.** Stories 1.3 (re-auth) and 1.5 (sign-in) were originally built with SMS-OTP via Termii. In PRD v1.3 (2026-04-21) the auth critical path pivoted to `signInWithPassword` because Termii requires business-KYC (letter of incorporation, RCCM, NINEA) that a solo founder cannot yet provide. Story 1.5b is the bridge that rewrites the relevant auth code to password-based flows and decommissions the `auth-sms-hook` Edge Function + `check_collector_registered` RPC. The narrative and FR definitions in this epic reflect the post-pivot state.
 
 ### Epic 2: Member Lifecycle Management
 

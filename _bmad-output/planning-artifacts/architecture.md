@@ -33,13 +33,13 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Requirements Overview
 
-**Functional Requirements (50 total, PRD v1.2):**
+**Functional Requirements (50 total, PRD v1.3):**
 
 Organised in 8 capability areas, each with distinct architectural implications:
 
 | Capability area | FR count | Key architectural implication |
 |---|---|---|
-| Collector Authentication & Session | 6 (FR1, 3–6) | Supabase Auth with phone-OTP provider; pre-provisioned accounts (no sign-up); SMS-OTP re-auth on sensitive operations; 30-min idle / 30-day absolute session TTL |
+| Collector Authentication & Session | 6 (FR1, 3–6) | Supabase Auth `signInWithPassword` (phone + password — PRD v1.3 pivoted away from SMS-OTP due to Termii business-KYC blocker); pre-provisioned accounts with default password communicated out-of-band (no sign-up, no self-service reset at MVP); password re-auth on sensitive operations; 30-min idle / 30-day absolute session TTL |
 | Member Lifecycle | 8 (FR7–14) | Standard CRUD against Postgres with RLS; opt-in device contacts access (client-only, no server transit); typed-confirmation guard at service layer |
 | Cycle Management | 7 (FR15–21) | **Pure domain layer** — cycle engine isolated from infrastructure; server-side state transitions; monotonic day-N computation from cycle start date |
 | Transaction Capture | 5 (FR22–26) | Write path must tolerate offline + reconcile deterministically; pre-commit simulation is client-side (no RTT); commit path is idempotent |
@@ -108,7 +108,7 @@ Ten concerns that will surface in most architectural decisions. Each is flagged 
 3. **Offline-first with deterministic sync** — event sourcing on the client (IndexedDB log), monotonic replay on the server; conflict resolution rare-to-impossible in single-writer-per-collector MVP; explicit conflict UI reserved for future multi-collector scope.
 4. **Durable SMS delivery** — queue + retry with exponential backoff; receipt modelled as a commitment (retryable, auditable, status-exposed) rather than fire-and-forget (NFR-R4, FR27).
 5. **Cycle engine correctness** — domain layer isolated from infrastructure; pure-function settlement computation; property-based testing for cycle state machine (NFR-R3, FR15–21).
-6. **Session & re-auth** — SMS OTP re-auth at sensitive operations (FR5); session TTL 30-min idle / 30-day absolute (NFR-S4); lockout + rate-limiting at auth layer (NFR-S9).
+6. **Session & re-auth** — password re-auth at sensitive operations (FR5 — PRD v1.3); session TTL 30-min idle / 30-day absolute (NFR-S4); Supabase Auth server-side lockout + rate-limiting on `signInWithPassword` at auth layer (NFR-S9).
 7. **Observability** — structured logging, metrics, traces to enforce NFR-P1/P4/P6 budgets and NFR-R3 correctness in production.
 8. **Secret management** — Termii keys, Supabase service key, WhatsApp tokens — environment-scoped, rotatable, never in client bundle.
 9. **Column-level encryption** — AES-256-GCM on phone, amount, member name (NFR-S1); keys sourced from Supabase Vault or equivalent.
@@ -309,7 +309,7 @@ At MVP, collector accounts are pre-provisioned directly via **Supabase Studio** 
 | Routing | React Router v7 | Starter step 3 Q-ARCH4 |
 | Testing | Vitest + RTL + Playwright + axe-core | Starter step 3 |
 | Linting | ESLint + Prettier + jsx-a11y | Starter step 3 |
-| Auth flow | Supabase phone-OTP, pre-provisioned | PRD v1.2 |
+| Auth flow | Supabase `signInWithPassword` (phone + password), pre-provisioned | PRD v1.3 |
 | SMS gateway | Termii primary | PRD Domain |
 | Admin provisioning (MVP) | Supabase Studio | Starter step 3 Q-ARCH3 |
 
@@ -348,11 +348,11 @@ At MVP, collector accounts are pre-provisioned directly via **Supabase Studio** 
 - **API security:** RLS is the primary auth layer. Every request passes through Supabase, which evaluates the policy set. No custom API endpoint is exposed without an RLS-equivalent check at the Edge Function boundary.
 - **Rate limiting (NFR-S9):** Cloudflare Workers middleware on Edge Function endpoints (max 100 req/min/collector on write endpoints). For PostgREST direct calls, Supabase Pro's native rate-limiting covers it.
 - **Secret management:** Cloudflare Workers env vars (Termii API keys, Supabase service key), Supabase dashboard env vars (WhatsApp tokens when provisioned). Frontend only sees Supabase anon key (public) + project URL. Rotation cadence: quarterly at minimum, immediate on any suspected leak.
-- **Sensitive-op re-auth (FR5, NFR-S4):** dedicated Edge Function re-issues SMS OTP and validates for settlement / bulk delete / export. No "elevated session" token — every sensitive operation re-auths fresh. 30-min idle / 30-day absolute session TTL managed by Supabase Auth config.
+- **Sensitive-op re-auth (FR5, NFR-S4):** dedicated Edge Function accepts a password submission and validates it via `supabase.auth.signInWithPassword` under the Edge Function's service-role client (or via `auth.admin.getUserById` + bcrypt verify on the stored hash — final form decided in Story 1.3 rewrite). No "elevated session" token — every sensitive operation re-auths fresh against the stored password. 30-min idle / 30-day absolute session TTL managed by Supabase Auth config. Rationale for password over OTP: Termii business-KYC unavailable at MVP (PRD v1.3). Accepted trade-off: password re-auth on a stolen unlocked phone is weaker than OTP-on-SIM — re-evaluate when the SMS gateway clears KYC.
 
 ### API & Communication Patterns
 
-- **API style:** **PostgREST auto-generated** for 80 % of CRUD — reads (members, transactions, cycles) and most writes via direct table access protected by RLS. **Supabase Edge Functions (Deno)** for the 20 % of custom logic: cycle settlement, SMS dispatch, dispute notification, OTP re-auth, audit hash-chain append.
+- **API style:** **PostgREST auto-generated** for 80 % of CRUD — reads (members, transactions, cycles) and most writes via direct table access protected by RLS. **Supabase Edge Functions (Deno)** for the 20 % of custom logic: cycle settlement, SMS dispatch, dispute notification, password re-auth (PRD v1.3 — was OTP re-auth pre-v1.3), audit hash-chain append.
 - **Error handling:** Edge Functions return RFC 7807 Problem Details for 4xx / 5xx. PostgREST returns its standard codes (400 / 401 / 403 / 404 / 409) — frontend translates these into named user-facing errors per UX Error Recovery Patterns.
 - **Realtime (Q-ARCH6 resolved, targeted use):** Supabase Realtime subscriptions are enabled **only** for:
   - Dispute notifications to collector + founder (FR33b — the one place real-time matters).
@@ -410,7 +410,7 @@ At MVP, collector accounts are pre-provisioned directly via **Supabase Studio** 
 
 1. **EPIC-0 (bootstrap):** Vite + React + TS + Tailwind + Vite PWA + shadcn/ui + Supabase client + routing. Repo skeleton. CI minimal.
 2. **EPIC-1 (data model):** Supabase schema + RLS policies + audit log table + encryption setup. Automated RLS isolation tests gate.
-3. **EPIC-2 (auth):** Supabase phone-OTP integration + session management + re-auth Edge Function.
+3. **EPIC-2 (auth):** Supabase phone + password integration (PRD v1.3 — `signInWithPassword`) + session management + password re-auth Edge Function.
 4. **EPIC-3 (domain engine):** pure cycle engine module with 100 % unit + property-based test coverage (NFR-R3 gate).
 5. **EPIC-4 (transaction capture):** online commit path via PostgREST + Zod + optimistic UI.
 6. **EPIC-5 (offline sync):** IndexedDB event log + outbox + reconciliation worker. **Highest technical risk — allocate buffer.**
@@ -424,7 +424,7 @@ At MVP, collector accounts are pre-provisioned directly via **Supabase Studio** 
 - Every write path → audit log append (enforced via Postgres trigger or Edge Function wrapper).
 - Every Edge Function → RLS-equivalent role / ownership check at entry.
 - Every user-facing screen → connectivity indicator + offline-tolerant write path.
-- Every destructive operation → re-auth OTP gate (FR5 implemented as a shared middleware Edge Function).
+- Every destructive operation → password re-auth gate (FR5 implemented as a shared middleware Edge Function — PRD v1.3).
 - Every saver-facing text surface (SMS body, receipt URL page) → tracker-not-mover language audit (NFR-S10).
 
 ### PRD Amendments Implicitly Triggered by This Step
@@ -480,7 +480,7 @@ These closures will be bundled with the next `bmad-edit-prd` pass if any further
 | Hooks | `useXxx.ts` camelCase | `useMemberList.ts`, `useConnectivityStatus.ts` |
 | Component names | `PascalCase` | `<MemberActionSheet />` |
 | Functions / methods | `camelCase` verbs | `computeFinalBalance()`, `dispatchSms()` |
-| Constants | `UPPER_SNAKE_CASE` | `MAX_OFFLINE_HOURS`, `OTP_LOCKOUT_MINUTES` |
+| Constants | `UPPER_SNAKE_CASE` | `MAX_OFFLINE_HOURS`, `SESSION_IDLE_TIMEOUT_MIN` |
 | TypeScript types / interfaces | `PascalCase`, no `I` prefix | `Member`, `CycleState`, `TransactionKind` |
 | Zod schemas | `PascalCaseSchema` suffix | `MemberSchema`, `TransactionSchema` |
 | Enums / string union types | `PascalCase` type name, `SCREAMING_SNAKE` or lowercase values | `type CycleStatus = 'active' \| 'with_advance' \| 'completed'` |
@@ -641,7 +641,7 @@ useQuery({ queryKey: [`members-${collectorId}`], ... })  // don't concatenate
 | Network GETs (PostgREST reads) | 3× automatic (TanStack Query default), exponential backoff |
 | Transaction writes (idempotent via event ID) | Automatic on network recovery; user can manually retry via toast action after `NFR-P7` threshold |
 | SMS dispatch (Termii) | Exponential backoff 10 s → max 10 min; abandon after 24 h; surfaced in Progressive Toast (NFR-R4) |
-| OTP verification | 3 attempts then 5-min lockout (Flow 5) |
+| Password verification | Supabase Auth server-side lockout (per-IP + per-identifier rate limit on `signInWithPassword`); no client-side counter at MVP (PRD v1.3) |
 
 **Validation:**
 
@@ -653,7 +653,7 @@ useQuery({ queryKey: [`members-${collectorId}`], ... })  // don't concatenate
 
 - Supabase Auth session stored in localStorage (Supabase default) + refreshed automatically.
 - 30-min idle → Supabase emits `SIGNED_OUT`; our app handler redirects to Flow 5 login with a toast (*"Session expirée, reconnectez-vous"*).
-- Sensitive ops re-auth via Edge Function `/re-auth` that re-issues and verifies OTP without touching main session — does NOT extend main session.
+- Sensitive ops re-auth via Edge Function `/re-auth` that re-verifies the collector's password without touching the main session — does NOT extend main session (PRD v1.3 — was OTP pre-v1.3).
 
 **Logging conventions:**
 
@@ -826,7 +826,7 @@ safaricash/
 │       ├── sms-worker/
 │       │   └── index.ts           # Scheduled — drains queue, calls Termii, retries
 │       ├── re-auth/
-│       │   └── index.ts           # POST — issues + verifies OTP for sensitive ops
+│       │   └── index.ts           # POST — verifies collector password for sensitive ops (PRD v1.3)
 │       ├── dispute-notify/
 │       │   └── index.ts           # POST — notifies collector + founder
 │       └── saver-delete/
@@ -872,8 +872,7 @@ safaricash/
 │   │   │   ├── toast.tsx
 │   │   │   ├── sheet.tsx
 │   │   │   ├── badge.tsx
-│   │   │   ├── progress.tsx
-│   │   │   └── otp-input.tsx
+│   │   │   └── progress.tsx
 │   │   └── domain/                 # SafariCash-specific novel components
 │   │       ├── ConnectivityIndicator.tsx
 │   │       ├── MemberActionSheet.tsx
@@ -904,12 +903,11 @@ safaricash/
 │   ├── features/
 │   │   ├── auth/
 │   │   │   ├── api/
-│   │   │   │   ├── useLogin.ts     # Phone + OTP flow
-│   │   │   │   ├── useReauth.ts    # Sensitive-op OTP re-auth
+│   │   │   │   ├── useLogin.ts     # Phone + password flow (PRD v1.3)
+│   │   │   │   ├── useReauth.ts    # Sensitive-op password re-auth (PRD v1.3)
 │   │   │   │   └── useSession.ts
 │   │   │   ├── ui/
-│   │   │   │   ├── LoginForm.tsx
-│   │   │   │   └── OtpStep.tsx
+│   │   │   │   └── LoginForm.tsx   # Single-screen phone + password form (PRD v1.3 — replaces OtpStep)
 │   │   │   ├── types.ts            # AuthSchema (Zod)
 │   │   │   └── index.ts            # Public exports
 │   │   ├── member/
@@ -993,7 +991,7 @@ safaricash/
 │   │   ├── validators/
 │   │   │   ├── phoneNumber.ts      # Zod refinement
 │   │   │   └── amount.ts
-│   │   ├── constants.ts            # MAX_OFFLINE_HOURS, OTP_LOCKOUT_MINUTES, etc.
+│   │   ├── constants.ts            # MAX_OFFLINE_HOURS, SESSION_IDLE_TIMEOUT_MIN, etc.
 │   │   └── utils.ts                # Generic helpers
 │   │
 │   ├── hooks/
@@ -1040,7 +1038,7 @@ safaricash/
 | Read CRUD on `members`, `transactions`, `cycles` | PostgREST auto-generated | Supabase RLS |
 | Write CRUD on `members` | PostgREST auto-generated | Supabase RLS |
 | Write `transactions` | PostgREST direct (fast path) + audit trigger | Supabase RLS + Postgres trigger |
-| Cycle settlement | Edge Function `/functions/v1/cycle-settlement` | RLS + OTP re-auth (FR5) |
+| Cycle settlement | Edge Function `/functions/v1/cycle-settlement` | RLS + password re-auth (FR5 — PRD v1.3) |
 | SMS dispatch (enqueue) | Edge Function `/functions/v1/sms-dispatch` | RLS entry-point check |
 | SMS worker (drain queue) | Edge Function `/functions/v1/sms-worker` (scheduled) | Service role |
 | Saver dispute submission | Cloudflare Worker `POST /r/{token}/dispute` | Token-based (no auth required) |
@@ -1213,7 +1211,7 @@ All 50 FRs have a specified architectural home (see Project Structure → Requir
 
 | FR | Lives in | Verified |
 |---|---|---|
-| FR1 (sign-in phone + OTP) | `src/features/auth/api/useLogin.ts` | ✅ |
+| FR1 (sign-in phone + password) | `src/features/auth/api/useLogin.ts` | ✅ |
 | FR17 (projection formula) | `src/domain/cycle/cycleEngine.ts` | ✅ |
 | FR27 (SMS receipt dispatch) | `supabase/functions/sms-dispatch/` + `sms-worker/` | ✅ |
 | FR33b (saver dispute flag) | `workers/receipt-url/src/dispute.ts` + `supabase/functions/dispute-notify/` | ✅ |

@@ -17,7 +17,7 @@ stepsCompleted:
   - step-11-polish
   - step-12-complete
 completedAt: '2026-04-18'
-version: '1.2'
+version: '1.3'
 amendments:
   - date: '2026-04-18'
     version: '1.0 → 1.1'
@@ -25,6 +25,9 @@ amendments:
   - date: '2026-04-19'
     version: '1.1 → 1.2'
     summary: 'Align PRD with UX spec — (1) FR1 reformulation: sign-in to pre-provisioned account, not sign-up; (2) FR2 removal: email magic-link path retired (number kept as placeholder); (3) FR3 simplification: phone-OTP exclusive; (4) Product Scope MVP bullet reformulation; (5) Add OQ7 for founder admin tool; (6) Add R-OP1 operational risk (collector phone number change mid-cycle).'
+  - date: '2026-04-21'
+    version: '1.2 → 1.3'
+    summary: 'Switch collector auth from SMS-OTP to phone+password. Driver: Termii (primary SMS gateway) requires business KYC (letter of incorporation, RCCM, NINEA) which a solo founder cannot yet provide — blocking the MVP ship. Switching to Supabase-native `signInWithPassword` removes the SMS-gateway dependency from the auth critical path (Termii stays in scope for saver receipts — different risk profile). Changes: (1) FR1/FR3 — sign-in via phone number + password; (2) FR5 — password re-authentication (not SMS-OTP) on sensitive ops; (3) NFR-S4 — re-auth mechanism updated; (4) MVP scope bullet line 138; (5) J1 narrative line 180; (6) Journey requirements capability line 250; (7) Mobile biometric row line 366 (re-auth via password not OTP); (8) Collector-fraud / credential-theft mitigation line 336; (9) R-OP1 — password recovery path at MVP = manual reset by founder via Supabase dashboard + default password shared by WhatsApp/call; (10) FR→Epic mapping cross-references updated. OTP-specific retry/lockout semantics are retired (Supabase Auth server-side lockout handles password abuse).'
 classification:
   projectType: mobile_app
   projectTypeNote: 'PWA at MVP (React 18 + Vite PWA Plugin); native/store transition targeted within 24 months'
@@ -135,7 +138,7 @@ The following are the single numeric acceptance gates before declaring MVP succe
 
 The MVP ships the complete collector daily workflow + the saver-side trust hook. All items below are in scope and non-negotiable:
 
-- Collector sign-in (SMS OTP) — accounts are pre-provisioned by the founder; no self-service sign-up at MVP.
+- Collector sign-in (phone number + password) — accounts are pre-provisioned by the founder with a default password communicated over WhatsApp / call; no self-service sign-up at MVP. SMS-OTP was retired in v1.3 due to the business-KYC barrier on the SMS gateway (see v1.3 amendment summary).
 - Member CRUD (create / edit / delete with impact alerts, typed-confirmation delete gate, cycle restart).
 - Daily transaction capture (contribution / catch-up "rattrapage" / advance) with suggested-amount auto-fill and real-time balance preview.
 - Cycle engine (30-day calendar cycle, 1-day commission, interest-free advances, deterministic settlement).
@@ -177,7 +180,7 @@ The MVP ships the complete collector daily workflow + the saver-side trust hook.
 
 **Opening scene.** 6:45 a.m. Monday. Ibrahim opens his worn *cahier bleu*. Three cycles end this week — he already dreads two arguments about balances. He downloads SafariCash from a landing page an ami-collecteur shared on WhatsApp.
 
-**Rising action.** He signs up with SMS OTP in 90 seconds, then bulk-imports 80 members over his morning coffee (name + phone + daily amount each). He starts the route. First saver, Awa — he types her name, taps "Cotisation", confirms. **4 seconds, app-open to done**. Awa's Nokia buzzes before Ibrahim even leaves her stall: *"SafariCash: 3 000 FCFA reçu ce jour. Cycle 7/30. Solde prévu fin cycle: 84 000 FCFA. Reçu: sc.io/r/9k2"*. She reads it twice.
+**Rising action.** He signs in with the phone number and the default password the founder sent him by WhatsApp — 20 seconds — then bulk-imports 80 members over his morning coffee (name + phone + daily amount each). He starts the route. First saver, Awa — he types her name, taps "Cotisation", confirms. **4 seconds, app-open to done**. Awa's Nokia buzzes before Ibrahim even leaves her stall: *"SafariCash: 3 000 FCFA reçu ce jour. Cycle 7/30. Solde prévu fin cycle: 84 000 FCFA. Reçu: sc.io/r/9k2"*. She reads it twice.
 
 **Climax (day 15).** Moussa walks up agitated, insists he paid yesterday and Ibrahim "forgot" to mark it. On paper, this scene would cost 20 minutes of flipping, suspicion, and a reluctant concession from Ibrahim to keep the peace. On SafariCash, Ibrahim opens Moussa's profile, shows him the timestamped history: *yesterday, 0 FCFA, last payment Monday*. Moussa reads the screen, stops arguing, apologises. The entire exchange lasts under a minute.
 
@@ -185,7 +188,7 @@ The MVP ships the complete collector daily workflow + the saver-side trust hook.
 
 **What this journey reveals requirements for:**
 
-- Collector onboarding (SMS OTP, magic link) and bulk-or-fast member import
+- Collector onboarding (phone + pre-provisioned password) and bulk-or-fast member import
 - Sub-5-second transaction entry with auto-suggested amount
 - Saver-facing SMS receipt delivered within 60 seconds of every transaction
 - Tamper-evident transaction history with timestamp per member
@@ -247,7 +250,7 @@ Capabilities revealed by the three journeys, grouped by functional area:
 
 | Capability area | Triggered by |
 |---|---|
-| Collector onboarding (SMS OTP / magic link) | J1 |
+| Collector onboarding (phone + pre-provisioned password) | J1 |
 | Bulk or fast member creation | J1 |
 | Sub-5-second transaction entry | J1 |
 | Real-time projection & impact simulation | J1, J2 |
@@ -333,7 +336,7 @@ SafariCash sits in a scoped fintech position — *tracker-not-mover* — which n
 | **Offline sync divergence** — same member or cycle mutated on two devices | Event-sourced append-only local log; server reconciliation based on monotonic event timestamps; explicit conflict UI for the rare cases needing human resolution (ideally never occurs in single-collector MVP) |
 | **Saver phone number change** — collector updates number, receipt history already addressed to old number | Collector-triggered re-verification SMS to new number; audit log entry on phone change; old-number receipts remain readable via URL (tokens persist) |
 | **SMS gateway outage** — receipts not delivered | Receipt delivery queued with exponential-backoff retry; receipt marked *"envoi en cours"* in the collector app until delivery confirmed; optional fallback to WhatsApp for opted-in savers |
-| **Credential theft on collector side** — stolen phone, stolen session | SMS OTP re-auth on sensitive operations (cycle settlement, bulk delete); short session lifetime with refresh; remote session revocation (Growth) |
+| **Credential theft on collector side** — stolen phone, stolen session | Password re-auth on sensitive operations (cycle settlement, bulk delete); short session lifetime with refresh; remote session revocation (Growth). Note: password re-auth on a stolen unlocked phone is weaker than OTP-on-SIM would be — accepted MVP risk given the Termii KYC blocker (v1.3 amendment). Re-evaluate when business KYC clears and the SMS gateway becomes available. |
 
 ## Mobile App Specific Requirements
 
@@ -363,7 +366,7 @@ Native transition (likely via React Native or Capacitor — architect's call) is
 | Vibration (feedback on confirm) | ✅ | Passive, no permission needed |
 | Contacts | ✅ | Optional import path for fast onboarding; gated by explicit in-app consent screen explaining what is read (*"nous lisons vos contacts uniquement pour vous permettre d'en choisir — aucune donnée n'est envoyée à nos serveurs avant votre validation"*) |
 | Camera | ❌ | No QR / ID scanning in MVP; deferred to Growth if scan-to-add-member materialises |
-| Biometric (WebAuthn) | ❌ | MVP re-auth via SMS OTP; biometric arrives in Growth |
+| Biometric (WebAuthn) | ❌ | MVP re-auth via password; biometric arrives in Growth |
 | Push notifications | ❌ | MVP relies on saver-side SMS; collector-side push in Growth |
 | Geolocation | ❌ | No location-based features planned; out of scope forever |
 | Background sync | ⚠️ (best-effort) | Service worker attempts sync when connectivity returns; no guaranteed execution on iOS PWAs (iOS Safari limitation) |
@@ -469,11 +472,11 @@ This section defines the **complete capability contract** of SafariCash for MVP 
 
 ### Collector Authentication & Account Session
 
-- **FR1:** A collector can sign in to a pre-provisioned account by providing their registered mobile phone number and verifying ownership via a one-time SMS code.
+- **FR1:** A collector can sign in to a pre-provisioned account by providing their registered mobile phone number and the password set by the founder at provisioning time. The default password is communicated to the collector out-of-band (WhatsApp / call) at onboarding.
 - **FR2:** *(Removed in v1.2 — was previously email + magic-link sign-up, retired when the product moved to an invite-only / pre-provisioned model. Number reserved to preserve cross-references.)*
-- **FR3:** A returning collector can sign in via phone-OTP. Account recovery (lost phone, changed number) is handled manually via the SafariCash support line documented in R-OP1.
+- **FR3:** A returning collector can sign in via phone number + password. Password reset (forgotten password, suspected compromise, changed phone) is handled manually at MVP via the SafariCash founder support line documented in R-OP1 — the founder resets the password in the Supabase dashboard and communicates the new default out-of-band.
 - **FR4:** A collector can sign out of the app at any time.
-- **FR5:** The system requires a fresh SMS-OTP re-authentication from the collector before each of the following sensitive operations: cycle settlement, bulk member delete, and data export.
+- **FR5:** The system requires a fresh password re-authentication from the collector before each of the following sensitive operations: cycle settlement, bulk member delete, and data export.
 - **FR6:** A collector's session expires after an idle duration specified in NFRs and requires re-authentication to resume.
 
 ### Member Lifecycle
@@ -570,7 +573,7 @@ NFRs define **how well** SafariCash must perform. They complement the Functional
 - **NFR-S1:** Encryption at rest — saver name, saver phone number, and transaction amount encrypted using **column-level AES-256-GCM** (or Supabase-equivalent). Other member metadata encrypted at storage-tier level minimum.
 - **NFR-S2:** Encryption in transit — **TLS 1.2+** enforced on all client-server traffic and all outbound SMS / WhatsApp gateway calls. TLS 1.0 and 1.1 explicitly disabled.
 - **NFR-S3:** Receipt URL token entropy — **≥ 128 bits**, unguessable, non-sequential. Tokens do not encode PII.
-- **NFR-S4:** Collector session — idle timeout **30 min**; absolute session lifetime **30 days** with silent refresh if active. Re-authentication via SMS OTP required on sensitive operations (FR5) irrespective of session age.
+- **NFR-S4:** Collector session — idle timeout **30 min**; absolute session lifetime **30 days** with silent refresh if active. Password re-authentication required on sensitive operations (FR5) irrespective of session age. Supabase Auth handles brute-force defence server-side (per-IP + per-identifier rate limits on `signInWithPassword`); no client-side lockout needed.
 - **NFR-S5:** Per-collector data isolation (FR46) is enforced at the database layer (Supabase RLS or equivalent) and validated by automated test suites that run on every deployment. A failing isolation test blocks the release.
 - **NFR-S6:** Audit trail — append-only, cryptographically chained (sequential per-collector hash chain). Tamper-evidence verifiable offline from the audit-log export.
 - **NFR-S7:** Audit log and transactional records retention — **10 years** (aligned with OHADA commercial-record obligations — pending counsel validation).
@@ -637,7 +640,7 @@ This section consolidates the cross-cutting risks, validated assumptions, and op
 
 **Operational**
 
-- **R-OP1:** Collector changes phone number mid-cycle. Primary recovery path at MVP is manual via the SafariCash founder support line (+221 77 791 58 98). Mitigation: the phone-number-change procedure is documented in onboarding materials and included in the collector's welcome SMS. Growth-phase: self-service recovery via previous-phone verification or email fallback (depending on future FR2 re-introduction scope).
+- **R-OP1:** Collector changes phone number mid-cycle OR forgets / wants to rotate their password. Primary recovery path at MVP is manual via the SafariCash founder support line (+221 77 791 58 98). Mitigation: the phone-number-change and password-reset procedures are documented in onboarding materials and in the welcome message. For password reset, the founder updates the password via the Supabase dashboard (`auth.users` → update password) and communicates the new default password to the collector out-of-band (WhatsApp, call). For phone-number change, the founder updates `auth.users.phone` and `public.users.phone_number` in the same dashboard. Growth-phase: self-service password reset via email fallback once a secondary identifier is collected at onboarding (depends on future FR2 re-introduction scope).
 
 ### Assumptions (to be validated)
 
