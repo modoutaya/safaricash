@@ -19,8 +19,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { toast, Toaster } from "sonner";
 
+import { useIdleTimeout } from "@/features/auth/api/useIdleTimeout";
 import { supabase } from "@/infrastructure/supabase/client";
 import { useT } from "@/i18n/useT";
+import { SESSION_ABSOLUTE_LIFETIME_MS, SESSION_IDLE_TIMEOUT_MS } from "@/lib/constants";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -92,6 +94,17 @@ export function AuthStateListener() {
       data.subscription.unsubscribe();
     };
   }, [navigate, t]);
+
+  // Story 1.6 — NFR-S4 idle timeout (30 min) + absolute lifetime (30 days).
+  // On expiry the hook calls supabase.auth.signOut(); the effect above
+  // catches the resulting SIGNED_OUT and handles the toast + redirect.
+  useIdleTimeout({
+    idleMs: SESSION_IDLE_TIMEOUT_MS,
+    absoluteLifetimeMs: SESSION_ABSOLUTE_LIFETIME_MS,
+    onExpired: () => {
+      void supabase.auth.signOut();
+    },
+  });
 
   return null;
 }

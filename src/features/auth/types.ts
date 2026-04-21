@@ -22,3 +22,13 @@ export const OtpSchema = z
   .string()
   .regex(/^\d{6}$/, "Code à 6 chiffres")
   .describe("6-digit OTP");
+
+// Story 1.6 — useIdleTimeout hook contract.
+export interface IdleTimeoutConfig {
+  /** Idle window in ms before onExpired fires (production: 30 * 60_000). */
+  idleMs: number;
+  /** Absolute session lifetime in ms since first sign-in (production: 30 * 24 * 60 * 60_000). */
+  absoluteLifetimeMs: number;
+  /** Called on idle expiry OR absolute-lifetime overflow. Production = () => supabase.auth.signOut(). */
+  onExpired: () => void | Promise<void>;
+}

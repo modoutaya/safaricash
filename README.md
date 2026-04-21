@@ -58,3 +58,25 @@ npm run dev        # vite dev server on http://localhost:5173
 - **Strict TypeScript.** `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitOverride`, `noFallthroughCasesInSwitch`, `strict` — all on.
 - **Layering.** `domain/` (pure) ← `infrastructure/` ← `features/` ← `components/`. Cross-feature imports must go through the feature's `index.ts` (enforced by ESLint).
 - **Locale.** App is French-first (NFR-L1). Strings live under `src/i18n/fr.json` (Story 1.5 onward).
+
+## Session policy (NFR-S4)
+
+SafariCash enforces a **30-minute idle timeout** and a **30-day absolute session lifetime** per NFR-S4. Both halves are dual-enforced:
+
+- **Idle (30 min)** — client-side only. `src/features/auth/api/useIdleTimeout.ts` arms a wall-clock `setTimeout` on sign-in and resets it on `mousedown` / `keydown` / `touchstart` / `scroll` (debounced at 1 s). On expiry the hook calls `supabase.auth.signOut()`; the existing `AuthStateListener` (Story 1.5) catches the resulting `SIGNED_OUT` event, fires the toast _"Session expirée, reconnectez-vous"_, and redirects to `/login`.
+- **Absolute lifetime (30 days)** — dual-enforced. A client-side guard in `useIdleTimeout` persists `sc_session_started_at` (ISO 8601) to `localStorage` on `SIGNED_IN` and signs the user out if `Date.now() - parsed >= 30 days` at any mount or idle-timer fire. The Supabase Auth project config is the authoritative enforcement — the client guard is defense in depth in case the dashboard drifts.
+
+### Operator runbook — Supabase Auth configuration
+
+To align the server side with NFR-S4, verify (in the Supabase dashboard → **Auth** → **Settings**):
+
+1. **JWT expiry time** — set to ≤ `3600` s (1 h). This is the access-token lifetime; Supabase auto-refreshes within this window when `autoRefreshToken: true` (already configured in `src/infrastructure/supabase/client.ts`).
+2. **Refresh token rotation** — enabled. Prevents replay of a stolen refresh token across devices.
+3. **Refresh token absolute expiry** — set to `2592000` s (30 days). This caps the total session lifetime at 30 days regardless of activity, matching the client-side `localStorage` guard.
+4. Verify with `supabase projects config get --ref <project>` after saving.
+
+The exact field names in the Supabase dashboard evolve between versions; if they differ, cross-reference the current [Supabase Auth config docs](https://supabase.com/docs/guides/auth) and update this runbook with the observed names.
+
+The earliest expiry wins: a misconfigured dashboard (e.g., 90-day refresh token) would silently violate NFR-S4, but the client guard fails closed at 30 days regardless.
+
+See `_bmad-output/planning-artifacts/prd.md` § NFR-S4 and `_bmad-output/implementation-artifacts/1-6-session-management.md` for the full spec.
