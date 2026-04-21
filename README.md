@@ -92,8 +92,10 @@ The MVP auth model is **invite-only, pre-provisioned**: the founder creates each
 ```bash
 # Replace <phone> and <password> below. Use a generated password
 # (e.g., `openssl rand -base64 12`) rather than anything guessable.
-npm run provision-collector -- --phone +221771234567 --password '<defaultPassword>' --name 'Ibrahim Sow'
+npm run provision-collector -- --phone +221771234567 --password '<defaultPassword>'
 ```
+
+`public.users` is minimal at MVP — only `id`, `phone_number`, `role`, `created_at`, `updated_at`. The collector's display name is tracked out-of-band by the founder (pilot-scale bookkeeping). Add a migration + `--name` flag if a server-side display name becomes necessary.
 
 The script:
 

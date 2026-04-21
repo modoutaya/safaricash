@@ -58,7 +58,7 @@ async function seedPhonePasswordCollector(
 
   const { error: usersErr } = await service
     .from("users")
-    .insert({ id: userId, phone_number: phone, role: "collector", full_name: `Test ${label}` });
+    .insert({ id: userId, phone_number: phone, role: "collector" });
   if (usersErr) {
     await service.auth.admin.deleteUser(userId);
     throw new Error(`seed(${label}): users insert failed — ${usersErr.message}`);
