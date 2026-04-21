@@ -102,8 +102,21 @@ const { error: insertErr } = await admin.from("users").insert({
   role: "collector",
 });
 if (insertErr) {
-  // Roll back the auth user so the two sides stay aligned.
-  await admin.auth.admin.deleteUser(userId);
+  // Roll back the auth user so the two sides stay aligned. If the
+  // rollback itself fails (network blip, rate-limit, race), surface
+  // the orphan loudly — otherwise a silent orphan locks the phone
+  // out of future re-provisioning (createUser rejects duplicates).
+  const { error: rollbackErr } = await admin.auth.admin.deleteUser(userId);
+  if (rollbackErr) {
+    console.error(
+      `public.users insert failed: ${insertErr.message}\n` +
+        `⚠️  ROLLBACK ALSO FAILED: ${rollbackErr.message}\n` +
+        `MANUAL CLEANUP REQUIRED — delete auth user ${userId} via Supabase Studio:\n` +
+        `  Dashboard → Authentication → Users → find ${phone} → Delete\n` +
+        `Otherwise re-provisioning ${phone} will fail with "User already registered".`,
+    );
+    process.exit(2);
+  }
   console.error(`public.users insert failed: ${insertErr.message}. Auth user rolled back.`);
   process.exit(1);
 }

@@ -175,8 +175,17 @@ export async function handler(req: Request): Promise<Response> {
 
     // Defensive: explicitly sign out the verify client. persistSession=false
     // means its tokens never reach storage, but calling signOut clears the
-    // in-memory session object too.
-    await verifyClient.auth.signOut().catch(() => undefined);
+    // in-memory session object too. Log on failure so a future Supabase-js
+    // change that makes signOut consequential (e.g., server-side token
+    // revocation) doesn't degrade silently.
+    await verifyClient.auth.signOut().catch((signOutErr: unknown) => {
+      const msg = signOutErr instanceof Error ? signOutErr.message : String(signOutErr);
+      logJson("warn", "reauth.unexpected", {
+        collector_id: auth.collectorId,
+        reason: "verify_client_signout_failed",
+        error: msg,
+      });
+    });
 
     logJson("info", "reauth.verified", {
       collector_id: auth.collectorId,
