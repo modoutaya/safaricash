@@ -1,10 +1,16 @@
 // Story 2.1 — member list query + derivation.
 //
-// Single PostgREST round-trip via `members_decrypted` (RLS applies through
-// `security_invoker = true`, migration 0005) with embedded cycles +
-// transaction timestamps. Zod validates the response shape; derivation
-// produces MemberWithMeta view-model rows, filtered to exclude hidden
-// statuses, sorted by recency-of-interaction.
+// Three parallel PostgREST round-trips (members_decrypted + cycles +
+// transaction timestamps) joined in-JS. Originally written with a single
+// embedded select, but PostgREST does not auto-resolve FK relationships
+// through views (`members_decrypted` has no FK metadata), and forcing the
+// `table!fk_name` syntax failed to embed. Three parallel queries still
+// incur ~1 wall-clock RTT via Promise.all and keep the transform straight-
+// forward. RLS applies transitively on all three tables.
+//
+// Membership in `members_decrypted` requires EXECUTE on
+// public.vault_decrypt — granted to authenticated in migration
+// 20260421000002_vault_decrypt_grant_authenticated.sql.
 
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { z } from "zod";
@@ -13,10 +19,12 @@ import { supabase } from "@/infrastructure/supabase/client";
 
 import {
   MEMBERS_QUERY_KEY,
-  membersListRowSchema,
+  cycleRowSchema,
+  memberRowSchema,
+  transactionTimestampSchema,
   type CycleRow,
+  type MemberRow,
   type MemberWithMeta,
-  type MembersListRow,
 } from "../types";
 import { deriveMemberStatus } from "./deriveMemberStatus";
 import { sortMembersByRecency } from "./sortMembersByRecency";
@@ -27,8 +35,7 @@ const CYCLE_TOTAL_DAYS = 30;
 /** Pick the cycle that represents the member's CURRENT state. Cycles with
  *  status in ('active', 'with_advance') qualify; if multiple, the highest
  *  cycle_number wins (defensive — schema invariant ensures ≤1 in practice). */
-function pickCurrentCycle(cycles: CycleRow[] | null | undefined): CycleRow | null {
-  if (!cycles || cycles.length === 0) return null;
+function pickCurrentCycle(cycles: CycleRow[]): CycleRow | null {
   const candidates = cycles.filter((c) => c.status === "active" || c.status === "with_advance");
   if (candidates.length === 0) return null;
   return candidates.reduce((best, c) => (c.cycle_number > best.cycle_number ? c : best));
@@ -43,18 +50,24 @@ function computeCycleDay(startDate: string, now: Date = new Date()): number {
   return Math.min(CYCLE_TOTAL_DAYS, Math.max(1, diffDays));
 }
 
-/** Pure transform used by the hook + by tests. Exported so unit tests can
- *  exercise it without TanStack boilerplate. */
+/** Input shape for the pure transform — decoupled from the PostgREST call
+ *  so unit tests can drive it directly. */
+export interface RawMembersData {
+  members: MemberRow[];
+  cyclesByMember: Map<string, CycleRow[]>;
+  latestTxByMember: Map<string, string>;
+}
+
+/** Pure transform: raw PostgREST rows → sorted, filtered view-model. */
 export function deriveMembersWithMeta(
-  rows: MembersListRow[],
+  data: RawMembersData,
   now: Date = new Date(),
 ): MemberWithMeta[] {
-  const derived = rows.map((row) => {
-    const currentCycle = pickCurrentCycle(row.cycles);
+  const derived = data.members.map((row) => {
+    const memberCycles = data.cyclesByMember.get(row.id) ?? [];
+    const currentCycle = pickCurrentCycle(memberCycles);
     const displayStatus = deriveMemberStatus(row, currentCycle);
-    const latestTxAt = (row.transactions ?? [])
-      .map((t) => t.created_at)
-      .reduce<string | null>((best, ts) => (best === null || ts > best ? ts : best), null);
+    const latestTxAt = data.latestTxByMember.get(row.id) ?? null;
     return {
       id: row.id,
       name: row.name,
@@ -82,31 +95,61 @@ export function deriveMembersWithMeta(
   }));
 }
 
-const membersListResponseSchema = z.array(membersListRowSchema);
+const membersResponseSchema = z.array(memberRowSchema);
+const cyclesResponseSchema = z.array(cycleRowSchema.extend({ member_id: z.string().uuid() }));
+const transactionsResponseSchema = z.array(
+  transactionTimestampSchema.extend({ member_id: z.string().uuid() }),
+);
 
-async function fetchMembers(): Promise<MembersListRow[]> {
-  const { data, error } = await supabase
-    .from("members_decrypted")
-    .select(
-      `id, collector_id, name, phone_number, daily_amount, status, created_at, updated_at,
-       cycles:cycles!cycles_member_id_fkey (id, cycle_number, start_date, end_date, status),
-       transactions:transactions!transactions_member_id_fkey (created_at)`,
-    )
-    // Can't recency-sort server-side on an aggregate; client sort covers it.
-    .order("created_at", { ascending: false });
+async function fetchRawMembersData(): Promise<RawMembersData> {
+  const [membersResult, cyclesResult, transactionsResult] = await Promise.all([
+    supabase
+      .from("members_decrypted")
+      .select("id, collector_id, name, phone_number, daily_amount, status, created_at, updated_at")
+      .order("created_at", { ascending: false }),
+    supabase.from("cycles").select("id, member_id, cycle_number, start_date, end_date, status"),
+    supabase.from("transactions").select("member_id, created_at"),
+  ]);
 
-  if (error) {
-    throw new Error(`members list query failed: ${error.message}`);
+  if (membersResult.error) {
+    throw new Error(`members list query failed: ${membersResult.error.message}`);
   }
-  return membersListResponseSchema.parse(data ?? []);
+  if (cyclesResult.error) {
+    throw new Error(`cycles query failed: ${cyclesResult.error.message}`);
+  }
+  if (transactionsResult.error) {
+    throw new Error(`transactions query failed: ${transactionsResult.error.message}`);
+  }
+
+  const members = membersResponseSchema.parse(membersResult.data ?? []);
+  const cycles = cyclesResponseSchema.parse(cyclesResult.data ?? []);
+  const transactions = transactionsResponseSchema.parse(transactionsResult.data ?? []);
+
+  const cyclesByMember = new Map<string, CycleRow[]>();
+  for (const cycle of cycles) {
+    const { member_id: memberId, ...rest } = cycle;
+    const list = cyclesByMember.get(memberId) ?? [];
+    list.push(rest);
+    cyclesByMember.set(memberId, list);
+  }
+
+  const latestTxByMember = new Map<string, string>();
+  for (const tx of transactions) {
+    const prev = latestTxByMember.get(tx.member_id);
+    if (prev === undefined || tx.created_at > prev) {
+      latestTxByMember.set(tx.member_id, tx.created_at);
+    }
+  }
+
+  return { members, cyclesByMember, latestTxByMember };
 }
 
 export function useMembers(): UseQueryResult<MemberWithMeta[], Error> {
   return useQuery({
     queryKey: MEMBERS_QUERY_KEY,
     queryFn: async () => {
-      const rows = await fetchMembers();
-      return deriveMembersWithMeta(rows);
+      const raw = await fetchRawMembersData();
+      return deriveMembersWithMeta(raw);
     },
     staleTime: 30_000,
   });

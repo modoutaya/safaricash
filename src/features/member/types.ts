@@ -47,12 +47,6 @@ export const transactionTimestampSchema = z.object({
 });
 export type TransactionTimestamp = z.infer<typeof transactionTimestampSchema>;
 
-export const membersListRowSchema = memberRowSchema.extend({
-  cycles: z.array(cycleRowSchema).nullish(),
-  transactions: z.array(transactionTimestampSchema).nullish(),
-});
-export type MembersListRow = z.infer<typeof membersListRowSchema>;
-
 // ---------------------------------------------------------------------------
 // UI-facing view-model.
 // ---------------------------------------------------------------------------

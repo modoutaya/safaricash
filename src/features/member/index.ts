@@ -14,7 +14,6 @@ export type {
   MemberRow,
   MemberStatus,
   MemberWithMeta,
-  MembersListRow,
   CycleRow,
   CycleStatus,
   TransactionTimestamp,
