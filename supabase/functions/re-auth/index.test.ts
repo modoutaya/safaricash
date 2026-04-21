@@ -120,78 +120,111 @@ if (env) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  Deno.test("POST with valid JWT + correct password → 200 { ok: true, scope }", async () => {
-    const c = await seedPhonePasswordCollector(service, anon, "ok");
-    try {
-      const res = await handler(
-        buildReq(c.jwt, { password: c.password, operation_intent: "member_delete" }),
-      );
-      assertEquals(res.status, 200);
-      const body = (await res.json()) as Record<string, unknown>;
-      assertEquals(body.ok, true);
-      assertEquals(body.scope, "member_delete");
-    } finally {
-      await cleanup(service, c);
-    }
+  // supabase-js starts internal auth-refresh intervals that outlive each
+  // test; Deno's default sanitizer flags them as leaks. Mirror the pattern
+  // in _shared/emit-session-event.contract.test.ts and disable sanitization.
+  const denoOpts = { sanitizeResources: false, sanitizeOps: false };
+
+  Deno.test({
+    name: "POST with valid JWT + correct password → 200 { ok: true, scope }",
+    ...denoOpts,
+    fn: async () => {
+      const c = await seedPhonePasswordCollector(service, anon, "ok");
+      try {
+        const res = await handler(
+          buildReq(c.jwt, { password: c.password, operation_intent: "member_delete" }),
+        );
+        assertEquals(res.status, 200);
+        const body = (await res.json()) as Record<string, unknown>;
+        assertEquals(body.ok, true);
+        assertEquals(body.scope, "member_delete");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
   });
 
-  Deno.test("POST with valid JWT + wrong password → 401 credentials_invalid", async () => {
-    const c = await seedPhonePasswordCollector(service, anon, "bad");
-    try {
+  Deno.test({
+    name: "POST with valid JWT + wrong password → 401 credentials_invalid",
+    ...denoOpts,
+    fn: async () => {
+      const c = await seedPhonePasswordCollector(service, anon, "bad");
+      try {
+        const res = await handler(
+          buildReq(c.jwt, { password: "totally-wrong", operation_intent: "csv_export" }),
+        );
+        assertEquals(res.status, 401);
+        const body = (await res.json()) as Record<string, unknown>;
+        assert((body.type as string).includes("credentials/invalid"));
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "POST without Authorization header → 401 auth_unauthenticated",
+    ...denoOpts,
+    fn: async () => {
       const res = await handler(
-        buildReq(c.jwt, { password: "totally-wrong", operation_intent: "csv_export" }),
+        buildReq(null, { password: "anything", operation_intent: "cycle_settlement" }),
       );
       assertEquals(res.status, 401);
       const body = (await res.json()) as Record<string, unknown>;
-      assert((body.type as string).includes("credentials/invalid"));
-    } finally {
-      await cleanup(service, c);
-    }
+      assert((body.type as string).includes("auth/unauthenticated"));
+    },
   });
 
-  Deno.test("POST without Authorization header → 401 auth_unauthenticated", async () => {
-    const res = await handler(
-      buildReq(null, { password: "anything", operation_intent: "cycle_settlement" }),
-    );
-    assertEquals(res.status, 401);
-    const body = (await res.json()) as Record<string, unknown>;
-    assert((body.type as string).includes("auth/unauthenticated"));
-  });
-
-  Deno.test("POST with bogus JWT → 401 auth_unauthenticated", async () => {
-    const res = await handler(
-      buildReq("bogus.jwt.value", { password: "x", operation_intent: "cycle_settlement" }),
-    );
-    assertEquals(res.status, 401);
-  });
-
-  Deno.test("POST with missing operation_intent → 400 request_invalid", async () => {
-    const c = await seedPhonePasswordCollector(service, anon, "req");
-    try {
-      const res = await handler(buildReq(c.jwt, { password: c.password }));
-      assertEquals(res.status, 400);
-      const body = (await res.json()) as Record<string, unknown>;
-      assert((body.type as string).includes("request/invalid"));
-    } finally {
-      await cleanup(service, c);
-    }
-  });
-
-  Deno.test("POST with unknown operation_intent → 400 request_invalid", async () => {
-    const c = await seedPhonePasswordCollector(service, anon, "op");
-    try {
+  Deno.test({
+    name: "POST with bogus JWT → 401 auth_unauthenticated",
+    ...denoOpts,
+    fn: async () => {
       const res = await handler(
-        buildReq(c.jwt, { password: c.password, operation_intent: "nuclear_launch" }),
+        buildReq("bogus.jwt.value", { password: "x", operation_intent: "cycle_settlement" }),
       );
-      assertEquals(res.status, 400);
-    } finally {
-      await cleanup(service, c);
-    }
+      assertEquals(res.status, 401);
+    },
   });
 
-  Deno.test("GET method → 400 request_invalid + Allow: POST", async () => {
-    const res = await handler(buildReq(null, {}, "GET"));
-    assertEquals(res.status, 400);
-    assertEquals(res.headers.get("Allow"), "POST");
+  Deno.test({
+    name: "POST with missing operation_intent → 400 request_invalid",
+    ...denoOpts,
+    fn: async () => {
+      const c = await seedPhonePasswordCollector(service, anon, "req");
+      try {
+        const res = await handler(buildReq(c.jwt, { password: c.password }));
+        assertEquals(res.status, 400);
+        const body = (await res.json()) as Record<string, unknown>;
+        assert((body.type as string).includes("request/invalid"));
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "POST with unknown operation_intent → 400 request_invalid",
+    ...denoOpts,
+    fn: async () => {
+      const c = await seedPhonePasswordCollector(service, anon, "op");
+      try {
+        const res = await handler(
+          buildReq(c.jwt, { password: c.password, operation_intent: "nuclear_launch" }),
+        );
+        assertEquals(res.status, 400);
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "GET method → 400 request_invalid + Allow: POST",
+    ...denoOpts,
+    fn: async () => {
+      const res = await handler(buildReq(null, {}, "GET"));
+      assertEquals(res.status, 400);
+      assertEquals(res.headers.get("Allow"), "POST");
+    },
   });
 }
