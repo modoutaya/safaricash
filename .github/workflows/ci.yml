@@ -108,6 +108,13 @@ jobs:
         env:
           SUPABASE_TEST_URL: http://127.0.0.1:54321
           SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ env.SUPABASE_LOCAL_SERVICE_ROLE_KEY }}
+          # VITE_* vars are required by src/infrastructure/supabase/env.ts's
+          # eager Zod validation — any module that transitively imports the
+          # supabase singleton (e.g. features/member/api/useMembers.ts)
+          # triggers the load at vitest module-resolution time. Reuse the
+          # local Supabase stack values.
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_ANON_KEY: ${{ env.SUPABASE_LOCAL_ANON_KEY }}
         run: npm run test -- --run --coverage
 
       - name: Upload coverage summary
