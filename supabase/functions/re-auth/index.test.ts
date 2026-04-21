@@ -41,10 +41,16 @@ async function seedPhonePasswordCollector(
   label: string,
 ): Promise<PhoneCollector> {
   const stamp = Date.now();
-  const rand = crypto.randomUUID().replace(/-/g, "").slice(0, 9);
-  // Always a 9-digit Senegal mobile (prefix 77).
-  const phone = `+22177${rand.slice(0, 7)}`;
-  const password = `Pw-${label}-${rand}-${stamp}`;
+  // E.164 Senegal mobile needs DIGITS only — crypto.randomUUID() returns
+  // hex (includes a-f) and would fail the phone validator. Generate 7
+  // random digits from a Uint8Array.
+  const bytes = new Uint8Array(7);
+  crypto.getRandomValues(bytes);
+  const suffix = Array.from(bytes)
+    .map((b) => (b % 10).toString())
+    .join("");
+  const phone = `+22177${suffix}`;
+  const password = `Pw-${label}-${suffix}-${stamp}`;
 
   const { data, error } = await service.auth.admin.createUser({
     phone,
