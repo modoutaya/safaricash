@@ -135,7 +135,7 @@ export function LoginForm({ onSignedIn }: LoginFormProps) {
       <p className="text-center text-body-2 text-text-secondary">
         <a
           href={`tel:${FOUNDER_SUPPORT_PHONE}`}
-          className="text-primary-700 underline-offset-4 hover:underline focus-visible:underline"
+          className="text-primary-700 underline underline-offset-4 hover:text-primary-800 focus-visible:text-primary-800"
         >
           {t("login.forgot_password")}
         </a>
