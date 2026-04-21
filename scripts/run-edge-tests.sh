@@ -30,4 +30,5 @@ export TERMII_API_KEY="${TERMII_API_KEY:-mock-key-not-used-in-tests}"
 deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=auto \
   supabase/functions/re-auth/index.test.ts \
   supabase/functions/_shared/emit-session-event.contract.test.ts \
+  supabase/functions/_shared/create-member-with-cycle.contract.test.ts \
   "$@"

@@ -78,7 +78,49 @@ describe("MemberList", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: /aucun membre pour l'instant/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /ajouter mon premier membre/i })).toBeInTheDocument();
+    // Neither the header CTA nor the FAB should render on the empty branch —
+    // the EmptyState component owns the sole CTA there.
+    expect(screen.queryByRole("link", { name: /ajouter un membre/i })).not.toBeInTheDocument();
+  });
+
+  it("populated list with ≤10 members renders the HEADER 'Ajouter un membre' CTA (no FAB)", () => {
+    const members = Array.from({ length: 5 }, (_, i) =>
+      makeMember({ id: `m-${i}`, name: `Member ${i}` }),
+    );
+    useMembersMock.mockReturnValue({
+      data: members,
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    renderWithRouter();
+    const ctas = screen.getAllByRole("link", { name: /ajouter un membre/i });
+    // Exactly one CTA link (header button) — no FAB.
+    expect(ctas).toHaveLength(1);
+    // Header CTA is text-bearing; FAB has an aria-label-only icon. If this is
+    // a FAB, the rendered text would be empty. The header CTA exposes the
+    // label as accessible name via textContent.
+    expect(ctas[0]).toHaveTextContent(/ajouter un membre/i);
+    expect(ctas[0]).toHaveAttribute("href", "/members/new");
+  });
+
+  it("populated list with >10 members renders the FAB (no header CTA)", () => {
+    const members = Array.from({ length: 25 }, (_, i) =>
+      makeMember({ id: `m-${i}`, name: `Member ${i}` }),
+    );
+    useMembersMock.mockReturnValue({
+      data: members,
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    renderWithRouter();
+    const ctas = screen.getAllByRole("link", { name: /ajouter un membre/i });
+    // Exactly one CTA link (the FAB) — no header button.
+    expect(ctas).toHaveLength(1);
+    // FAB: anchor with an icon child, accessible via aria-label only (no text).
+    expect(ctas[0]).toHaveTextContent("");
+    expect(ctas[0]).toHaveAttribute("href", "/members/new");
   });
 
   it("renders all members as cards when nothing is filtered", () => {
