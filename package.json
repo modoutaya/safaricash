@@ -27,6 +27,8 @@
     "db:reset": "supabase db reset",
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --linked > src/infrastructure/supabase/database.types.ts",
+    "provision-collector": "npx tsx scripts/provision-collector.ts",
+    "reset-collector-password": "npx tsx scripts/reset-collector-password.ts",
     "prepare": "husky"
   },
   "dependencies": {
@@ -37,7 +39,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
-    "input-otp": "^1.4.2",
     "lucide-react": "^1.8.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

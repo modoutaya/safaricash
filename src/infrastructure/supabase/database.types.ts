@@ -237,62 +237,6 @@ export type Database = {
           },
         ];
       };
-      reauth_challenges: {
-        Row: {
-          attempts: number;
-          collector_id: string;
-          confirmation_expires_at: string | null;
-          confirmation_token: string | null;
-          confirmation_used: boolean;
-          created_at: string;
-          expires_at: string;
-          id: string;
-          intended_op: Database["public"]["Enums"]["reauth_intended_op_enum"];
-          lockout_until: string | null;
-          otp_hash: string;
-          status: Database["public"]["Enums"]["reauth_challenge_status_enum"];
-          updated_at: string;
-        };
-        Insert: {
-          attempts?: number;
-          collector_id: string;
-          confirmation_expires_at?: string | null;
-          confirmation_token?: string | null;
-          confirmation_used?: boolean;
-          created_at?: string;
-          expires_at: string;
-          id?: string;
-          intended_op: Database["public"]["Enums"]["reauth_intended_op_enum"];
-          lockout_until?: string | null;
-          otp_hash: string;
-          status?: Database["public"]["Enums"]["reauth_challenge_status_enum"];
-          updated_at?: string;
-        };
-        Update: {
-          attempts?: number;
-          collector_id?: string;
-          confirmation_expires_at?: string | null;
-          confirmation_token?: string | null;
-          confirmation_used?: boolean;
-          created_at?: string;
-          expires_at?: string;
-          id?: string;
-          intended_op?: Database["public"]["Enums"]["reauth_intended_op_enum"];
-          lockout_until?: string | null;
-          otp_hash?: string;
-          status?: Database["public"]["Enums"]["reauth_challenge_status_enum"];
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "reauth_challenges_collector_id_fkey";
-            columns: ["collector_id"];
-            isOneToOne: false;
-            referencedRelation: "users";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
       sms_queue: {
         Row: {
           attempts: number;
@@ -560,42 +504,9 @@ export type Database = {
     };
     Functions: {
       canonical_jsonb: { Args: { j: Json }; Returns: string };
-      check_collector_registered: {
-        Args: { p_phone: string };
-        Returns: boolean;
-      };
       emit_session_event: {
         Args: { p_reason: string };
         Returns: undefined;
-      };
-      get_reauth_otp_hmac_key: { Args: never; Returns: string };
-      reauth_consume_confirmation: {
-        Args: {
-          p_collector_id: string;
-          p_intended_op: Database["public"]["Enums"]["reauth_intended_op_enum"];
-          p_token: string;
-        };
-        Returns: boolean;
-      };
-      reauth_mark_verified: {
-        Args: { p_challenge_id: string; p_collector_id: string };
-        Returns: Database["public"]["CompositeTypes"]["reauth_mark_verified_result"];
-        SetofOptions: {
-          from: "*";
-          to: "reauth_mark_verified_result";
-          isOneToOne: true;
-          isSetofReturn: false;
-        };
-      };
-      reauth_record_failed_verify: {
-        Args: { p_challenge_id: string; p_collector_id: string };
-        Returns: Database["public"]["CompositeTypes"]["reauth_verify_outcome"];
-        SetofOptions: {
-          from: "*";
-          to: "reauth_verify_outcome";
-          isOneToOne: true;
-          isSetofReturn: false;
-        };
       };
       show_limit: { Args: never; Returns: number };
       show_trgm: { Args: { "": string }; Returns: string[] };
@@ -607,24 +518,12 @@ export type Database = {
       disputes_status_enum: "open" | "resolved" | "dismissed";
       disputes_via_enum: "receipt_url" | "support_email" | "support_phone";
       members_status_enum: "active" | "paused" | "completed" | "deleted";
-      reauth_challenge_status_enum: "pending" | "verified" | "failed" | "locked" | "expired";
-      reauth_intended_op_enum: "cycle_settlement" | "member_delete" | "csv_export" | "sms_resend";
       sms_queue_status_enum: "queued" | "sent" | "delivered" | "failed" | "abandoned";
       transactions_kind_enum: "contribution" | "rattrapage" | "advance";
       transactions_source_enum: "online" | "offline_reconciled";
       users_role_enum: "collector" | "super_admin";
     };
-    CompositeTypes: {
-      reauth_mark_verified_result: {
-        confirmation_token: string | null;
-        confirmation_expires_at: string | null;
-      };
-      reauth_verify_outcome: {
-        attempts: number | null;
-        status: Database["public"]["Enums"]["reauth_challenge_status_enum"] | null;
-        lockout_until: string | null;
-      };
-    };
+    CompositeTypes: Record<string, never>;
   };
 };
 
@@ -753,8 +652,6 @@ export const Constants = {
       disputes_status_enum: ["open", "resolved", "dismissed"],
       disputes_via_enum: ["receipt_url", "support_email", "support_phone"],
       members_status_enum: ["active", "paused", "completed", "deleted"],
-      reauth_challenge_status_enum: ["pending", "verified", "failed", "locked", "expired"],
-      reauth_intended_op_enum: ["cycle_settlement", "member_delete", "csv_export", "sms_resend"],
       sms_queue_status_enum: ["queued", "sent", "delivered", "failed", "abandoned"],
       transactions_kind_enum: ["contribution", "rattrapage", "advance"],
       transactions_source_enum: ["online", "offline_reconciled"],

@@ -1,13 +1,9 @@
-// MUST stay in sync with src/lib/constants.ts (Deno + browser runtimes
-// can't share imports). Story 1.5 (phone-OTP login) reuses these same
-// numerics for sign-in lockout.
-
-export const OTP_LENGTH = 6;
-export const OTP_EXPIRY_MINUTES = 5;
-export const OTP_LOCKOUT_MINUTES = 5;
-export const OTP_MAX_ATTEMPTS = 3;
-export const OTP_RESEND_COOLDOWN_SECONDS = 30;
-export const CONFIRMATION_TOKEN_EXPIRY_MINUTES = 2;
+// Deno-side constants (MUST stay in sync with src/lib/constants.ts —
+// Deno + browser runtimes can't share imports).
+//
+// Story 1.5b — OTP_* constants were dropped after PRD v1.3 pivoted auth
+// away from SMS-OTP. Remaining entries here are Termii SMS-gateway knobs
+// used by Epic 6 saver receipts.
 
 // Termii's current API base URL (v3). The older `api.ng.termii.com` host
 // returns 404 on /api/sms/send — Story 1.3 shipped with the stale URL but

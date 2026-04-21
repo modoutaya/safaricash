@@ -1,10 +1,13 @@
 {
   "_notes": {
-    "errors.rate_limited": "TODO Story 7.4/2.6/9.3 — wire {seconds} from the 429 RFC 7807 body's retry_after_seconds field on the consumer side."
+    "errors.rate_limited": "TODO Story 7.4/2.6/9.3 — wire {seconds} from the 429 RFC 7807 body's retry_after_seconds field on the consumer side.",
+    "login.forgot_password_help": "Story 1.5b — static copy points the user to the founder support line for R-OP1 recovery."
   },
   "errors": {
-    "rate_limited": "Limite atteinte — patientez {seconds} s avant de réessayer.",
-    "delivery_failed": "Envoi du code échoué — retenter"
+    "invalid_credentials": "Numéro ou mot de passe incorrect — ressayez",
+    "rate_limited": "Trop de tentatives — réessayez dans {seconds} s.",
+    "network": "Pas de réseau — vérifiez votre connexion",
+    "delivery_failed": "Envoi du message échoué — retenter"
   },
   "reauth": {
     "title": "Vérification de sécurité",
@@ -15,43 +18,33 @@
       "csv_export": "exporter ces données",
       "sms_resend": "renvoyer ce reçu"
     },
-    "otp_label": "Code à 6 chiffres reçu par SMS",
-    "sending": "Envoi du code…",
-    "verifying": "Vérification du code…",
-    "resend_cta": "Renvoyer le code",
-    "resend_cooldown": "Renvoyer dans {seconds} s",
+    "password_label": "Votre mot de passe",
+    "verifying": "Vérification…",
     "error": {
-      "invalid": "Code incorrect",
-      "expired": "Code expiré — Renvoyer le code",
-      "locked": "Trop de tentatives. Réessayez dans {minutes} minutes.",
-      "delivery_failed": "Envoi du code échoué — retenter",
+      "invalid": "Mot de passe incorrect",
+      "locked": "Trop de tentatives. Réessayez dans quelques minutes.",
       "network": "Pas de réseau — vérifiez votre connexion"
     },
     "support_after_lockout": "Si le problème persiste, appelez le {founder_phone}"
   },
   "login": {
     "welcome_title": "Bienvenue sur SafariCash",
-    "welcome_subtitle": "Entrez votre numéro pour continuer",
+    "welcome_subtitle": "Entrez votre numéro et votre mot de passe pour continuer",
     "phone_label": "Numéro de téléphone",
     "phone_invalid": "Numéro invalide",
     "phone_placeholder": "+221 77 791 58 98",
-    "cta_send_code": "Recevoir le code",
-    "cta_verify": "Vérifier",
-    "cta_resend": "Renvoyer le code",
-    "cta_resend_cooldown": "Renvoyer dans {seconds} s",
-    "otp_subtitle": "Nous vous avons envoyé un code à 6 chiffres au {phone}. Entrez-le ci-dessous.",
-    "non_registered_title": "Numéro non enregistré",
-    "non_registered_body": "Ce numéro n'est pas enregistré chez SafariCash. Contactez-nous au 77 791 58 98 pour démarrer.",
-    "non_registered_cta_call": "Appeler SafariCash",
-    "non_registered_cta_back": "Retour",
-    "otp_cta_back": "Retour",
+    "password_label": "Mot de passe",
+    "password_show": "Afficher le mot de passe",
+    "password_hide": "Masquer le mot de passe",
+    "cta_sign_in": "Se connecter",
+    "signing_in": "Connexion…",
+    "forgot_password": "Mot de passe oublié ?",
+    "forgot_password_help": "Appelez SafariCash au {phone} pour réinitialiser",
     "members_load_error": "Impossible de charger vos membres — réessayez depuis le tableau de bord",
     "session_expired_toast": "Session expirée, reconnectez-vous",
     "empty_state_headline": "Aucun membre pour l'instant",
     "empty_state_subtext": "Ajoutez votre premier membre pour démarrer votre cycle.",
-    "empty_state_cta": "Ajouter mon premier membre",
-    "sending_code": "Envoi du code…",
-    "verifying_code": "Vérification du code…"
+    "empty_state_cta": "Ajouter mon premier membre"
   },
   "settings": {
     "title": "Plus",
