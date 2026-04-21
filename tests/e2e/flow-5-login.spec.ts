@@ -36,7 +36,9 @@ playwrightTest.describe("Flow 5 — collector login (public surface, password fl
         page.getByRole("heading", { level: 1, name: /bienvenue sur safaricash/i }),
       ).toBeVisible();
       await playwrightExpect(page.getByLabel("Numéro de téléphone")).toBeVisible();
-      await playwrightExpect(page.getByLabel("Mot de passe")).toBeVisible();
+      // exact: true — the show/hide toggle's aria-label is
+      // "Afficher le mot de passe" which would substring-match "Mot de passe".
+      await playwrightExpect(page.getByLabel("Mot de passe", { exact: true })).toBeVisible();
       await playwrightExpect(page.getByRole("button", { name: /se connecter/i })).toBeDisabled();
       await expectNoA11yViolations(page, "/login phone-password screen");
     },
@@ -48,7 +50,8 @@ playwrightTest.describe("Flow 5 — collector login (public surface, password fl
       await page.goto("/login");
       const cta = page.getByRole("button", { name: /se connecter/i });
       const phone = page.getByLabel("Numéro de téléphone");
-      const password = page.getByLabel("Mot de passe");
+      // exact: true — see note in the previous test.
+      const password = page.getByLabel("Mot de passe", { exact: true });
 
       await phone.fill("+221777915898");
       await playwrightExpect(cta).toBeDisabled(); // still no password
