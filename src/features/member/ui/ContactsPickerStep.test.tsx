@@ -37,24 +37,23 @@ describe("ContactsPickerStep", () => {
 
   it('"Appliquer à tous" copies the first row\'s amount to every other row', () => {
     renderStep();
-    const inputs = screen.getAllByLabelText("Cotisation (FCFA)");
-    fireEvent.change(inputs[0], { target: { value: "500" } });
+    const inputs = screen.getAllByLabelText("Cotisation (FCFA)") as HTMLInputElement[];
+    fireEvent.change(inputs[0]!, { target: { value: "500" } });
     fireEvent.click(screen.getByRole("button", { name: /appliquer à tous/i }));
-    expect((inputs[0] as HTMLInputElement).value).toBe("500");
-    expect((inputs[1] as HTMLInputElement).value).toBe("500");
-    expect((inputs[2] as HTMLInputElement).value).toBe("500");
+    expect(inputs[0]!.value).toBe("500");
+    expect(inputs[1]!.value).toBe("500");
+    expect(inputs[2]!.value).toBe("500");
   });
 
   it("removing a row hides it + drops it from the confirm payload", () => {
     const { onConfirm } = renderStep();
     const removeButtons = screen.getAllByRole("button", { name: /retirer ce contact/i });
-    fireEvent.click(removeButtons[1]); // remove Bah Sow
+    fireEvent.click(removeButtons[1]!); // remove Bah Sow
     expect(screen.queryByText("Bah Sow")).not.toBeInTheDocument();
 
-    // Fill the remaining 2 rows with valid amounts.
     const inputs = screen.getAllByLabelText("Cotisation (FCFA)");
-    fireEvent.change(inputs[0], { target: { value: "500" } });
-    fireEvent.change(inputs[1], { target: { value: "750" } });
+    fireEvent.change(inputs[0]!, { target: { value: "500" } });
+    fireEvent.change(inputs[1]!, { target: { value: "750" } });
     const cta = screen.getByRole("button", { name: /confirmer l'import \(2\)/i });
     expect(cta).toBeEnabled();
     fireEvent.click(cta);
@@ -66,7 +65,7 @@ describe("ContactsPickerStep", () => {
   });
 
   it("CTA stays disabled when an amount is below 100 FCFA", () => {
-    renderStep({ contacts: [CONTACTS[0]] });
+    renderStep({ contacts: [CONTACTS[0]!] });
     const input = screen.getByLabelText("Cotisation (FCFA)");
     fireEvent.change(input, { target: { value: "50" } });
     expect(screen.getByRole("button", { name: /confirmer l'import \(1\)/i })).toBeDisabled();
