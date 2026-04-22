@@ -57,7 +57,15 @@ so that **I don't retype 50 names that already live in my contact book — and I
 
 9. **iOS / unsupported-browser handling.** If a user lands on `/members/import` directly (deep link, copy-pasted URL) on an unsupported browser, render a small fallback screen: *"L'import depuis les contacts n'est pas disponible sur ce navigateur."* + body text mentioning Chrome/Edge for Android works, iOS Safari does not + a primary CTA *"Ajouter manuellement"* navigating to `/members/new`. The `isContactPickerSupported()` check is performed inside the route component on first render — no network call, no UI flash on supported browsers.
 
-10. **No new migration needed.** Story 2.2's migration 0014 already added `members_created_via_enum` with `'contacts_import'` value AND the `create_member_with_cycle` RPC's optional `p_created_via` param. Story 2.3 only **consumes** these — zero schema change. This is the value of having added the column ahead of time.
+10. **One new migration: per-collector phone uniqueness via salted hash.** `supabase/migrations/202604220000xx_members_phone_uniqueness.sql`:
+    - Add column `phone_number_hash text` to `public.members` (nullable — empty phones stay NULL so they never collide).
+    - Add partial unique index `idx_members_collector_phone_unique on public.members (collector_id, phone_number_hash) where phone_number_hash is not null`.
+    - Backfill existing rows: `update public.members m set phone_number_hash = encode(extensions.digest(m.collector_id::text || ':' || md.phone_number, 'sha256'), 'hex') from public.members_decrypted md where m.id = md.id and nullif(trim(md.phone_number), '') is not null;` Empty-phone rows stay NULL.
+    - **Replace** `public.create_member_with_cycle(...)` (CREATE OR REPLACE) so it computes `v_phone_hash := case when v_phone_clean = '' then null else encode(extensions.digest(v_collector_id::text || ':' || v_phone_clean, 'sha256'), 'hex') end` and inserts it alongside the encrypted columns.
+    - **Hash design.** `sha256(collector_id || ':' || trimmed_phone)` salts per-collector so a leak of one collector's hashes cannot be cross-referenced against another collector's saver list — the hash is meaningless without knowing the collector_id (and only the collector and our service role know that). Empty phones are stored as `NULL` in the hash column so the partial unique index ignores them — multiple cash-only savers per collector remain valid.
+    - **Backward compat for 2.2's `useCreateMember`.** The hook already classifies Postgres `23505` (`unique_violation`) as `'duplicate_phone'` (Story 2.2 AC #7) and `members.create.error.duplicate_phone` is already in `fr.json` ("Un membre avec ce numéro existe déjà"). Zero client-side change needed for the manual flow — the new failure mode just becomes reachable.
+    - **Story 2.5 implication (documented + DEFERRED to that story).** When phone is updated, the hash must update too. Story 2.5 will own a new RPC `update_member` (or extend the manual edit path) that recomputes the hash on phone change. Until 2.5 lands, no edit path exists, so the hash stays consistent by construction.
+    - The `created_via` enum + RPC `p_created_via` param from Story 2.2 still apply unchanged — Story 2.3 calls the same RPC with `p_created_via = 'contacts_import'`. The migration here ONLY adds the uniqueness machinery.
 
 11. **i18n keys (French) — added under `members.import.*`.** `src/i18n/fr.json`:
     - `members.import.title` ("Importer depuis vos contacts")
@@ -96,13 +104,22 @@ so that **I don't retype 50 names that already live in my contact book — and I
 
 13. **Out of scope (do NOT expand this story).**
     - Picking which phone when a contact has multiple (use the first; document below).
-    - Recurring import (re-importing the same contact creates a duplicate member; no dedup at MVP — accepted because phones aren't unique-constrained yet, per Story 2.2 AC #13).
     - Editing the imported name in the picker (Story 2.5 covers edit).
     - Importing > 100 contacts at once (the OS picker scales but our 5-concurrency RPC pipeline would take ~30s for 100 — acceptable; no progress-bar polish at MVP).
     - Server-side de-duplication of the consent flag (it's a localStorage UX flag, not a security boundary — see AC #8).
     - iOS support beyond the fallback screen — when iOS Safari ships the Contact Picker API or when the app moves to Capacitor / React Native (Vision phase), revisit.
+    - Recomputing the `phone_number_hash` when a member's phone is edited — Story 2.5 owns the edit path and will own that recompute (see AC #10 last paragraph).
+    - "Smart merge" UX for duplicate contacts (offer to update existing member's amount instead of creating a new one). Possible Growth-phase polish; for MVP, the inline `duplicate_phone` error per row + the user removing the row is sufficient.
 
 ## Tasks / Subtasks
+
+- [ ] **Task 0: Migration — phone-hash column + unique index + RPC update (AC #10).** `supabase/migrations/<new-ts>_members_phone_uniqueness.sql`:
+  - [ ] Add `phone_number_hash text` column on `public.members` (nullable).
+  - [ ] Backfill from `members_decrypted` (one-time UPDATE; only non-empty phones get a hash).
+  - [ ] Partial unique index `(collector_id, phone_number_hash) WHERE phone_number_hash IS NOT NULL`.
+  - [ ] CREATE OR REPLACE `create_member_with_cycle(...)` — same signature, adds `v_phone_hash` computation + INSERT.
+  - [ ] `npm run db:reset` locally; verify (a) two members with the same phone for the same collector raise `23505`; (b) two empty-phone members for the same collector both succeed; (c) two members with the same phone for DIFFERENT collectors both succeed (per-collector salt isolation).
+  - [ ] Hand-update `database.types.ts` to add the `phone_number_hash` column to `members` Row/Insert/Update.
 
 - [ ] **Task 1: Browser-support helper.** `src/features/member/api/contactsPickerSupport.ts` — pure `isContactPickerSupported(): boolean` checking both `navigator.contacts` and `typeof navigator.contacts.select === "function"`. Vitest unit covers presence + absence.
 
@@ -182,7 +199,9 @@ So the only thing our code can revoke is its **own willingness** to call the API
 
 ### `created_via` reuse from Story 2.2
 
-Story 2.2's migration 0014 added the optional `p_created_via` parameter to `create_member_with_cycle` precisely so this story would not need a second migration. `useImportMembers` calls the RPC with `{ p_created_via: "contacts_import" }`; everything else is identical to the manual flow. The audit trigger fires `member.created` with the same shape; downstream consumers (Story 9.x dashboard, Story 7.x settlement) don't distinguish between manual and import.
+Story 2.2's migration 0014 added the optional `p_created_via` parameter to `create_member_with_cycle` precisely so this story would not need to redefine the RPC contract. `useImportMembers` calls the RPC with `{ p_created_via: "contacts_import" }`; everything else is identical to the manual flow. The audit trigger fires `member.created` with the same shape; downstream consumers (Story 9.x dashboard, Story 7.x settlement) don't distinguish between manual and import.
+
+The one new piece of schema is the `phone_number_hash` column + partial unique index introduced by Task 0 — a deliberate addition because bulk-import surfaces the duplicate problem more visibly than manual entry (a careless collector could re-import the same 30 contacts twice). See AC #10 for the salted-hash design rationale.
 
 ### Phone normalization on import
 
@@ -253,3 +272,4 @@ _(populated by dev agent)_
 | Date       | Author              | Change |
 |------------|---------------------|--------|
 | 2026-04-22 | Winston (architect) | Story 2.3 spec generated by `bmad-create-story`. 13 ACs, 12 tasks. Reuses Story 2.2's `create_member_with_cycle` RPC via the optional `p_created_via` arg — **zero new migration needed**. Three-step state machine (consent → picker → progress) with `Promise.allSettled` + 5-concurrency limiter for the parallel inserts. Browser-compat reality: Contact Picker API is Chromium-Android only — iOS users get a polite fallback to manual entry. Consent flag is a UX commitment (localStorage), not a security boundary; the actual authorization is the OS picker. Status → ready-for-dev. |
+| 2026-04-22 | Winston (architect — review pass) | User-reviewed the spec; 4 product decisions confirmed (Q1 iOS fallback OK / Q2 localStorage consent OK / Q3 5-concurrency OK / Q5 first-phone OK) + 1 amendment from Q4: **add a real per-collector phone unique constraint** instead of the originally-deferred "no dedup at MVP" stance. AC #10 rewritten to include a new migration adding `phone_number_hash` (SHA-256 salted by `collector_id` to prevent cross-collector enumeration) + partial unique index `WHERE phone_number_hash IS NOT NULL` (empty phones stay NULL, multiple cash-only savers per collector remain valid). RPC `create_member_with_cycle` is CREATE OR REPLACE'd to compute + insert the hash. Backfill UPDATE handles existing rows via `members_decrypted` view. Story 2.5 will own recomputing the hash on phone edit — flagged + deferred. Task list gains a Task 0 for this migration. AC #13 out-of-scope updated: removed "recurring import" item (now caught), added "smart merge UX" + "phone-hash recompute on edit (Story 2.5)". Status stays `ready-for-dev`. |
