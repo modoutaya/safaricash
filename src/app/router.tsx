@@ -24,6 +24,7 @@ import { RouterRoot } from "@/app/providers";
 import DashboardRoute from "@/app/routes/dashboard";
 import LoginRoute from "@/app/routes/login";
 import MembersRoute from "@/app/routes/members";
+import MemberProfileRoute from "@/app/routes/members/[id]";
 import MembersImportRoute from "@/app/routes/members/import";
 import MembersNewRoute from "@/app/routes/members/new";
 import SettingsRoute from "@/app/routes/settings";
@@ -44,6 +45,9 @@ export const router = createBrowserRouter([
               { path: "members", element: <MembersRoute /> },
               { path: "members/new", element: <MembersNewRoute /> },
               { path: "members/import", element: <MembersImportRoute /> },
+              // Story 2.4 — :id is registered AFTER the static /new + /import
+              // paths so React Router matches the literals first.
+              { path: "members/:id", element: <MemberProfileRoute /> },
               { path: "settings", element: <SettingsRoute /> },
             ],
           },
