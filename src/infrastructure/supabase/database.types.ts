@@ -205,6 +205,7 @@ export type Database = {
           id: string;
           name_encrypted: string;
           phone_number_encrypted: string;
+          phone_number_hash: string | null;
           status: Database["public"]["Enums"]["members_status_enum"];
           updated_at: string;
         };
@@ -216,6 +217,7 @@ export type Database = {
           id?: string;
           name_encrypted: string;
           phone_number_encrypted: string;
+          phone_number_hash?: string | null;
           status?: Database["public"]["Enums"]["members_status_enum"];
           updated_at?: string;
         };
@@ -227,6 +229,7 @@ export type Database = {
           id?: string;
           name_encrypted?: string;
           phone_number_encrypted?: string;
+          phone_number_hash?: string | null;
           status?: Database["public"]["Enums"]["members_status_enum"];
           updated_at?: string;
         };

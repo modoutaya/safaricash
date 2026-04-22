@@ -7,19 +7,21 @@
 // the route is reachable via a header link in AppLayout.
 
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { requestSignOut } from "@/features/auth/api/signOut";
+import { hasContactsConsent, revokeContactsConsent } from "@/features/member";
 import { useT } from "@/i18n/useT";
 
 export default function SettingsRoute() {
   const t = useT();
   const [isPending, setIsPending] = useState(false);
-  // Synchronous guard against double-tap: setState batches so `isPending`
-  // does not update between clicks in the same tick.
+  // Story 2.3 — re-derive the consent banner state on every revoke so the
+  // text flips immediately. localStorage doesn't fire 'storage' events for
+  // the same window, so a state-based read is the simplest path.
+  const [consent, setConsent] = useState<boolean>(() => hasContactsConsent());
   const pendingRef = useRef(false);
-  // Track mount status: on success the SIGNED_OUT handler navigates away
-  // and unmounts this component; the finally block MUST NOT setState after.
   const mountedRef = useRef(true);
   useEffect(
     () => () => {
@@ -38,6 +40,12 @@ export default function SettingsRoute() {
       pendingRef.current = false;
       if (mountedRef.current) setIsPending(false);
     }
+  }
+
+  function handleRevokeContacts(): void {
+    revokeContactsConsent();
+    setConsent(false);
+    toast.success(t("settings_contacts.revoke_toast"));
   }
 
   return (
@@ -60,6 +68,24 @@ export default function SettingsRoute() {
       <span role="status" aria-live="polite" className="sr-only">
         {isPending ? t("settings.signout_loading") : ""}
       </span>
+
+      <section className="flex flex-col gap-3 rounded-lg border border-hairline bg-card p-4">
+        <h2 className="text-title-2 text-text-primary">{t("settings_contacts.title")}</h2>
+        <p className="text-body-2 text-text-secondary">
+          {consent ? t("settings_contacts.granted") : t("settings_contacts.not_granted")}
+        </p>
+        {consent ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={handleRevokeContacts}
+            className="w-full"
+          >
+            {t("settings_contacts.revoke_cta")}
+          </Button>
+        ) : null}
+      </section>
     </main>
   );
 }

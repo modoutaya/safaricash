@@ -6,10 +6,20 @@
 
 export { useMembers } from "./api/useMembers";
 export { useCreateMember } from "./api/useCreateMember";
+export { useImportMembers } from "./api/useImportMembers";
+export { isContactPickerSupported } from "./api/contactsPickerSupport";
+export {
+  hasContactsConsent,
+  grantContactsConsent,
+  revokeContactsConsent,
+} from "./api/contactsConsent";
 export { MEMBERS_QUERY_KEY, MEMBER_HEADER_CTA_THRESHOLD, createMemberInputSchema } from "./types";
 export { MemberList } from "./ui/MemberList";
 export { MemberCard } from "./ui/MemberCard";
 export { MemberForm } from "./ui/MemberForm";
+export { ConsentScreen } from "./ui/ConsentScreen";
+export { ContactsPickerStep, type PickedContact } from "./ui/ContactsPickerStep";
+export { ImportProgressStep } from "./ui/ImportProgressStep";
 export type {
   CreateMemberInput,
   DisplayStatus,
@@ -21,3 +31,4 @@ export type {
   CycleStatus,
   TransactionTimestamp,
 } from "./types";
+export type { ImportRow, ImportRowResult, ImportSummary } from "./api/useImportMembers";
