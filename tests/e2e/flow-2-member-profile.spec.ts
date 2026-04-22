@@ -51,8 +51,11 @@ test.describe("Flow — /members/:id profile (Story 2.4)", () => {
     await expect(page.getByText(/Jour \d+ sur 30/i)).toBeVisible();
     await expect(page.getByText(/Solde prévu fin cycle/i)).toBeVisible();
 
-    // Empty-state for the freshly-seeded member (no transactions yet).
-    await expect(page.getByText(/aucune transaction enregistrée/i)).toBeVisible();
+    // Transaction list — seedMembersForCollector inserts 1 contribution
+    // (cycle_day 1, amount 500) per member, so the list should render that
+    // single row, not the empty-state.
+    await expect(page.getByText(/^Cotisation$/)).toBeVisible();
+    await expect(page.getByText(/^J1$/)).toBeVisible();
 
     await expectNoA11yViolations(page, "/members/:id profile loaded");
   });
