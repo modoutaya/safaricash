@@ -1,4 +1,4 @@
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { axe, toHaveNoViolations } from "jest-axe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -239,6 +239,25 @@ describe("MemberList", () => {
     fireEvent.change(screen.getByLabelText(/rechercher un membre/i), { target: { value: "zzz" } });
     expect(screen.getByText(/aucun résultat/i)).toBeInTheDocument();
     expect(screen.getByText(/vérifiez l'orthographe/i)).toBeInTheDocument();
+  });
+
+  it("navigates to /members/:id on card tap (Story 2.4 wiring)", () => {
+    useMembersMock.mockReturnValue({
+      data: [makeMember({ id: "11111111-1111-4111-8111-111111111111", name: "Fatou" })],
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    render(
+      <MemoryRouter initialEntries={["/members"]}>
+        <Routes>
+          <Route path="/members" element={<MemberList />} />
+          <Route path="/members/:id" element={<div data-testid="profile-route">profile</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /fatou/i }));
+    expect(screen.getByTestId("profile-route")).toBeInTheDocument();
   });
 
   it("passes axe a11y on a populated list", async () => {

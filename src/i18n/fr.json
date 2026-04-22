@@ -123,6 +123,34 @@
       "unsupported_title": "Import des contacts non disponible",
       "unsupported_body": "Cette fonctionnalité requiert Chrome ou Edge sur Android. Sur iOS et autres navigateurs, ajoutez vos membres un par un.",
       "unsupported_cta_manual": "Ajouter manuellement"
+    },
+    "profile": {
+      "back_label": "Retour à la liste des membres",
+      "actions_label": "Actions",
+      "action_edit": "Modifier",
+      "action_restart_cycle": "Redémarrer le cycle",
+      "action_delete": "Supprimer",
+      "action_disabled_tooltip": "Disponible bientôt",
+      "field": {
+        "daily_amount": "{amount} FCFA / jour",
+        "cycle_day": "Jour {n} sur 30",
+        "contributed_total": "Versé : {amount} FCFA",
+        "outstanding_advances": "Avances en cours : {amount} FCFA",
+        "projected_balance": "Solde prévu fin cycle : {amount} FCFA"
+      },
+      "transactions": {
+        "title": "Historique du cycle",
+        "empty": "Aucune transaction enregistrée pour ce cycle.",
+        "kind_contribution": "Cotisation",
+        "kind_rattrapage": "Rattrapage",
+        "kind_advance": "Avance",
+        "cycle_day_chip": "J{n}"
+      },
+      "error": {
+        "load": "Impossible de charger le profil. Réessayez dans un instant.",
+        "not_found": "Membre introuvable.",
+        "back_cta": "Retour"
+      }
     }
   },
   "settings_contacts": {

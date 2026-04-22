@@ -157,7 +157,10 @@ export function MemberList(): JSX.Element {
         <ul className="flex flex-col gap-2" aria-label={t("members.title")}>
           {filtered.map((member) => (
             <li key={member.id}>
-              <MemberCard member={member} />
+              <MemberCard
+                member={member}
+                onSelect={(memberId) => navigate(`/members/${memberId}`)}
+              />
             </li>
           ))}
         </ul>

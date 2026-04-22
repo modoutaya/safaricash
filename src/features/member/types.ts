@@ -50,6 +50,22 @@ export const transactionTimestampSchema = z.object({
 });
 export type TransactionTimestamp = z.infer<typeof transactionTimestampSchema>;
 
+// Story 2.4 — full transaction row (decrypted via transactions_decrypted view).
+// Mirrors public.transactions_kind_enum (migration 0001 line 49).
+export const transactionKindSchema = z.enum(["contribution", "rattrapage", "advance"]);
+export type TransactionKind = z.infer<typeof transactionKindSchema>;
+
+export const transactionRowSchema = z.object({
+  id: z.string().uuid(),
+  member_id: z.string().uuid(),
+  cycle_id: z.string().uuid(),
+  kind: transactionKindSchema,
+  amount: z.coerce.number().int().positive(), // decrypted from numeric(12,0)
+  cycle_day: z.number().int().min(1).max(30),
+  created_at: z.string(), // ISO-8601
+});
+export type TransactionRow = z.infer<typeof transactionRowSchema>;
+
 // ---------------------------------------------------------------------------
 // UI-facing view-model.
 // ---------------------------------------------------------------------------
@@ -101,3 +117,20 @@ export const createMemberInputSchema = z.object({
     .max(100000, "Maximum 100 000 FCFA"),
 });
 export type CreateMemberInput = z.infer<typeof createMemberInputSchema>;
+
+// ---------------------------------------------------------------------------
+// Story 2.4 — member 360 profile.
+// ---------------------------------------------------------------------------
+
+/** TanStack Query key prefix for the per-member profile read. Story 2.5 /
+ *  2.6 / 4.x will invalidate by this prefix when they mutate. */
+export const MEMBER_PROFILE_QUERY_KEY = ["members", "profile"] as const;
+
+/** Pure derived stats per FR17. Computed by computeMemberStats(). */
+export interface MemberStats {
+  cycleDay: number; // 1..30 clamped
+  daysRemaining: number; // 30 - cycleDay
+  contributedTotal: number; // Σ contribution + rattrapage
+  outstandingAdvances: number; // Σ advance
+  projectedFinalBalance: number; // FR17: daily_amount × 29 − Σ(advances)
+}
