@@ -24,6 +24,7 @@ import { RouterRoot } from "@/app/providers";
 import DashboardRoute from "@/app/routes/dashboard";
 import LoginRoute from "@/app/routes/login";
 import MembersRoute from "@/app/routes/members";
+import MembersImportRoute from "@/app/routes/members/import";
 import MembersNewRoute from "@/app/routes/members/new";
 import SettingsRoute from "@/app/routes/settings";
 
@@ -42,6 +43,7 @@ export const router = createBrowserRouter([
               { path: "dashboard", element: <DashboardRoute /> },
               { path: "members", element: <MembersRoute /> },
               { path: "members/new", element: <MembersNewRoute /> },
+              { path: "members/import", element: <MembersImportRoute /> },
               { path: "settings", element: <SettingsRoute /> },
             ],
           },

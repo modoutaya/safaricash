@@ -4,15 +4,18 @@
 // LoginRoute from Story 1.5b — the form itself is navigation-agnostic).
 
 import { ChevronLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-import { MemberForm } from "@/features/member";
+import { Button } from "@/components/ui/button";
+import { MemberForm, isContactPickerSupported } from "@/features/member";
 import { useT } from "@/i18n/useT";
 
 export default function MembersNewRoute() {
   const navigate = useNavigate();
   const t = useT();
+  // Story 2.3 — secondary CTA only when the browser supports the picker.
+  const canImport = isContactPickerSupported();
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-col gap-4 py-6">
@@ -34,6 +37,14 @@ export default function MembersNewRoute() {
         }}
         onCancel={() => navigate("/members")}
       />
+
+      {canImport ? (
+        <div className="mx-auto w-full max-w-sm px-4">
+          <Button asChild variant="outline" size="lg" className="w-full">
+            <Link to="/members/import">{t("members.import.import_cta")}</Link>
+          </Button>
+        </div>
+      ) : null}
     </section>
   );
 }

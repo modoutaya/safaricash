@@ -60,7 +60,7 @@ development_status:
   epic-2: in-progress
   2-1-member-list-search: review
   2-2-create-member-manual: review  # spec generated 2026-04-21 via bmad-create-story; React Hook Form v7 first wiring + atomic create_member_with_cycle RPC
-  2-3-contacts-bulk-import: ready-for-dev  # spec generated 2026-04-22; reuses Story 2.2 RPC via p_created_via='contacts_import' — zero new migration; 3-step state machine + Promise.allSettled with 5-concurrency limiter; Chromium-Android only (iOS fallback to manual entry)
+  2-3-contacts-bulk-import: review  # spec generated 2026-04-22; reuses Story 2.2 RPC via p_created_via='contacts_import' + new phone-hash unique constraint migration; 3-step state machine + Promise.allSettled with 5-concurrency limiter; Chromium-Android only (iOS fallback to manual entry)
   2-4-member-profile-view: backlog
   2-5-edit-member-impact-alert: backlog
   2-6-delete-member-confirmation: backlog

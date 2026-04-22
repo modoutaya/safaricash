@@ -14,6 +14,10 @@
 //      regardless; rethrowing would create confusing UX.
 
 import { supabase } from "@/infrastructure/supabase/client";
+// Story 2.3 — clear contacts-import consent flag at sign-out so the next
+// collector on a shared device doesn't inherit "ok to read contacts".
+// Direct import is safe: contactsConsent has no auth dep → no cycle.
+import { revokeContactsConsent } from "@/features/member/api/contactsConsent";
 
 export type SignOutReason = "explicit" | "idle";
 
@@ -39,11 +43,12 @@ export const AUDIT_EMIT_TIMEOUT_MS = 2_000;
  * filled in to drop those stores on sign-out so a next user on the same
  * device does not inherit queued writes from the previous collector.
  *
- * The function returns a resolved promise today so `requestSignOut` can
- * `await` it unconditionally — the call site stays stable across the
- * Story 8.x landing.
+ * Story 2.3 also clears the contacts-import consent flag here so a
+ * different collector signing in on the same device does not inherit
+ * the previous collector's "ok to read contacts" promise.
  */
 export async function purgeSessionData(): Promise<void> {
+  revokeContactsConsent();
   // TODO(Story 8.3): purge IndexedDB outbox + event log.
   return Promise.resolve();
 }

@@ -98,6 +98,38 @@
         "unknown": "Erreur inattendue — réessayez"
       },
       "success_toast": "{name} ajouté à votre route ✓"
+    },
+    "import": {
+      "import_cta": "Importer depuis les contacts",
+      "title": "Importer depuis vos contacts",
+      "consent_body": "Nous lisons vos contacts uniquement pour vous permettre d'en choisir. Aucune donnée ne quitte votre téléphone avant que vous ne validiez la liste finale. SafariCash ne stocke jamais votre carnet d'adresses.",
+      "consent_reads": "Nous lisons : nom, numéro de téléphone",
+      "consent_does_not_read": "Nous ne lisons PAS : email, adresse, photo, anniversaire, notes",
+      "consent_checkbox": "J'accepte que SafariCash lise mes contacts pour cette session",
+      "cta_continue": "Continuer",
+      "cta_cancel": "Annuler",
+      "picker_subtitle": "{n} contact(s) sélectionné(s). Saisissez la cotisation quotidienne pour chacun.",
+      "bulk_apply_label": "Appliquer à tous",
+      "bulk_apply_helper": "Copie le montant de la 1re ligne dans toutes les autres",
+      "row_remove_label": "Retirer ce contact",
+      "row_amount_label": "Cotisation (FCFA)",
+      "cta_confirm": "Confirmer l'import ({n})",
+      "cta_retry_failed": "Réessayer les échoués ({n})",
+      "summary_progress": "{ok} membres ajoutés, {failed} échoués sur {total}",
+      "summary_all_ok": "{n} membres ajoutés ✓",
+      "row_status_pending": "Création…",
+      "row_status_ok": "✓ Ajouté",
+      "row_status_error": "⚠ Échec",
+      "unsupported_title": "Import des contacts non disponible",
+      "unsupported_body": "Cette fonctionnalité requiert Chrome ou Edge sur Android. Sur iOS et autres navigateurs, ajoutez vos membres un par un.",
+      "unsupported_cta_manual": "Ajouter manuellement"
     }
+  },
+  "settings_contacts": {
+    "title": "Accès à vos contacts",
+    "granted": "Accès accordé",
+    "not_granted": "Aucun accès accordé",
+    "revoke_cta": "Révoquer l'accès",
+    "revoke_toast": "Accès révoqué. SafariCash ne lira plus vos contacts."
   }
 }
