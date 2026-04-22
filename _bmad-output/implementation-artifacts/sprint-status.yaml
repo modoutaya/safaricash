@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-22
-# touched: 2-1-member-list-search → review (2026-04-21, dev complete); 1-5b-password-auth-switch added (PRD v1.3 auth pivot — Termii KYC blocker); 2-2-create-member-manual → review (2026-04-22, dev complete via /bmad-dev-story); 2-3-contacts-bulk-import → ready-for-dev (spec generated)
+# touched: 2-1 review; 1-5b added (auth pivot); 2-2 review; 2-3 review (dev via /bmad-dev-story); 2-4-member-profile-view → ready-for-dev (spec generated)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -61,7 +61,7 @@ development_status:
   2-1-member-list-search: review
   2-2-create-member-manual: review  # spec generated 2026-04-21 via bmad-create-story; React Hook Form v7 first wiring + atomic create_member_with_cycle RPC
   2-3-contacts-bulk-import: review  # spec generated 2026-04-22; reuses Story 2.2 RPC via p_created_via='contacts_import' + new phone-hash unique constraint migration; 3-step state machine + Promise.allSettled with 5-concurrency limiter; Chromium-Android only (iOS fallback to manual entry)
-  2-4-member-profile-view: backlog
+  2-4-member-profile-view: ready-for-dev  # spec 2026-04-22; reuses Story 2.1 pattern (3 parallel queries + Zod boundary); pure computeMemberStats with TODO(Story 3.2) for cycle engine relocation; tap-to-receipt deferred to Story 6.7
   2-5-edit-member-impact-alert: backlog
   2-6-delete-member-confirmation: backlog
   2-7-restart-cycle: backlog
