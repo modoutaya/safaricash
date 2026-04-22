@@ -14,6 +14,10 @@
 //      regardless; rethrowing would create confusing UX.
 
 import { supabase } from "@/infrastructure/supabase/client";
+// Story 2.3 — clear contacts-import consent flag at sign-out so the next
+// collector on a shared device doesn't inherit "ok to read contacts".
+// Direct import is safe: contactsConsent has no auth dep → no cycle.
+import { revokeContactsConsent } from "@/features/member/api/contactsConsent";
 
 export type SignOutReason = "explicit" | "idle";
 
@@ -44,8 +48,6 @@ export const AUDIT_EMIT_TIMEOUT_MS = 2_000;
  * the previous collector's "ok to read contacts" promise.
  */
 export async function purgeSessionData(): Promise<void> {
-  // Story 2.3 — clear the contacts-import consent flag.
-  const { revokeContactsConsent } = await import("@/features/member/api/contactsConsent");
   revokeContactsConsent();
   // TODO(Story 8.3): purge IndexedDB outbox + event log.
   return Promise.resolve();
