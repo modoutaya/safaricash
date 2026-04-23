@@ -72,8 +72,11 @@ jobs:
       # to keep startup under ~30s.
       - name: Start local Supabase stack
         run: |
+          # Story 2.6 — edge-runtime is required (re-auth Edge Function is
+          # the first E2E consumer; future Stories 7.4 / 9.3 / 6.x will use
+          # it too for settlement / CSV export / receipt resend gates).
           npx supabase start \
-            --exclude=studio,inbucket,realtime,storage,edge-runtime,vector,pooler,imgproxy,supavisor
+            --exclude=studio,inbucket,realtime,storage,vector,pooler,imgproxy,supavisor
 
       # ----- Rate-limit Worker dev server — unblocks tests/e2e/rate-limit.spec.ts.
       # wrangler dev binds KV to Miniflare's in-memory impl, so no Cloudflare
