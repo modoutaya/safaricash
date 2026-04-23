@@ -26,6 +26,9 @@ import { computeMemberStats } from "./computeMemberStats";
 export interface MemberProfileData {
   member: MemberRow;
   currentCycle: CycleRow | null;
+  /** Story 2.7 — completed/settled cycles older than `currentCycle`,
+   *  newest first. Drives the "Cycles précédents" read-only section. */
+  previousCycles: CycleRow[];
   transactions: TransactionRow[];
   stats: MemberStats;
 }
@@ -33,12 +36,18 @@ export interface MemberProfileData {
 const transactionsResponseSchema = z.array(transactionRowSchema);
 const cyclesResponseSchema = z.array(cycleRowSchema.extend({ member_id: z.string().uuid() }));
 
-/** Pick the cycle that represents the member's CURRENT state (matches
- *  Story 2.1's pickCurrentCycle). */
+/** Pick the cycle that represents the member's CURRENT state.
+ *
+ *  Story 2.7 widens the heuristic: if no active/with_advance cycle exists,
+ *  fall back to the highest-numbered completed/settled cycle so the profile
+ *  can render the just-completed cycle's context AND the "Redémarrer le
+ *  cycle" action. The list-level `useMembers.pickCurrentCycle` keeps the
+ *  active-only semantics — that's a different surface. */
 function pickCurrentCycle(cycles: CycleRow[]): CycleRow | null {
-  const candidates = cycles.filter((c) => c.status === "active" || c.status === "with_advance");
-  if (candidates.length === 0) return null;
-  return candidates.reduce((best, c) => (c.cycle_number > best.cycle_number ? c : best));
+  if (cycles.length === 0) return null;
+  const active = cycles.filter((c) => c.status === "active" || c.status === "with_advance");
+  const pool = active.length > 0 ? active : cycles;
+  return pool.reduce((best, c) => (c.cycle_number > best.cycle_number ? c : best));
 }
 
 export async function fetchProfile(id: string): Promise<MemberProfileData | undefined> {
@@ -74,7 +83,15 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
   const cycles = cyclesResponseSchema.parse(cyclesResult.data ?? []);
   const allTransactions = transactionsResponseSchema.parse(transactionsResult.data ?? []);
 
-  const currentCycle = pickCurrentCycle(cycles.map(({ member_id: _m, ...rest }) => rest));
+  const cleanedCycles = cycles.map(({ member_id: _m, ...rest }) => rest);
+  const currentCycle = pickCurrentCycle(cleanedCycles);
+  // Story 2.7 — read-only history: completed/settled cycles, newest first,
+  // excluding whatever pickCurrentCycle promoted to currentCycle.
+  const previousCycles = cleanedCycles
+    .filter(
+      (c) => (c.status === "completed" || c.status === "settled") && c.id !== currentCycle?.id,
+    )
+    .sort((a, b) => b.cycle_number - a.cycle_number);
   // Filter transactions to the current cycle ONLY for the rendered list.
   // Stats compute over the same subset (out-of-cycle transactions don't
   // count toward the projected balance of the current cycle).
@@ -87,7 +104,7 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
     currentCycle ? { startDate: currentCycle.start_date } : null,
   );
 
-  return { member, currentCycle, transactions, stats };
+  return { member, currentCycle, previousCycles, transactions, stats };
 }
 
 export function useMemberProfile(

@@ -15,8 +15,22 @@ import type { CycleRow, MemberRow, MemberStats, TransactionKind, TransactionRow 
 export interface MemberProfileProps {
   member: MemberRow;
   currentCycle: CycleRow | null;
+  /** Story 2.7 — completed/settled cycles to render as a read-only history. */
+  previousCycles?: CycleRow[];
   transactions: TransactionRow[];
   stats: MemberStats;
+}
+
+const PREVIOUS_CYCLE_DATE_FORMATTER = new Intl.DateTimeFormat("fr-FR", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+function formatPreviousCycleDate(iso: string): string {
+  // start_date / end_date are date strings (YYYY-MM-DD), not full ISO; the
+  // Date constructor treats them as UTC midnight, which is fine for display.
+  return PREVIOUS_CYCLE_DATE_FORMATTER.format(new Date(iso));
 }
 
 const KIND_LABEL_KEY: Record<
@@ -30,7 +44,13 @@ const KIND_LABEL_KEY: Record<
   advance: "members.profile.transactions.kind_advance",
 };
 
-export function MemberProfile({ member, currentCycle, transactions, stats }: MemberProfileProps) {
+export function MemberProfile({
+  member,
+  currentCycle,
+  previousCycles = [],
+  transactions,
+  stats,
+}: MemberProfileProps) {
   const t = useT();
   const displayStatus = deriveMemberStatus({ status: member.status }, currentCycle);
   const showStatusBadge = displayStatus !== "hidden";
@@ -164,6 +184,25 @@ export function MemberProfile({ member, currentCycle, transactions, stats }: Mem
           </ul>
         )}
       </section>
+
+      {previousCycles.length > 0 ? (
+        <section className="flex flex-col gap-2" aria-labelledby="previous-cycles-title">
+          <h2 id="previous-cycles-title" className="text-title-2 text-text-primary">
+            {t("members.profile.previous_cycles.title")}
+          </h2>
+          <ul className="flex flex-col gap-1 rounded-lg border border-hairline bg-card p-3">
+            {previousCycles.map((cycle) => (
+              <li key={cycle.id} className="text-body-2 text-text-secondary">
+                {t("members.profile.previous_cycles.row", {
+                  n: cycle.cycle_number,
+                  start: formatPreviousCycleDate(cycle.start_date),
+                  end: formatPreviousCycleDate(cycle.end_date),
+                })}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

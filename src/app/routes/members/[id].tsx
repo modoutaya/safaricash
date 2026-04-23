@@ -5,7 +5,9 @@
 // chevron + an action overflow placeholder for Stories 2.5/2.6/2.7.
 
 import { ChevronLeft } from "lucide-react";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { toast } from "sonner";
 
 import {
   ProfileError,
@@ -14,6 +16,7 @@ import {
 } from "@/components/domain/MemberProfileStates";
 import { Button } from "@/components/ui/button";
 import { MemberProfile, useMemberProfile } from "@/features/member";
+import { RestartCycleDialog } from "@/features/member/ui/RestartCycleDialog";
 import { useT } from "@/i18n/useT";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -25,8 +28,14 @@ export default function MemberProfileRoute() {
   const navigate = useNavigate();
   const t = useT();
   const goBack = () => navigate("/members");
+  const [restartOpen, setRestartOpen] = useState(false);
 
   const query = useMemberProfile(isUuid ? id : undefined);
+
+  // Story 2.7 — restart action shows only when the current cycle is
+  // completed/settled. Hidden (not disabled) per AC #1.
+  const currentCycleStatus = query.data?.currentCycle?.status;
+  const canRestart = currentCycleStatus === "completed" || currentCycleStatus === "settled";
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-col gap-4 py-6">
@@ -49,15 +58,11 @@ export default function MemberProfileRoute() {
           <Button asChild variant="outline" size="sm" disabled={!isUuid}>
             <Link to={`/members/${id}/edit`}>{t("members.profile.action_edit")}</Link>
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled
-            title={t("members.profile.action_disabled_tooltip")}
-          >
-            {t("members.profile.action_restart_cycle")}
-          </Button>
+          {canRestart ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => setRestartOpen(true)}>
+              {t("members.profile.action_restart_cycle")}
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -94,10 +99,21 @@ export default function MemberProfileRoute() {
         <MemberProfile
           member={query.data.member}
           currentCycle={query.data.currentCycle}
+          previousCycles={query.data.previousCycles}
           transactions={query.data.transactions}
           stats={query.data.stats}
         />
       )}
+
+      {query.data && canRestart ? (
+        <RestartCycleDialog
+          open={restartOpen}
+          onOpenChange={setRestartOpen}
+          memberId={id}
+          memberName={query.data.member.name}
+          onSuccess={() => toast.success(t("members.profile.restart.toast_success"))}
+        />
+      ) : null}
     </section>
   );
 }

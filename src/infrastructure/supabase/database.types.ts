@@ -532,6 +532,10 @@ export type Database = {
         };
         Returns: undefined;
       };
+      restart_member_cycle: {
+        Args: { p_member_id: string };
+        Returns: string;
+      };
       show_limit: { Args: never; Returns: number };
       show_trgm: { Args: { "": string }; Returns: string[] };
       vault_decrypt: { Args: { secret_id: string }; Returns: string };

@@ -133,6 +133,7 @@ describe("MemberProfileRoute", () => {
           end_date: "2026-05-11",
           status: "active",
         },
+        previousCycles: [],
         transactions: [],
         stats: {
           cycleDay: 11,
@@ -146,8 +147,37 @@ describe("MemberProfileRoute", () => {
     renderRoute(`/members/${VALID_ID}`);
     const modifier = screen.getByRole("link", { name: /modifier/i });
     expect(modifier).toHaveAttribute("href", `/members/${VALID_ID}/edit`);
-    // Restart-cycle + Supprimer remain disabled buttons (Stories 2.6 / 2.7).
-    expect(screen.getByRole("button", { name: /redémarrer/i })).toBeDisabled();
+    // Story 2.7 — Restart action is hidden when current cycle is active.
+    expect(screen.queryByRole("button", { name: /redémarrer/i })).not.toBeInTheDocument();
+    // Supprimer remains disabled (Story 2.6).
     expect(screen.getByRole("button", { name: /supprimer/i })).toBeDisabled();
+  });
+
+  it("Story 2.7 — renders the Restart button when the current cycle is completed", () => {
+    useMemberProfileMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        member: MEMBER,
+        currentCycle: {
+          id: "22222222-2222-4222-8222-222222222222",
+          cycle_number: 1,
+          start_date: "2026-04-12",
+          end_date: "2026-05-11",
+          status: "completed",
+        },
+        previousCycles: [],
+        transactions: [],
+        stats: {
+          cycleDay: 30,
+          daysRemaining: 0,
+          contributedTotal: 14500,
+          outstandingAdvances: 0,
+          projectedFinalBalance: 14500,
+        },
+      },
+    });
+    renderRoute(`/members/${VALID_ID}`);
+    expect(screen.getByRole("button", { name: /redémarrer/i })).toBeInTheDocument();
   });
 });

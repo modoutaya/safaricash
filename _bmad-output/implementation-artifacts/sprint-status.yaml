@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-23
-# touched: 2-4 done; 2-5 done; 2-7-restart-cycle → ready-for-dev (spec generated)
+# touched: 2-4 done; 2-5 done; 2-7-restart-cycle → review (dev via /bmad-dev-story; local Playwright validation discipline applied)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -64,7 +64,7 @@ development_status:
   2-4-member-profile-view: done  # PR #11 merged 2026-04-22; 19 new tests; full gates green (336 vitest, coverage 75.7% > 75%); E2E env-gated
   2-5-edit-member-impact-alert: done  # PR #13 merged 2026-04-23; 17 new tests; uncovered + fixed system-wide audit-trigger JWT bug (migration 0017)
   2-6-delete-member-confirmation: backlog
-  2-7-restart-cycle: ready-for-dev  # spec 2026-04-23; new restart_member_cycle SECURITY DEFINER RPC with advisory-lock status re-check; audit cycle.started fires via existing trigger; profile gains conditional Restart button + "Cycles précédents" read-only section
+  2-7-restart-cycle: review  # implemented 2026-04-23; 14 new tests; full gates green (380 vitest, coverage 76.19% > 75%); 17 E2E specs validated locally before push
   epic-2-retrospective: optional
 
   # Epic 3 — Cycle Engine & Progression
