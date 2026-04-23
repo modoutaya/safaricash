@@ -8,6 +8,7 @@ export { useMembers } from "./api/useMembers";
 export { useCreateMember } from "./api/useCreateMember";
 export { useUpdateMember } from "./api/useUpdateMember";
 export { useRestartCycle } from "./api/useRestartCycle";
+export { useDeleteMember } from "./api/useDeleteMember";
 export { useImportMembers } from "./api/useImportMembers";
 export { useMemberProfile } from "./api/useMemberProfile";
 export { computeMemberStats } from "./api/computeMemberStats";

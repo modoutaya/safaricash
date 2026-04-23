@@ -16,6 +16,7 @@ import {
 } from "@/components/domain/MemberProfileStates";
 import { Button } from "@/components/ui/button";
 import { MemberProfile, useMemberProfile } from "@/features/member";
+import { DeleteMemberDialog } from "@/features/member/ui/DeleteMemberDialog";
 import { RestartCycleDialog } from "@/features/member/ui/RestartCycleDialog";
 import { useT } from "@/i18n/useT";
 
@@ -29,6 +30,7 @@ export default function MemberProfileRoute() {
   const t = useT();
   const goBack = () => navigate("/members");
   const [restartOpen, setRestartOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const query = useMemberProfile(isUuid ? id : undefined);
 
@@ -63,15 +65,16 @@ export default function MemberProfileRoute() {
               {t("members.profile.action_restart_cycle")}
             </Button>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled
-            title={t("members.profile.action_disabled_tooltip")}
-          >
-            {t("members.profile.action_delete")}
-          </Button>
+          {isUuid ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => setDeleteOpen(true)}
+            >
+              {t("members.profile.action_delete")}
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -114,6 +117,27 @@ export default function MemberProfileRoute() {
           onSuccess={() => toast.success(t("members.profile.restart.toast_success"))}
         />
       ) : null}
+
+      {query.data
+        ? (() => {
+            const memberName = query.data.member.name;
+            return (
+              <DeleteMemberDialog
+                open={deleteOpen}
+                onOpenChange={setDeleteOpen}
+                memberId={id}
+                memberName={memberName}
+                transactionsCount={query.data.totalTransactionsCount}
+                cyclesCount={query.data.previousCycles.length + (query.data.currentCycle ? 1 : 0)}
+                onSuccess={() => {
+                  toast.success(t("members.profile.delete.toast_success", { name: memberName }));
+                  navigate("/members", { replace: true });
+                }}
+                onMutationFailure={() => toast.error(t("members.profile.delete.toast_failure"))}
+              />
+            );
+          })()
+        : null}
     </section>
   );
 }
