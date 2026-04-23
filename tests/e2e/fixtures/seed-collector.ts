@@ -129,8 +129,12 @@ export async function seedMembersForCollector(
     if (nameErr || !nameSecret) {
       throw new Error(`vault_encrypt(name) — ${nameErr?.message ?? "no secret_id"}`);
     }
+    // Story 2.5 — phone must be a valid Senegal E.164 (+221 + EXACTLY 9
+    // digits) so the edit form's Zod validator passes on mount. Pre-2.5
+    // the form was never hydrated with this value at axe-scan time, so
+    // the 10-digit shape went undetected.
     const { data: phoneSecret, error: phoneErr } = await service.rpc("vault_encrypt", {
-      plaintext: `+221770111${i}${i}${i}${i}`,
+      plaintext: `+22177011100${i}`,
     });
     if (phoneErr || !phoneSecret) {
       throw new Error(`vault_encrypt(phone) — ${phoneErr?.message ?? "no secret_id"}`);

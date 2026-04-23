@@ -119,6 +119,17 @@ export const createMemberInputSchema = z.object({
 export type CreateMemberInput = z.infer<typeof createMemberInputSchema>;
 
 // ---------------------------------------------------------------------------
+// Story 2.5 — edit member with impact alert (FR10).
+// ---------------------------------------------------------------------------
+
+/** Same shape + same rules as create. Aliased for call-site clarity. */
+export const updateMemberInputSchema = createMemberInputSchema;
+export type UpdateMemberInput = z.infer<typeof updateMemberInputSchema>;
+
+/** Result of `computeEditImpact()` — drives the in-flight cycle warning. */
+export type EditImpact = "none" | "cycle-affecting";
+
+// ---------------------------------------------------------------------------
 // Story 2.4 — member 360 profile.
 // ---------------------------------------------------------------------------
 

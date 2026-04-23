@@ -1,10 +1,13 @@
-// Story 2.2 — MemberForm.
+// Story 2.2 → 2.5 — MemberForm.
 //
-// Single-screen manual member creation. react-hook-form + Zod resolver.
-// Pure presentation + mutation call — the parent route owns navigation
-// (onSuccess / onCancel props). Same split as LoginForm (Story 1.5b).
+// Mode-driven presentation component. Routes own the mutation hook
+// (useCreateMember from /new, useUpdateMember from /:id/edit) and pass
+// the result via `onSubmit`, `isPending`, `errorCode`. The form's
+// validation surface (Zod resolver, `mode: "onChange"`) is unchanged
+// since Story 2.2 — both create and edit re-use createMemberInputSchema.
 
-import { useForm, type SubmitHandler } from "react-hook-form";
+import { useEffect } from "react";
+import { useForm, useWatch, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { z } from "zod";
 
@@ -13,22 +16,46 @@ import { Input } from "@/components/ui/input";
 import { useT } from "@/i18n/useT";
 import type { TranslationKey } from "@/i18n/keys";
 
-import { useCreateMember, type CreateMemberErrorCode } from "../api/useCreateMember";
+import type { CreateMemberErrorCode } from "../api/useCreateMember";
+import type { UpdateMemberErrorCode } from "../api/useUpdateMember";
 import { createMemberInputSchema, type CreateMemberInput } from "../types";
 
-// `z.coerce.number()` has distinct input (unknown) and output (number) types;
-// RHF must be told the raw input shape so `register()` + `defaultValues`
-// stay string-friendly while the submit handler receives the coerced numbers.
 type MemberFormInput = z.input<typeof createMemberInputSchema>;
 type MemberFormOutput = CreateMemberInput;
 
-export type MemberFormProps = {
-  onSuccess: (memberId: string, values: CreateMemberInput) => void;
-  onCancel: () => void;
-};
+export type MemberFormMode = "create" | "edit";
 
-/** Map an `useCreateMember` error code to the i18n key for the banner copy. */
-function errorCopyKey(code: CreateMemberErrorCode): TranslationKey {
+export type MemberFormErrorCode = CreateMemberErrorCode | UpdateMemberErrorCode;
+
+export interface MemberFormProps {
+  mode: MemberFormMode;
+  initialValues?: CreateMemberInput;
+  onSubmit: (values: CreateMemberInput) => Promise<void>;
+  onCancel: () => void;
+  isPending: boolean;
+  errorCode: MemberFormErrorCode | null;
+  /** Optional render-prop slot rendered between the form fields and the
+   *  Save CTA. Story 2.5 uses this for the in-flight cycle warning. */
+  belowFields?: (state: { values: CreateMemberInput; isDirty: boolean }) => React.ReactNode;
+}
+
+function errorCopyKey(mode: MemberFormMode, code: MemberFormErrorCode): TranslationKey {
+  if (mode === "edit") {
+    switch (code) {
+      case "unauthorized":
+        return "members.edit.error.unauthorized";
+      case "duplicate_phone":
+        return "members.edit.error.duplicate_phone";
+      case "not_found":
+        return "members.edit.error.not_found";
+      case "network":
+        return "members.edit.error.network";
+      case "validation":
+      case "unknown":
+      default:
+        return "members.edit.error.unknown";
+    }
+  }
   switch (code) {
     case "unauthorized":
       return "members.create.error.unauthorized";
@@ -37,42 +64,98 @@ function errorCopyKey(code: CreateMemberErrorCode): TranslationKey {
     case "network":
       return "members.create.error.network";
     case "validation":
+    case "not_found":
     case "unknown":
     default:
       return "members.create.error.unknown";
   }
 }
 
-export function MemberForm({ onSuccess, onCancel }: MemberFormProps) {
+const EMPTY_DEFAULTS: MemberFormInput = {
+  name: "",
+  phoneNumber: "",
+  dailyAmount: "",
+};
+
+export function MemberForm({
+  mode,
+  initialValues,
+  onSubmit,
+  onCancel,
+  isPending,
+  errorCode,
+  belowFields,
+}: MemberFormProps) {
   const t = useT();
-  const createMember = useCreateMember();
+
+  const defaults: MemberFormInput = initialValues
+    ? {
+        name: initialValues.name,
+        phoneNumber: initialValues.phoneNumber,
+        // RHF input shape expects a string for the number field (z.coerce).
+        dailyAmount: String(initialValues.dailyAmount),
+      }
+    : EMPTY_DEFAULTS;
 
   const form = useForm<MemberFormInput, unknown, MemberFormOutput>({
     resolver: zodResolver(createMemberInputSchema),
-    // "onChange" keeps `formState.isValid` synced to the live state of the
-    // three fields — avoids the "user hasn't blurred phone yet, so `isValid`
-    // is false" trap that disables the CTA when phone is legitimately empty.
     mode: "onChange",
-    defaultValues: {
-      name: "",
-      phoneNumber: "",
-      dailyAmount: "",
-    },
+    defaultValues: defaults,
   });
 
-  const canSubmit = form.formState.isValid && !createMember.isPending;
+  // Keep RHF defaults in sync if `initialValues` lands after the first
+  // render (e.g. /:id/edit hydrating from useMemberProfile). Unconditional
+  // reset would clobber user keystrokes; gate on the JSON snapshot of
+  // initialValues so we only reset when the source data actually changes.
+  // form.trigger() forces validation on all fields immediately — without
+  // it, RHF's `mode: "onChange"` waits for the FIRST field change before
+  // running async (zodResolver) validation, leaving formState.isValid
+  // stuck at false and the Save CTA permanently disabled in edit mode
+  // (caught by the Story 2.5 Playwright run).
+  const initialKey = initialValues ? JSON.stringify(initialValues) : "__none__";
+  useEffect(() => {
+    if (initialValues) {
+      form.reset({
+        name: initialValues.name,
+        phoneNumber: initialValues.phoneNumber,
+        dailyAmount: String(initialValues.dailyAmount),
+      });
+      void form.trigger();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialKey]);
+
+  const dirtyEnabled = mode === "edit" ? form.formState.isDirty : true;
+  const canSubmit = form.formState.isValid && dirtyEnabled && !isPending;
 
   const handleValid: SubmitHandler<MemberFormOutput> = async (values) => {
     try {
-      const memberId = await createMember.mutateAsync(values);
-      onSuccess(memberId, values);
+      await onSubmit(values);
     } catch {
-      // Error lives on createMember.error — rendered as a banner below.
-      // Do NOT rethrow; RHF is already done with its submission.
+      // The owning route surfaces the error via `errorCode` — re-throwing
+      // would crash RHF, which has already released the submission.
     }
   };
 
-  const errorBannerKey = createMember.error !== null ? errorCopyKey(createMember.error.code) : null;
+  const errorBannerKey = errorCode !== null ? errorCopyKey(mode, errorCode) : null;
+  const titleKey: TranslationKey = mode === "edit" ? "members.edit.title" : "members.create.title";
+  const subtitleKey: TranslationKey | null = mode === "edit" ? null : "members.create.subtitle";
+  const submitKey: TranslationKey = isPending
+    ? mode === "edit"
+      ? "members.edit.cta_submitting"
+      : "members.create.cta_submitting"
+    : mode === "edit"
+      ? "members.edit.cta_submit"
+      : "members.create.cta_submit";
+
+  // Subscribe to the form values for the optional below-fields render-prop
+  // slot. useWatch is the eslint-blessed alternative to form.watch().
+  const watched = useWatch({ control: form.control });
+  const slotValues: CreateMemberInput = {
+    name: watched.name ?? "",
+    phoneNumber: watched.phoneNumber ?? "",
+    dailyAmount: Number(watched.dailyAmount) || 0,
+  };
 
   return (
     <form
@@ -83,9 +166,9 @@ export function MemberForm({ onSuccess, onCancel }: MemberFormProps) {
     >
       <header className="flex flex-col gap-2 text-center">
         <h1 id="member-form-title" className="text-display text-primary-700">
-          {t("members.create.title")}
+          {t(titleKey)}
         </h1>
-        <p className="text-body-1 text-text-secondary">{t("members.create.subtitle")}</p>
+        {subtitleKey ? <p className="text-body-1 text-text-secondary">{t(subtitleKey)}</p> : null}
       </header>
 
       {/* Name */}
@@ -98,7 +181,7 @@ export function MemberForm({ onSuccess, onCancel }: MemberFormProps) {
           type="text"
           autoComplete="name"
           placeholder={t("members.create.field.name_placeholder")}
-          disabled={createMember.isPending}
+          disabled={isPending}
           aria-invalid={form.formState.errors.name ? true : undefined}
           aria-describedby={form.formState.errors.name ? "member-name-error" : undefined}
           {...form.register("name")}
@@ -121,7 +204,7 @@ export function MemberForm({ onSuccess, onCancel }: MemberFormProps) {
           inputMode="tel"
           autoComplete="tel"
           placeholder={t("members.create.field.phone_placeholder")}
-          disabled={createMember.isPending}
+          disabled={isPending}
           aria-invalid={form.formState.errors.phoneNumber ? true : undefined}
           aria-describedby={form.formState.errors.phoneNumber ? "member-phone-error" : undefined}
           {...form.register("phoneNumber")}
@@ -145,7 +228,7 @@ export function MemberForm({ onSuccess, onCancel }: MemberFormProps) {
           min={100}
           max={100000}
           step={1}
-          disabled={createMember.isPending}
+          disabled={isPending}
           aria-invalid={form.formState.errors.dailyAmount ? true : undefined}
           aria-describedby={
             form.formState.errors.dailyAmount ? "member-amount-error" : "member-amount-helper"
@@ -163,6 +246,8 @@ export function MemberForm({ onSuccess, onCancel }: MemberFormProps) {
         )}
       </div>
 
+      {belowFields ? belowFields({ values: slotValues, isDirty: form.formState.isDirty }) : null}
+
       {errorBannerKey !== null ? (
         <p role="alert" className="text-body-2 text-destructive">
           {t(errorBannerKey)}
@@ -171,9 +256,7 @@ export function MemberForm({ onSuccess, onCancel }: MemberFormProps) {
 
       <div className="flex flex-col gap-3">
         <Button type="submit" size="lg" disabled={!canSubmit} className="w-full">
-          {createMember.isPending
-            ? t("members.create.cta_submitting")
-            : t("members.create.cta_submit")}
+          {t(submitKey)}
         </Button>
         <Button
           type="button"
@@ -181,7 +264,7 @@ export function MemberForm({ onSuccess, onCancel }: MemberFormProps) {
           size="lg"
           className="w-full"
           onClick={onCancel}
-          disabled={createMember.isPending}
+          disabled={isPending}
         >
           {t("members.create.cta_cancel")}
         </Button>
