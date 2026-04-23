@@ -19,12 +19,25 @@
 - **Cite sources.** Implementation that derives from architecture/UX/PRD must cite the section in the story's Dev Notes.
 - **Tests first.** Every story follows red-green-refactor; cycle-engine domain (Story 3.2 onward) has a 100% coverage gate.
 
+## Local-DB workflow (preserve manually-seeded data)
+
+The Postgres data lives in a Docker volume that **survives `npm run db:stop`** (no `--no-backup` flag). Manually-seeded rows (members, cycles, transactions you create via Studio or RPC for exploratory work) persist across machine restarts.
+
+When adding a new migration during story implementation:
+
+- ✅ **Use `npm run db:migrate`** — applies pending migrations only, keeps existing data.
+- ❌ **Do NOT use `npm run db:reset`** unless you intentionally want to wipe everything and re-run all migrations from scratch.
+- Create a new migration file with `npm run db:migrate:new <slug>` (writes to `supabase/migrations/`).
+
+CI (the GitHub Actions workflow) starts from a clean Supabase stack on every run, so `db:reset` semantics are implicit there. Only the local dev loop benefits from `db:migrate`.
+
 ## Anti-patterns (do NOT do)
 
 - Install state-management libraries (Redux/Zustand/Jotai). TanStack Query + React Context is the decision.
 - Install UI kits (MUI/Ant/Chakra). shadcn/ui + Radix only.
 - Wire Supabase client outside `src/infrastructure/supabase/` (Story 1.2 owns the singleton).
 - Default shadcn components to neutral greys — re-skin to SafariCash primary-green.
+- Run `npm run db:reset` during normal story dev — it wipes any manually-seeded data. Use `npm run db:migrate` to apply new migrations incrementally.
 
 ## TODO
 
