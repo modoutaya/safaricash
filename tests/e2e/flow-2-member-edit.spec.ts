@@ -60,7 +60,10 @@ test.describe("Flow — /members/:id/edit (Story 2.5)", () => {
     await expect(page.getByText(/cette modification affectera le cycle en cours/i)).toBeVisible();
     await page.getByRole("button", { name: /^enregistrer$/i }).click();
     await expect(page).toHaveURL(new RegExp(`/members/${target.memberId}$`));
-    await expect(page.getByText(/1000 FCFA \/ jour/)).toBeVisible();
+    // formatFcfaAmount uses Intl.NumberFormat("fr-FR") which inserts a
+    // non-breaking space (U+00A0) between the thousands group and the
+    // remainder — match either NBSP or regular whitespace defensively.
+    await expect(page.getByText(/1[\s\u00a0]?000\s+FCFA\s+\/\s+jour/)).toBeVisible();
 
     // --- 4. audit_log row landed via the trigger. ---
     const { data: events, error: auditErr } = await service
