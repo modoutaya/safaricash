@@ -138,6 +138,73 @@ describe("fetchProfile", () => {
     expect(result?.transactions).toHaveLength(1);
     expect(result?.transactions[0]?.id).toBe("44444444-4444-4444-8444-444444444444");
   });
+
+  it("Story 2.7 — exposes previousCycles (completed/settled, newest first, excluding current)", async () => {
+    memberMaybeSingle.mockResolvedValue({ data: MEMBER_ROW, error: null });
+    cyclesEq.mockResolvedValue({
+      data: [
+        { ...CYCLE, cycle_number: 3 },
+        {
+          id: "77777777-7777-4777-8777-777777777777",
+          member_id: VALID_ID,
+          cycle_number: 2,
+          start_date: "2026-03-12",
+          end_date: "2026-04-10",
+          status: "completed",
+        },
+        {
+          id: "88888888-8888-4888-8888-888888888888",
+          member_id: VALID_ID,
+          cycle_number: 1,
+          start_date: "2026-02-12",
+          end_date: "2026-03-13",
+          status: "settled",
+        },
+      ],
+      error: null,
+    });
+    transactionsEq.mockResolvedValue({ data: [], error: null });
+
+    const result = await fetchProfile(VALID_ID);
+    expect(result?.currentCycle?.cycle_number).toBe(3);
+    expect(result?.previousCycles).toHaveLength(2);
+    expect(result?.previousCycles[0]?.cycle_number).toBe(2);
+    expect(result?.previousCycles[1]?.cycle_number).toBe(1);
+  });
+
+  it("Story 2.7 — currentCycle falls back to a completed cycle when no active exists", async () => {
+    memberMaybeSingle.mockResolvedValue({ data: MEMBER_ROW, error: null });
+    cyclesEq.mockResolvedValue({
+      data: [
+        {
+          id: "77777777-7777-4777-8777-777777777777",
+          member_id: VALID_ID,
+          cycle_number: 2,
+          start_date: "2026-03-12",
+          end_date: "2026-04-10",
+          status: "completed",
+        },
+        {
+          id: "88888888-8888-4888-8888-888888888888",
+          member_id: VALID_ID,
+          cycle_number: 1,
+          start_date: "2026-02-12",
+          end_date: "2026-03-13",
+          status: "completed",
+        },
+      ],
+      error: null,
+    });
+    transactionsEq.mockResolvedValue({ data: [], error: null });
+
+    const result = await fetchProfile(VALID_ID);
+    // Highest-numbered completed cycle is "promoted" to current.
+    expect(result?.currentCycle?.cycle_number).toBe(2);
+    expect(result?.currentCycle?.status).toBe("completed");
+    // The lower-numbered completed cycle is in previousCycles.
+    expect(result?.previousCycles).toHaveLength(1);
+    expect(result?.previousCycles[0]?.cycle_number).toBe(1);
+  });
 });
 
 describe("useMemberProfile (hook guard)", () => {

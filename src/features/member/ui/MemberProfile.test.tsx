@@ -134,6 +134,53 @@ describe("MemberProfile", () => {
     expect(screen.queryByText("+221777915898")).not.toBeInTheDocument();
   });
 
+  it("Story 2.7 — does NOT render 'Cycles précédents' when previousCycles is empty", () => {
+    render(
+      <MemberProfile
+        member={MEMBER}
+        currentCycle={CYCLE}
+        transactions={[]}
+        stats={STATS_NO_ADVANCES}
+      />,
+    );
+    expect(
+      screen.queryByRole("heading", { level: 2, name: /cycles précédents/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("Story 2.7 — renders 'Cycles précédents' with one row per previousCycle", () => {
+    const previousCycles: CycleRow[] = [
+      {
+        id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        cycle_number: 2,
+        start_date: "2026-03-12",
+        end_date: "2026-04-10",
+        status: "completed",
+      },
+      {
+        id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        cycle_number: 1,
+        start_date: "2026-02-12",
+        end_date: "2026-03-13",
+        status: "settled",
+      },
+    ];
+    render(
+      <MemberProfile
+        member={MEMBER}
+        currentCycle={{ ...CYCLE, cycle_number: 3 }}
+        previousCycles={previousCycles}
+        transactions={[]}
+        stats={STATS_NO_ADVANCES}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { level: 2, name: /cycles précédents/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^Cycle 2 — du 12\/03\/2026 au 10\/04\/2026$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Cycle 1 — du 12\/02\/2026 au 13\/03\/2026$/)).toBeInTheDocument();
+  });
+
   it("has no axe-detectable a11y violations", async () => {
     const { container } = render(
       <MemberProfile

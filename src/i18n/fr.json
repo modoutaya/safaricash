@@ -168,6 +168,25 @@
         "load": "Impossible de charger le profil. Réessayez dans un instant.",
         "not_found": "Membre introuvable.",
         "back_cta": "Retour"
+      },
+      "restart": {
+        "dialog_title": "Redémarrer le cycle ?",
+        "dialog_body": "Un nouveau cycle de 30 jours va démarrer pour {name}. Le cycle précédent reste visible dans l'historique.",
+        "dialog_confirm": "Redémarrer",
+        "dialog_cancel": "Annuler",
+        "cta_submitting": "Redémarrage…",
+        "toast_success": "Nouveau cycle démarré ✓",
+        "error": {
+          "unauthorized": "Vous devez être reconnecté pour redémarrer ce cycle",
+          "not_restartable": "Le cycle est de nouveau actif — actualisation en cours.",
+          "not_found": "Membre introuvable. Il a peut-être été supprimé.",
+          "network": "Pas de réseau — vérifiez votre connexion",
+          "unknown": "Erreur inattendue — réessayez"
+        }
+      },
+      "previous_cycles": {
+        "title": "Cycles précédents",
+        "row": "Cycle {n} — du {start} au {end}"
       }
     }
   },
