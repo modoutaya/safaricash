@@ -105,7 +105,9 @@ describe("MemberProfileRoute", () => {
           end_date: "2026-05-11",
           status: "active",
         },
+        previousCycles: [],
         transactions: [],
+        totalTransactionsCount: 0,
         stats: {
           cycleDay: 11,
           daysRemaining: 19,
@@ -135,6 +137,7 @@ describe("MemberProfileRoute", () => {
         },
         previousCycles: [],
         transactions: [],
+        totalTransactionsCount: 0,
         stats: {
           cycleDay: 11,
           daysRemaining: 19,
@@ -149,8 +152,8 @@ describe("MemberProfileRoute", () => {
     expect(modifier).toHaveAttribute("href", `/members/${VALID_ID}/edit`);
     // Story 2.7 — Restart action is hidden when current cycle is active.
     expect(screen.queryByRole("button", { name: /redémarrer/i })).not.toBeInTheDocument();
-    // Supprimer remains disabled (Story 2.6).
-    expect(screen.getByRole("button", { name: /supprimer/i })).toBeDisabled();
+    // Story 2.6 — Supprimer is now a real destructive button (no longer disabled).
+    expect(screen.getByRole("button", { name: /supprimer/i })).toBeEnabled();
   });
 
   it("Story 2.7 — renders the Restart button when the current cycle is completed", () => {
@@ -168,6 +171,7 @@ describe("MemberProfileRoute", () => {
         },
         previousCycles: [],
         transactions: [],
+        totalTransactionsCount: 30,
         stats: {
           cycleDay: 30,
           daysRemaining: 0,

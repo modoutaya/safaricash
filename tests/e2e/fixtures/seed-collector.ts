@@ -76,15 +76,22 @@ export async function seedCollectorViaAdmin(
   const rand = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
   const email = `${label.toLowerCase()}-${stamp}-${rand}@safaricash-test.local`;
   const password = `Pwd-${label}-${rand}-${stamp}`;
-  // +221 + 9 digits; first two fixed to "77" (valid Senegalese mobile prefix),
-  // remaining 7 random. Wide entropy avoids UNIQUE collisions under parallel
-  // CI runs.
-  const phone = `+22177${crypto.randomUUID().replace(/-/g, "").slice(0, 9)}`;
+  // +221 + 9 digits, all numeric. randomUUID gives a-f chars too — use
+  // Math.random for digit-only entropy. First two fixed to "77" (valid
+  // Senegalese mobile prefix), remaining 7 random digits.
+  const phone = `+22177${Math.floor(Math.random() * 10_000_000)
+    .toString()
+    .padStart(7, "0")}`;
 
+  // Story 2.6 — auth.users MUST have a phone too so the re-auth Edge
+  // Function (Story 1.5b) can resolve it via getUserById and call
+  // signInWithPassword({ phone, ... }) for the password re-auth flow.
   const { data: authData, error: authError } = await service.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
+    phone: phone.replace(/^\+/, ""), // Supabase Auth stores phone WITHOUT the leading +
+    phone_confirm: true,
   });
   if (authError || !authData.user) {
     throw new Error(`seedCollectorViaAdmin(${label}): createUser — ${authError?.message}`);

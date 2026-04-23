@@ -187,6 +187,24 @@
       "previous_cycles": {
         "title": "Cycles précédents",
         "row": "Cycle {n} — du {start} au {end}"
+      },
+      "delete": {
+        "cta": "Supprimer définitivement",
+        "dialog_title": "Supprimer ce membre ?",
+        "dialog_summary_zero": "Aucune transaction enregistrée. {m} cycle(s) seront supprimés.",
+        "dialog_summary": "{n} transaction(s) sur {m} cycle(s) seront définitivement supprimés.",
+        "dialog_warning": "Cette action est définitive et ne peut pas être annulée.",
+        "confirmation_input_label": "Tapez SUPPRIMER pour confirmer",
+        "confirmation_continue": "Continuer",
+        "password_input_label": "Confirmez votre mot de passe",
+        "password_invalid": "Mot de passe invalide. Réessayez.",
+        "password_rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
+        "password_unexpected": "Erreur inattendue. Réessayez.",
+        "final_cta": "Supprimer définitivement",
+        "cta_submitting": "Suppression…",
+        "cancel": "Annuler",
+        "toast_success": "{name} supprimé ✓",
+        "toast_failure": "Échec de la suppression. Réessayez."
       }
     }
   },

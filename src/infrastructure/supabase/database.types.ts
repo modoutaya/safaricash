@@ -536,6 +536,10 @@ export type Database = {
         Args: { p_member_id: string };
         Returns: string;
       };
+      delete_member: {
+        Args: { p_id: string };
+        Returns: undefined;
+      };
       show_limit: { Args: never; Returns: number };
       show_trgm: { Args: { "": string }; Returns: string[] };
       vault_decrypt: { Args: { secret_id: string }; Returns: string };

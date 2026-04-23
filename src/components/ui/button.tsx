@@ -11,7 +11,12 @@ const buttonVariants = cva(
       variant: {
         default:
           "bg-primary text-primary-foreground shadow-sm hover:bg-primary-600 hover:shadow-cta-hover active:bg-primary-700",
-        destructive: "bg-destructive text-white hover:bg-destructive/90 active:bg-destructive/80",
+        // Story 2.6 — destructive uses the deep-brown shade (token
+        // destructive.text = #712B13) as the surface so white text passes
+        // WCAG AA (4.5:1). The lighter destructive.DEFAULT (#E24B4A) stays
+        // available for low-prominence accents (banners, icons).
+        destructive:
+          "bg-destructive-text text-white hover:bg-destructive-text/90 active:bg-destructive-text/80",
         outline: "border border-primary text-primary-700 bg-transparent hover:bg-primary-50",
         secondary: "bg-primary-50 text-primary-900 hover:bg-primary-100",
         ghost: "text-primary-700 hover:bg-primary-50",

@@ -30,6 +30,9 @@ export interface MemberProfileData {
    *  newest first. Drives the "Cycles précédents" read-only section. */
   previousCycles: CycleRow[];
   transactions: TransactionRow[];
+  /** Story 2.6 — count of transactions across ALL cycles (current +
+   *  previous). Drives the delete dialog summary copy. */
+  totalTransactionsCount: number;
   stats: MemberStats;
 }
 
@@ -104,7 +107,14 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
     currentCycle ? { startDate: currentCycle.start_date } : null,
   );
 
-  return { member, currentCycle, previousCycles, transactions, stats };
+  return {
+    member,
+    currentCycle,
+    previousCycles,
+    transactions,
+    totalTransactionsCount: allTransactions.length,
+    stats,
+  };
 }
 
 export function useMemberProfile(

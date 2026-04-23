@@ -137,6 +137,8 @@ describe("fetchProfile", () => {
     const result = await fetchProfile(VALID_ID);
     expect(result?.transactions).toHaveLength(1);
     expect(result?.transactions[0]?.id).toBe("44444444-4444-4444-8444-444444444444");
+    // Story 2.6 — totalTransactionsCount counts ALL cycles (here: 2).
+    expect(result?.totalTransactionsCount).toBe(2);
   });
 
   it("Story 2.7 — exposes previousCycles (completed/settled, newest first, excluding current)", async () => {
