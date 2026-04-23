@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-23
-# touched: 2-4 done; 2-5 done; 2-7-restart-cycle → review (dev via /bmad-dev-story; local Playwright validation discipline applied)
+# touched: 2-5 done; 2-7 done; 2-6-delete-member-confirmation → ready-for-dev (spec generated; LAST story of Epic 2)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -63,8 +63,8 @@ development_status:
   2-3-contacts-bulk-import: review  # spec generated 2026-04-22; reuses Story 2.2 RPC via p_created_via='contacts_import' + new phone-hash unique constraint migration; 3-step state machine + Promise.allSettled with 5-concurrency limiter; Chromium-Android only (iOS fallback to manual entry)
   2-4-member-profile-view: done  # PR #11 merged 2026-04-22; 19 new tests; full gates green (336 vitest, coverage 75.7% > 75%); E2E env-gated
   2-5-edit-member-impact-alert: done  # PR #13 merged 2026-04-23; 17 new tests; uncovered + fixed system-wide audit-trigger JWT bug (migration 0017)
-  2-6-delete-member-confirmation: backlog
-  2-7-restart-cycle: review  # implemented 2026-04-23; 14 new tests; full gates green (380 vitest, coverage 76.19% > 75%); 17 E2E specs validated locally before push
+  2-6-delete-member-confirmation: ready-for-dev  # spec 2026-04-23; LAST story of Epic 2; consumes existing re-auth Edge Function (Story 1.5b) for password re-auth; new delete_member RPC with 5-table cascade in dependency order; vault secrets stay untouched (Epic 10 territory)
+  2-7-restart-cycle: done  # PR #15 merged 2026-04-23; 14 new tests; full gates green; CI passed first-try thanks to local Playwright validation
   epic-2-retrospective: optional
 
   # Epic 3 — Cycle Engine & Progression
