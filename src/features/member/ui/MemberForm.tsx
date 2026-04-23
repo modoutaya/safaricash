@@ -107,6 +107,11 @@ export function MemberForm({
   // render (e.g. /:id/edit hydrating from useMemberProfile). Unconditional
   // reset would clobber user keystrokes; gate on the JSON snapshot of
   // initialValues so we only reset when the source data actually changes.
+  // form.trigger() forces validation on all fields immediately — without
+  // it, RHF's `mode: "onChange"` waits for the FIRST field change before
+  // running async (zodResolver) validation, leaving formState.isValid
+  // stuck at false and the Save CTA permanently disabled in edit mode
+  // (caught by the Story 2.5 Playwright run).
   const initialKey = initialValues ? JSON.stringify(initialValues) : "__none__";
   useEffect(() => {
     if (initialValues) {
@@ -115,6 +120,7 @@ export function MemberForm({
         phoneNumber: initialValues.phoneNumber,
         dailyAmount: String(initialValues.dailyAmount),
       });
+      void form.trigger();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialKey]);
