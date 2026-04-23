@@ -8,7 +8,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { MemberForm, isContactPickerSupported } from "@/features/member";
+import { MemberForm, isContactPickerSupported, useCreateMember } from "@/features/member";
 import { useT } from "@/i18n/useT";
 
 export default function MembersNewRoute() {
@@ -16,6 +16,7 @@ export default function MembersNewRoute() {
   const t = useT();
   // Story 2.3 — secondary CTA only when the browser supports the picker.
   const canImport = isContactPickerSupported();
+  const createMember = useCreateMember();
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-col gap-4 py-6">
@@ -31,7 +32,11 @@ export default function MembersNewRoute() {
       </header>
 
       <MemberForm
-        onSuccess={(_memberId, values) => {
+        mode="create"
+        isPending={createMember.isPending}
+        errorCode={createMember.error?.code ?? null}
+        onSubmit={async (values) => {
+          await createMember.mutateAsync(values);
           toast.success(t("members.create.success_toast", { name: values.name }));
           navigate("/members", { replace: true });
         }}

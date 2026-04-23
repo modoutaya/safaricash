@@ -523,6 +523,15 @@ export type Database = {
         Args: { p_reason: string };
         Returns: undefined;
       };
+      update_member: {
+        Args: {
+          p_id: string;
+          p_name: string;
+          p_phone_number: string;
+          p_daily_amount: number;
+        };
+        Returns: undefined;
+      };
       show_limit: { Args: never; Returns: number };
       show_trgm: { Args: { "": string }; Returns: string[] };
       vault_decrypt: { Args: { secret_id: string }; Returns: string };

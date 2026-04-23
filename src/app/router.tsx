@@ -25,6 +25,7 @@ import DashboardRoute from "@/app/routes/dashboard";
 import LoginRoute from "@/app/routes/login";
 import MembersRoute from "@/app/routes/members";
 import MemberProfileRoute from "@/app/routes/members/[id]";
+import MemberEditRoute from "@/app/routes/members/[id].edit";
 import MembersImportRoute from "@/app/routes/members/import";
 import MembersNewRoute from "@/app/routes/members/new";
 import SettingsRoute from "@/app/routes/settings";
@@ -46,8 +47,11 @@ export const router = createBrowserRouter([
               { path: "members/new", element: <MembersNewRoute /> },
               { path: "members/import", element: <MembersImportRoute /> },
               // Story 2.4 — :id is registered AFTER the static /new + /import
-              // paths so React Router matches the literals first.
+              // paths so React Router matches the literals first. Story 2.5
+              // adds :id/edit AFTER :id; React Router prefers the longer
+              // static segment ("edit") over a bare param.
               { path: "members/:id", element: <MemberProfileRoute /> },
+              { path: "members/:id/edit", element: <MemberEditRoute /> },
               { path: "settings", element: <SettingsRoute /> },
             ],
           },

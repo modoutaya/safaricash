@@ -124,6 +124,24 @@
       "unsupported_body": "Cette fonctionnalité requiert Chrome ou Edge sur Android. Sur iOS et autres navigateurs, ajoutez vos membres un par un.",
       "unsupported_cta_manual": "Ajouter manuellement"
     },
+    "edit": {
+      "title": "Modifier le membre",
+      "back_label": "Retour au profil",
+      "cta_submit": "Enregistrer",
+      "cta_submitting": "Enregistrement…",
+      "toast_success": "Modifications enregistrées ✓",
+      "impact_alert": {
+        "daily_amount": "Cette modification affectera le cycle en cours. Les projections vont être recalculées."
+      },
+      "error": {
+        "unauthorized": "Vous devez être reconnecté pour modifier ce membre",
+        "duplicate_phone": "Un autre membre utilise déjà ce numéro",
+        "validation": "Données invalides — vérifiez les champs",
+        "network": "Pas de réseau — vérifiez votre connexion",
+        "not_found": "Membre introuvable. Il a peut-être été supprimé.",
+        "unknown": "Erreur inattendue — réessayez"
+      }
+    },
     "profile": {
       "back_label": "Retour à la liste des membres",
       "actions_label": "Actions",

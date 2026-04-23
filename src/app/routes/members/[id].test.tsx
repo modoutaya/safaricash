@@ -119,4 +119,35 @@ describe("MemberProfileRoute", () => {
     expect(screen.getByRole("heading", { level: 1, name: /awa diallo/i })).toBeInTheDocument();
     expect(screen.getByText(/aucune transaction enregistrée/i)).toBeInTheDocument();
   });
+
+  it("Story 2.5 — renders the Modifier link as a real link to /members/:id/edit (not disabled)", () => {
+    useMemberProfileMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        member: MEMBER,
+        currentCycle: {
+          id: "22222222-2222-4222-8222-222222222222",
+          cycle_number: 1,
+          start_date: "2026-04-12",
+          end_date: "2026-05-11",
+          status: "active",
+        },
+        transactions: [],
+        stats: {
+          cycleDay: 11,
+          daysRemaining: 19,
+          contributedTotal: 0,
+          outstandingAdvances: 0,
+          projectedFinalBalance: 14500,
+        },
+      },
+    });
+    renderRoute(`/members/${VALID_ID}`);
+    const modifier = screen.getByRole("link", { name: /modifier/i });
+    expect(modifier).toHaveAttribute("href", `/members/${VALID_ID}/edit`);
+    // Restart-cycle + Supprimer remain disabled buttons (Stories 2.6 / 2.7).
+    expect(screen.getByRole("button", { name: /redémarrer/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /supprimer/i })).toBeDisabled();
+  });
 });

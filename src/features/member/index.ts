@@ -6,9 +6,11 @@
 
 export { useMembers } from "./api/useMembers";
 export { useCreateMember } from "./api/useCreateMember";
+export { useUpdateMember } from "./api/useUpdateMember";
 export { useImportMembers } from "./api/useImportMembers";
 export { useMemberProfile } from "./api/useMemberProfile";
 export { computeMemberStats } from "./api/computeMemberStats";
+export { computeEditImpact } from "./api/computeEditImpact";
 export { isContactPickerSupported } from "./api/contactsPickerSupport";
 export {
   hasContactsConsent,
@@ -20,6 +22,7 @@ export {
   MEMBER_HEADER_CTA_THRESHOLD,
   MEMBER_PROFILE_QUERY_KEY,
   createMemberInputSchema,
+  updateMemberInputSchema,
 } from "./types";
 export { MemberList } from "./ui/MemberList";
 export { MemberCard } from "./ui/MemberCard";
@@ -30,6 +33,8 @@ export { ContactsPickerStep, type PickedContact } from "./ui/ContactsPickerStep"
 export { ImportProgressStep } from "./ui/ImportProgressStep";
 export type {
   CreateMemberInput,
+  UpdateMemberInput,
+  EditImpact,
   DisplayStatus,
   DerivedStatus,
   MemberRow,
