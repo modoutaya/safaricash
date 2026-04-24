@@ -1,6 +1,6 @@
 # Story 4.1: MemberActionSheet component with pre-filled amount
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -198,17 +198,22 @@ UX line 438 implies the action sheet IS the new entry point — profile becomes 
 
 ## Dev Agent Record
 
-### Implementation Plan
-_(populated by dev agent)_
-
 ### Completion Notes
-_(populated by dev agent)_
+
+- All 15 ACs satisfied. `MemberActionSheet` lives at `src/components/domain/`. Native `<dialog>` shell, bottom-anchored. 4 transaction CTAs disabled by default (Stories 4.3-4.5 will wire). Closed-cycle gate via Story 3.4 helper.
+- 8 component tests + jest-axe. MemberList rewired (card tap → sheet). Story 2.4's navigate test → sheet flow. `flow-2-member-profile.spec.ts` E2E updated.
+- All gates green: typecheck / lint / 426 vitest / build / 18 Playwright validated locally.
 
 ### Debug Log
-_(populated by dev agent)_
+
+- i18n keys initially nested under `members.profile.*` instead of `members.*` — TypeScript caught it.
+- `exactOptionalPropertyTypes: true` rejected explicit `undefined` for optional props — refactored test helper.
+- jsx-a11y rules on `<dialog onClick>` (backdrop) — used block-level eslint-disable with justification.
 
 ## File List
-_(populated by dev agent)_
+
+**New:** `src/components/domain/MemberActionSheet.tsx` + `.test.tsx`
+**Modified:** `src/features/member/ui/MemberList.tsx` + `.test.tsx`, `src/i18n/fr.json`, `tests/e2e/flow-2-member-profile.spec.ts`, `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
 ## Change Log
 

@@ -37,8 +37,12 @@ test.describe("Flow — /members/:id profile (Story 2.4)", () => {
     await page.goto("/members");
     await expect(page.getByRole("heading", { level: 1, name: /membres/i })).toBeVisible();
 
-    // Tap the seeded member's card.
+    // Story 4.1 — tap card opens the action sheet (NOT direct navigate).
     await page.getByRole("button", { name: new RegExp(targetName, "i") }).click();
+
+    // Action sheet visible — Voir profil is the new path to the profile.
+    await expect(page.getByRole("button", { name: /^voir profil$/i })).toBeVisible();
+    await page.getByRole("button", { name: /^voir profil$/i }).click();
 
     // Profile page lands.
     await expect(page).toHaveURL(new RegExp(`/members/${target.memberId}$`));

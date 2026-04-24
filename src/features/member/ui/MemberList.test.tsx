@@ -241,7 +241,16 @@ describe("MemberList", () => {
     expect(screen.getByText(/vérifiez l'orthographe/i)).toBeInTheDocument();
   });
 
-  it("navigates to /members/:id on card tap (Story 2.4 wiring)", () => {
+  it("Story 4.1 — card tap opens the action sheet (not direct navigate); Voir profil navigates", () => {
+    // jsdom doesn't implement <dialog>'s showModal/close — same shim used
+    // by RestartCycleDialog.test.tsx (Story 2.7).
+    HTMLDialogElement.prototype.showModal = function () {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close = function () {
+      this.removeAttribute("open");
+      this.dispatchEvent(new Event("close"));
+    };
     useMembersMock.mockReturnValue({
       data: [makeMember({ id: "11111111-1111-4111-8111-111111111111", name: "Fatou" })],
       isLoading: false,
@@ -256,7 +265,16 @@ describe("MemberList", () => {
         </Routes>
       </MemoryRouter>,
     );
+
+    // Card tap opens the action sheet (no immediate navigate).
     fireEvent.click(screen.getByRole("button", { name: /fatou/i }));
+    expect(screen.queryByTestId("profile-route")).not.toBeInTheDocument();
+    // Action sheet visible — Voir profil is dialog-only and unique.
+    const viewProfile = screen.getByRole("button", { name: /^voir profil$/i });
+    expect(viewProfile).toBeInTheDocument();
+
+    // Tap Voir profil → navigate to /members/:id.
+    fireEvent.click(viewProfile);
     expect(screen.getByTestId("profile-route")).toBeInTheDocument();
   });
 
