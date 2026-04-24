@@ -79,7 +79,7 @@ development_status:
   # Epic 4 — Daily Transaction Capture (Core)
   epic-4: in-progress  # kicked off 2026-04-24 with Story 4.1
   4-1-member-action-sheet-component: done  # PR #28 merged 2026-04-24; MemberActionSheet + MemberList rewire
-  4-2-progressive-toast-component: ready-for-dev  # spec 2026-04-24; pure presentation, 5-state discriminated union; sonner integration + timers + sms_queue subscription deferred to Story 4.3
+  4-2-progressive-toast-component: review  # implemented 2026-04-24; pure component + 9 tests; all gates green at first pass
   4-3-record-contribution-online: backlog
   4-4-record-rattrapage: backlog
   4-5-undo-transaction-window: backlog

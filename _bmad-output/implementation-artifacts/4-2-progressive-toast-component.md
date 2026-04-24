@@ -1,6 +1,6 @@
 # Story 4.2: ProgressiveToast component with state contract
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -106,17 +106,14 @@ Story 4.3's `useRecordContribution` hook will own the 5-second undo timer, the t
 
 ## Dev Agent Record
 
-### Implementation Plan
-_(populated by dev agent)_
-
 ### Completion Notes
-_(populated by dev agent)_
 
-### Debug Log
-_(populated by dev agent)_
+- All 10 ACs satisfied. `ProgressiveToast.tsx` shipped. 9 component tests including axe across all 5 states. All gates green at first pass: typecheck / lint / 435 vitest / build. No re-runs needed.
 
 ## File List
-_(populated by dev agent)_
+
+**New:** `src/components/domain/ProgressiveToast.tsx` + `.test.tsx`
+**Modified:** `src/i18n/fr.json` (added `members.toast.*` namespace), `_bmad-output/implementation-artifacts/sprint-status.yaml`
 
 ## Change Log
 
