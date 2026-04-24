@@ -10,6 +10,7 @@ export {
   computeMemberStats,
   computeProjectedFinalBalance,
   cycleDay,
+  isCycleClosedForTransactions,
   isSettlementReady,
   settle,
   type MemberStats,

@@ -32,4 +32,5 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/_shared/emit-session-event.contract.test.ts \
   supabase/functions/_shared/create-member-with-cycle.contract.test.ts \
   supabase/functions/_shared/promote-cycle-on-advance.contract.test.ts \
+  supabase/functions/_shared/reject-transaction-on-closed-cycle.contract.test.ts \
   "$@"

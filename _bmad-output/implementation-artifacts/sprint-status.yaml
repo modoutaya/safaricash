@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-23
-# touched: 3-3 done; 3-4-prevent-post-completion-contributions → ready-for-dev (BEFORE INSERT trigger + 409 + helper)
+# touched: 3-3 done; 3-4-prevent-post-completion-contributions → review (FR19 DB enforcement + helper)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -72,7 +72,7 @@ development_status:
   3-1-cycle-invariants-adr: done  # PR #20 merged 2026-04-23; ADR-004 ships 8 invariants with property test skeleton names
   3-2-cycle-engine-pure-module: done  # PR #22 merged 2026-04-24; cycle module 100% coverage; fast-check installed; computeMemberStats moved to domain
   3-3-cycle-status-transitions: done  # PR #24 merged 2026-04-24; promote_cycle_on_advance trigger + cycle.transitioned audit event
-  3-4-prevent-post-completion-contributions: ready-for-dev  # spec 2026-04-24; DB-only — BEFORE INSERT trigger on transactions rejects ALL kinds on completed/settled cycles via sqlstate 23514 → PostgREST 409; adds isCycleClosedForTransactions cycle-engine helper + i18n copy for Story 4.1 to consume; frontend wiring deferred to 4.1
+  3-4-prevent-post-completion-contributions: review  # implemented 2026-04-24; migration 0022 + 6 Deno contract tests + cycle-engine helper + i18n key; all gates green (418 vitest, 25 edge, 18 Playwright validated locally)
   3-5-cycles-ending-alerts: backlog
   epic-3-retrospective: optional
 

@@ -18,6 +18,7 @@ import {
   computeMemberStats,
   computeProjectedFinalBalance,
   cycleDay,
+  isCycleClosedForTransactions,
   isSettlementReady,
   settle,
 } from "./cycleEngine";
@@ -233,6 +234,28 @@ describe("cycleEngine — example tests", () => {
 
     it("returns true after day 30", () => {
       expect(isSettlementReady(new Date("2026-05-15T12:00:00Z"), "2026-04-01")).toBe(true);
+    });
+  });
+
+  describe("isCycleClosedForTransactions", () => {
+    it("returns false for an active cycle", () => {
+      expect(isCycleClosedForTransactions({ status: "active" })).toBe(false);
+    });
+
+    it("returns false for a with_advance cycle (still open for writes)", () => {
+      expect(isCycleClosedForTransactions({ status: "with_advance" })).toBe(false);
+    });
+
+    it("returns true for a completed cycle", () => {
+      expect(isCycleClosedForTransactions({ status: "completed" })).toBe(true);
+    });
+
+    it("returns true for a settled cycle", () => {
+      expect(isCycleClosedForTransactions({ status: "settled" })).toBe(true);
+    });
+
+    it("returns false for a null cycle (no cycle = nothing to gate)", () => {
+      expect(isCycleClosedForTransactions(null)).toBe(false);
     });
   });
 
