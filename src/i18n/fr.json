@@ -215,6 +215,16 @@
       "secondary_advance": "Prêt",
       "secondary_custom": "Montant personnalisé",
       "secondary_view_profile": "Voir profil"
+    },
+    "toast": {
+      "committed": "Cotisation enregistrée — {name}",
+      "undo_cta": "Annuler ({secondsLeft}s)",
+      "sending": "Envoi du reçu à {name}…",
+      "delivered": "Reçu délivré ✓ — {name}",
+      "offline": "Hors-ligne — envoi au prochain réseau",
+      "failed": "Échec de l'envoi — retenter",
+      "retry_cta": "Retenter",
+      "dismiss_aria": "Fermer la notification"
     }
   },
   "settings_contacts": {
