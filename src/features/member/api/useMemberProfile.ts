@@ -9,6 +9,7 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { z } from "zod";
 
+import { computeMemberStats } from "@/domain/cycle";
 import { supabase } from "@/infrastructure/supabase/client";
 
 import {
@@ -21,7 +22,6 @@ import {
   type MemberStats,
   type TransactionRow,
 } from "../types";
-import { computeMemberStats } from "./computeMemberStats";
 
 export interface MemberProfileData {
   member: MemberRow;

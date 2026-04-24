@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-23
-# touched: 3-1 done; 3-2-cycle-engine-pure-module → ready-for-dev (engine implementation consuming ADR-004)
+# touched: 3-1 done; 3-2-cycle-engine-pure-module → review (cycle engine + 100% coverage gate)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -70,7 +70,7 @@ development_status:
   # Epic 3 — Cycle Engine & Progression
   epic-3: in-progress  # kicked off 2026-04-23 with Story 3.1 (cycle-invariants ADR)
   3-1-cycle-invariants-adr: done  # PR #20 merged 2026-04-23; ADR-004 ships 8 invariants with property test skeleton names
-  3-2-cycle-engine-pure-module: ready-for-dev  # spec 2026-04-24; implements ADR-004's 8 invariants in src/domain/cycle/cycleEngine.ts with 100% coverage gate; installs fast-check; moves computeMemberStats to domain layer; ESLint guard against layering regressions
+  3-2-cycle-engine-pure-module: review  # implemented 2026-04-24; cycle module 100% coverage across all 4 metrics; 28 tests (8 property + 20 example); fast-check 4.7.0 installed; computeMemberStats moved to domain layer; ESLint guard added; 18/18 Playwright validated locally
   3-3-cycle-status-transitions: backlog
   3-4-prevent-post-completion-contributions: backlog
   3-5-cycles-ending-alerts: backlog

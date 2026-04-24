@@ -106,6 +106,13 @@ export default defineConfig({
           functions: 100,
           lines: 100,
         },
+        // Story 3.2 — cycle engine 100 % gate (NFR-R3 zero-tolerance).
+        "src/domain/cycle/**/*.ts": {
+          statements: 100,
+          branches: 100,
+          functions: 100,
+          lines: 100,
+        },
       },
     },
   },
