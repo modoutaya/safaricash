@@ -188,6 +188,7 @@
         "title": "Cycles précédents",
         "row": "Cycle {n} — du {start} au {end}"
       },
+      "cycle_closed_blocked": "Le cycle est clôturé. Redémarrez-en un nouveau pour reprendre les cotisations.",
       "delete": {
         "cta": "Supprimer définitivement",
         "dialog_title": "Supprimer ce membre ?",

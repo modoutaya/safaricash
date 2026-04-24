@@ -97,6 +97,21 @@ export function isSettlementReady(now: Date, startDate: string): boolean {
   return cycleDay(startDate, now) >= CYCLE_TOTAL_DAYS;
 }
 
+/**
+ * Story 3.4 / FR19 — true iff new transactions cannot be recorded against
+ * the cycle (status is `completed` or `settled`). Mirrors the server-side
+ * BEFORE INSERT trigger from migration 0022. Story 4.1's MemberActionSheet
+ * consumes this to disable the Primary CTA on closed cycles.
+ *
+ * `null` cycle (rare; manual data state) → false (no transactions to reject;
+ * the absence is itself a different gate handled upstream).
+ */
+type CycleStatusValue = "active" | "with_advance" | "completed" | "settled";
+export function isCycleClosedForTransactions(cycle: { status: CycleStatusValue } | null): boolean {
+  if (cycle === null) return false;
+  return cycle.status === "completed" || cycle.status === "settled";
+}
+
 /** Pure derived stats per FR17. Replaces the Story 2.4
  *  src/features/member/api/computeMemberStats.ts helper. */
 export interface MemberStats {

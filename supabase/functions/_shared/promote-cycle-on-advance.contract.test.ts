@@ -293,45 +293,19 @@ if (env) {
     },
   });
 
+  // NOTE — Story 3.3's "advance on completed cycle is a no-op" test was
+  // removed in Story 3.4. The Story 3.4 BEFORE INSERT trigger
+  // (reject_transaction_on_closed_cycle) now rejects the INSERT with
+  // sqlstate 23514 BEFORE this story's AFTER trigger fires, so the no-op
+  // behaviour can no longer be observed from the application layer. The
+  // equivalent contract is now asserted in
+  // reject-transaction-on-closed-cycle.contract.test.ts (Story 3.4).
   Deno.test({
-    name: "advance on completed cycle is a no-op (defense-in-depth — Story 3.4 rejects upstream)",
-    ...denoOpts,
-    fn: async () => {
-      const anon = createClient(env.url, env.anonKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-      const c = await seedCollector(service, anon, "trans4");
-      try {
-        const userClient = createClient(env.url, env.anonKey, {
-          auth: { persistSession: false, autoRefreshToken: false },
-          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
-        });
-        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
-
-        // Force-complete the cycle via service-role. This itself fires a
-        // cycle.transitioned event (active → completed is a real status
-        // change). Snapshot the count AFTER the setup so we only assert
-        // the post-advance delta.
-        await service.from("cycles").update({ status: "completed" }).eq("id", cycleId);
-        assertEquals(await getCycleStatus(service, cycleId), "completed");
-        const baselineTransitions = await getCycleTransitionedCount(service, cycleId);
-
-        await insertTransaction(service, {
-          collectorId: c.userId,
-          memberId,
-          cycleId,
-          kind: "advance",
-          cycleDay: 30,
-        });
-
-        // Status MUST stay completed (the WHERE status='active' filter
-        // protects against silent demotion). No NEW cycle.transitioned
-        // event from the advance INSERT (the cycles UPDATE affected 0 rows).
-        assertEquals(await getCycleStatus(service, cycleId), "completed");
-        assertEquals(await getCycleTransitionedCount(service, cycleId), baselineTransitions);
-      } finally {
-        await cleanup(service, c);
-      }
+    name: "(Story 3.4) — advance on completed cycle is REJECTED upstream (see reject-transaction-on-closed-cycle.contract.test.ts)",
+    ignore: true,
+    fn: () => {
+      // Intentionally a no-op test kept as a discoverability marker.
+      // Delete this stub when the Story 3.3/3.4 transition is well-established.
     },
   });
 }
