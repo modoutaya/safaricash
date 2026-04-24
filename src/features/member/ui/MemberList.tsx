@@ -14,6 +14,7 @@ import { Link, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/domain/EmptyState";
+import { MemberActionSheet } from "@/components/domain/MemberActionSheet";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
 
@@ -57,8 +58,14 @@ export function MemberList(): JSX.Element {
   const [selectedChips, setSelectedChips] = useState<ReadonlySet<DisplayStatus>>(
     () => new Set<DisplayStatus>(),
   );
+  // Story 4.1 — card tap opens the action sheet (was: navigate to profile).
+  // Profile access lives inside the sheet via "Voir profil".
+  const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
 
   const filtered = useFilteredMembers(members ?? [], deferredQuery, selectedChips);
+  const activeMember = activeMemberId
+    ? ((members ?? []).find((m) => m.id === activeMemberId) ?? null)
+    : null;
 
   if (isLoading) return <></>;
 
@@ -157,10 +164,7 @@ export function MemberList(): JSX.Element {
         <ul className="flex flex-col gap-2" aria-label={t("members.title")}>
           {filtered.map((member) => (
             <li key={member.id}>
-              <MemberCard
-                member={member}
-                onSelect={(memberId) => navigate(`/members/${memberId}`)}
-              />
+              <MemberCard member={member} onSelect={(memberId) => setActiveMemberId(memberId)} />
             </li>
           ))}
         </ul>
@@ -174,6 +178,36 @@ export function MemberList(): JSX.Element {
         >
           <Plus size={24} aria-hidden />
         </Link>
+      ) : null}
+
+      {activeMember ? (
+        <MemberActionSheet
+          open={true}
+          onOpenChange={(next) => {
+            if (!next) setActiveMemberId(null);
+          }}
+          member={{
+            id: activeMember.id,
+            name: activeMember.name,
+            dailyAmount: activeMember.dailyAmount,
+          }}
+          currentCycle={
+            activeMember.currentCycle
+              ? {
+                  status:
+                    activeMember.displayStatus === "avance"
+                      ? "with_advance"
+                      : activeMember.displayStatus === "termine"
+                        ? "completed"
+                        : "active",
+                }
+              : null
+          }
+          onViewProfile={(id) => {
+            setActiveMemberId(null);
+            navigate(`/members/${id}`);
+          }}
+        />
       ) : null}
     </section>
   );

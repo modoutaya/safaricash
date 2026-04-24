@@ -207,6 +207,14 @@
         "toast_success": "{name} supprimé ✓",
         "toast_failure": "Échec de la suppression. Réessayez."
       }
+    },
+    "action_sheet": {
+      "aria_label": "Actions pour {name}",
+      "primary_cta": "Enregistrer cotisation — {amount} FCFA",
+      "secondary_rattrapage": "Rattrapage",
+      "secondary_advance": "Prêt",
+      "secondary_custom": "Montant personnalisé",
+      "secondary_view_profile": "Voir profil"
     }
   },
   "settings_contacts": {

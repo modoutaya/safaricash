@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-23
-# touched: 3-4 done; 4-1-member-action-sheet-component → ready-for-dev (Epic 4 kickoff)
+# touched: 3-4 done; 4-1-member-action-sheet-component → review (Epic 4 kickoff)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -78,7 +78,7 @@ development_status:
 
   # Epic 4 — Daily Transaction Capture (Core)
   epic-4: in-progress  # kicked off 2026-04-24 with Story 4.1
-  4-1-member-action-sheet-component: ready-for-dev  # spec 2026-04-24; MemberActionSheet shell under src/components/domain/; native <dialog>; closed-cycle gate via Story 3.4 helper; card tap changes behaviour (opens sheet, not navigate); 4 transaction handlers stubbed (Stories 4.3-4.5 wire them)
+  4-1-member-action-sheet-component: review  # implemented 2026-04-24; MemberActionSheet shell + MemberList rewire + 8 component tests + E2E updated; all gates green (426 vitest, 18 Playwright validated locally)
   4-2-progressive-toast-component: backlog
   4-3-record-contribution-online: backlog
   4-4-record-rattrapage: backlog
