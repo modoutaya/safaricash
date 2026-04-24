@@ -91,6 +91,35 @@ module.exports = {
     ],
   },
   overrides: [
+    // Story 3.2 — domain/cycle is a pure function library. Forbid imports
+    // from infrastructure / features / components / app / React / Supabase
+    // / sonner / i18n. Test files in the same directory are exempt
+    // (they may need vitest, fast-check, etc.).
+    {
+      files: ["src/domain/cycle/**/*.ts"],
+      excludedFiles: ["src/domain/cycle/**/*.test.ts"],
+      rules: {
+        "no-restricted-imports": [
+          "error",
+          {
+            patterns: [
+              "@/infrastructure/*",
+              "@/features/*",
+              "@/components/*",
+              "@/app/*",
+              "@/i18n/*",
+              "react",
+              "react-dom",
+              "react-router-dom",
+              "sonner",
+              "@supabase/*",
+              "@hookform/*",
+              "react-hook-form",
+            ],
+          },
+        ],
+      },
+    },
     {
       files: ["src/components/ui/**/*.{ts,tsx}", "tailwind.config.ts", "vite.config.ts"],
       rules: { "no-restricted-syntax": "off" },

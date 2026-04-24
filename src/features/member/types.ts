@@ -137,11 +137,7 @@ export type EditImpact = "none" | "cycle-affecting";
  *  2.6 / 4.x will invalidate by this prefix when they mutate. */
 export const MEMBER_PROFILE_QUERY_KEY = ["members", "profile"] as const;
 
-/** Pure derived stats per FR17. Computed by computeMemberStats(). */
-export interface MemberStats {
-  cycleDay: number; // 1..30 clamped
-  daysRemaining: number; // 30 - cycleDay
-  contributedTotal: number; // Σ contribution + rattrapage
-  outstandingAdvances: number; // Σ advance
-  projectedFinalBalance: number; // FR17: daily_amount × 29 − Σ(advances)
-}
+/** Pure derived stats per FR17 — re-exported from the domain cycle engine
+ *  (Story 3.2). Kept here as a type-alias re-export so existing imports
+ *  from this barrel keep working unchanged. */
+export type { MemberStats } from "@/domain/cycle";

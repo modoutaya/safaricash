@@ -11,7 +11,7 @@ export { useRestartCycle } from "./api/useRestartCycle";
 export { useDeleteMember } from "./api/useDeleteMember";
 export { useImportMembers } from "./api/useImportMembers";
 export { useMemberProfile } from "./api/useMemberProfile";
-export { computeMemberStats } from "./api/computeMemberStats";
+export { computeMemberStats } from "@/domain/cycle";
 export { computeEditImpact } from "./api/computeEditImpact";
 export { isContactPickerSupported } from "./api/contactsPickerSupport";
 export {
