@@ -5,13 +5,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const customMock = vi.fn(() => "toast-id-1");
-const dismissMock = vi.fn();
+const customMock = vi.fn<(jsx: unknown, opts?: unknown) => string>(() => "toast-id-1");
+const dismissMock = vi.fn<(id: unknown) => void>();
 
 vi.mock("sonner", () => ({
   toast: {
-    custom: (...args: unknown[]) => customMock(...args),
-    dismiss: (...args: unknown[]) => dismissMock(...args),
+    custom: (jsx: unknown, opts?: unknown) => customMock(jsx, opts),
+    dismiss: (id: unknown) => dismissMock(id),
   },
 }));
 
