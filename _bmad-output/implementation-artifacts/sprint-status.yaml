@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-26
-# touched: 3-5-cycles-ending-alerts → ready-for-dev (FR20 client-side surface; closes Epic 3)
+# touched: 4-4-record-rattrapage → ready-for-dev (FR23 multi-day catch-up; extends Story 4.3 pipeline with days_covered column + record_rattrapage RPC + long-press inline grid)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -81,7 +81,7 @@ development_status:
   4-1-member-action-sheet-component: done  # PR #28 merged 2026-04-24; MemberActionSheet + MemberList rewire
   4-2-progressive-toast-component: done  # PR #30 merged 2026-04-24; pure component shipped
   4-3-record-contribution-online: review  # implemented 2026-04-24/25; full Flow 1 online path; 441 vitest, 29 edge, 19 Playwright validated locally
-  4-4-record-rattrapage: backlog
+  4-4-record-rattrapage: ready-for-dev  # spec generated 2026-04-26 via bmad-create-story; FR23 — adds transactions.days_covered column + cross-kind CHECK constraint + record_rattrapage SECURITY DEFINER RPC (server-computes amount = dailyAmount × daysCovered) + useRecordRattrapage hook + shared toast helper with bodyOverride slot + long-press (500ms) + secondary-link reveals on the action sheet → inline × 2/× 3/× 4 jours grid (options disabled when N > daysRemaining); closed-cycle gate inherited from Story 3.4; sms_queue enqueue inherited from Story 4.3; Story 6.x will render the templated body using kind + days_covered
   4-5-undo-transaction-window: backlog
   epic-4-retrospective: optional
 
