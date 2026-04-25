@@ -12,9 +12,14 @@ import { Plus } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+import { useQueryClient } from "@tanstack/react-query";
+
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/domain/EmptyState";
 import { MemberActionSheet } from "@/components/domain/MemberActionSheet";
+import { showContributionToast } from "@/features/transaction/api/showContributionToast";
+import { undoTransaction } from "@/features/transaction/api/undoTransaction";
+import { useRecordContribution } from "@/features/transaction/api/useRecordContribution";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
 
@@ -61,6 +66,9 @@ export function MemberList(): JSX.Element {
   // Story 4.1 — card tap opens the action sheet (was: navigate to profile).
   // Profile access lives inside the sheet via "Voir profil".
   const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
+  // Story 4.3 — Flow 1 online commit path.
+  const recordContribution = useRecordContribution();
+  const queryClient = useQueryClient();
 
   const filtered = useFilteredMembers(members ?? [], deferredQuery, selectedChips);
   const activeMember = activeMemberId
@@ -207,6 +215,31 @@ export function MemberList(): JSX.Element {
             setActiveMemberId(null);
             navigate(`/members/${id}`);
           }}
+          {...(activeMember.currentCycle
+            ? {
+                onRecordContribution: async (memberId: string) => {
+                  setActiveMemberId(null);
+                  const cycle = activeMember.currentCycle!;
+                  try {
+                    const txId = await recordContribution.mutateAsync({
+                      memberId,
+                      cycleId: cycle.id,
+                      amount: activeMember.dailyAmount,
+                      cycleDay: cycle.dayNumber,
+                    });
+                    showContributionToast({
+                      memberName: activeMember.name,
+                      onUndo: () => {
+                        void undoTransaction(txId, queryClient);
+                      },
+                    });
+                  } catch {
+                    // RecordContributionError is surfaced by the hook;
+                    // a future PR can wire toast.error() with mapped copy.
+                  }
+                },
+              }
+            : {})}
         />
       ) : null}
     </section>

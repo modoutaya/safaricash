@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { axe, toHaveNoViolations } from "jest-axe";
@@ -6,6 +7,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MemberWithMeta } from "../types";
 
 expect.extend(toHaveNoViolations);
+
+// Story 4.3 — MemberList now consumes useRecordContribution which needs a
+// QueryClientProvider. Wrap all renders in one.
+function makeClient() {
+  return new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+}
 
 const useMembersMock = vi.fn();
 
@@ -30,9 +39,11 @@ const makeMember = (overrides: Partial<MemberWithMeta>): MemberWithMeta => ({
 
 const renderWithRouter = () =>
   render(
-    <MemoryRouter>
-      <MemberList />
-    </MemoryRouter>,
+    <QueryClientProvider client={makeClient()}>
+      <MemoryRouter>
+        <MemberList />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 describe("MemberList", () => {
@@ -258,12 +269,14 @@ describe("MemberList", () => {
       error: null,
     });
     render(
-      <MemoryRouter initialEntries={["/members"]}>
-        <Routes>
-          <Route path="/members" element={<MemberList />} />
-          <Route path="/members/:id" element={<div data-testid="profile-route">profile</div>} />
-        </Routes>
-      </MemoryRouter>,
+      <QueryClientProvider client={makeClient()}>
+        <MemoryRouter initialEntries={["/members"]}>
+          <Routes>
+            <Route path="/members" element={<MemberList />} />
+            <Route path="/members/:id" element={<div data-testid="profile-route">profile</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     // Card tap opens the action sheet (no immediate navigate).

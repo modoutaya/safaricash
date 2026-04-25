@@ -1,6 +1,6 @@
 # Story 4.3: Record contribution (online commit path)
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -175,17 +175,34 @@ The audit_log captures both the `transaction.committed` (INSERT) AND `transactio
 
 ## Dev Agent Record
 
-### Implementation Plan
-_(populated by dev agent)_
-
 ### Completion Notes
-_(populated by dev agent)_
+
+- All 12 ACs satisfied. 2 migrations + RPC + trigger + hook + toast helper + undo helper + MemberList wire + i18n + Deno + E2E.
+- 441 vitest passing (6 new for the hook). 29 edge tests passing (4 new contract). 19/19 Playwright validated locally (1 new flow-1 spec).
+- MemberList tests retrofitted with QueryClientProvider (useRecordContribution requires it).
 
 ### Debug Log
-_(populated by dev agent)_
+
+- `exactOptionalPropertyTypes` rejected `onRecordContribution: undefined` — refactored to spread conditionally.
+- All MemberList tests failed initially because they didn't wrap in QueryClientProvider — fixed by wrapping the test renders.
 
 ## File List
-_(populated by dev agent)_
+
+**New (8 files):**
+- `supabase/migrations/20260425000005_record_contribution.sql`
+- `supabase/migrations/20260425000006_enqueue_sms_on_transaction.sql`
+- `src/features/transaction/api/useRecordContribution.ts` + `.test.tsx`
+- `src/features/transaction/api/showContributionToast.ts`
+- `src/features/transaction/api/undoTransaction.ts`
+- `supabase/functions/_shared/record-contribution.contract.test.ts`
+- `tests/e2e/flow-1-record-contribution.spec.ts`
+
+**Modified (4 files):**
+- `src/infrastructure/supabase/database.types.ts` (added `record_contribution` RPC type)
+- `src/features/member/ui/MemberList.tsx` (wired `onRecordContribution`)
+- `src/features/member/ui/MemberList.test.tsx` (wrapped in QueryClientProvider)
+- `scripts/run-edge-tests.sh` (added new contract test path)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (status flip)
 
 ## Change Log
 
