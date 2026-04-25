@@ -80,7 +80,7 @@ development_status:
   epic-4: in-progress  # kicked off 2026-04-24 with Story 4.1
   4-1-member-action-sheet-component: done  # PR #28 merged 2026-04-24; MemberActionSheet + MemberList rewire
   4-2-progressive-toast-component: done  # PR #30 merged 2026-04-24; pure component shipped
-  4-3-record-contribution-online: ready-for-dev  # spec 2026-04-24; record_contribution RPC + sms_queue enqueue trigger (stub body — Story 6.1 replaces) + useRecordContribution hook + sonner ProgressiveToast (just-committed state only); SMS lifecycle deferred to Story 6.x; offline path deferred to Story 4.5
+  4-3-record-contribution-online: review  # implemented 2026-04-24/25; full Flow 1 online path; 441 vitest, 29 edge, 19 Playwright validated locally
   4-4-record-rattrapage: backlog
   4-5-undo-transaction-window: backlog
   epic-4-retrospective: optional

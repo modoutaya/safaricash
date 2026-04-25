@@ -540,6 +540,15 @@ export type Database = {
         Args: { p_id: string };
         Returns: undefined;
       };
+      record_contribution: {
+        Args: {
+          p_member_id: string;
+          p_cycle_id: string;
+          p_amount: number;
+          p_cycle_day: number;
+        };
+        Returns: string;
+      };
       show_limit: { Args: never; Returns: number };
       show_trgm: { Args: { "": string }; Returns: string[] };
       vault_decrypt: { Args: { secret_id: string }; Returns: string };
