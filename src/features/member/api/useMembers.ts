@@ -108,7 +108,11 @@ async function fetchRawMembersData(): Promise<RawMembersData> {
       .select("id, collector_id, name, phone_number, daily_amount, status, created_at, updated_at")
       .order("created_at", { ascending: false }),
     supabase.from("cycles").select("id, member_id, cycle_number, start_date, end_date, status"),
-    supabase.from("transactions").select("member_id, created_at"),
+    // Story 4.5 — exclude undone rows from the recency-sort source. An
+    // undone transaction's created_at must not bump the member to the top
+    // of the list (semantically wrong; the user just cancelled the
+    // action that put them there).
+    supabase.from("transactions").select("member_id, created_at").is("undone_at", null),
   ]);
 
   if (membersResult.error) {
