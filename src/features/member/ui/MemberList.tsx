@@ -24,10 +24,13 @@ import {
   showRattrapageToast,
 } from "@/features/transaction/api/showContributionToast";
 import { undoTransaction } from "@/features/transaction/api/undoTransaction";
+import { UndoTransactionError } from "@/features/transaction/api/undoTransactionError";
 import { useRecordContribution } from "@/features/transaction/api/useRecordContribution";
 import { useRecordRattrapage } from "@/features/transaction/api/useRecordRattrapage";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
+
+import { toast } from "sonner";
 
 import { normalizeForSearch } from "../api/normalizeForSearch";
 import { useMembers } from "../api/useMembers";
@@ -279,8 +282,19 @@ export function MemberList(): JSX.Element {
                     });
                     showContributionToast({
                       memberName: activeMember.name,
-                      onUndo: () => {
-                        void undoTransaction(txId, queryClient);
+                      onUndo: async () => {
+                        // Story 4.5 — typed-error handling for the undo
+                        // path. Most failures (window expired, already
+                        // undone) deserve user feedback via toast.error.
+                        try {
+                          await undoTransaction(txId, queryClient);
+                        } catch (err) {
+                          if (err instanceof UndoTransactionError) {
+                            toast.error(t(`transaction.error.${err.code}`));
+                          } else {
+                            toast.error(t("transaction.error.unknown"));
+                          }
+                        }
                       },
                     });
                   } catch {
@@ -302,8 +316,16 @@ export function MemberList(): JSX.Element {
                     showRattrapageToast({
                       memberName: activeMember.name,
                       daysCovered,
-                      onUndo: () => {
-                        void undoTransaction(txId, queryClient);
+                      onUndo: async () => {
+                        try {
+                          await undoTransaction(txId, queryClient);
+                        } catch (err) {
+                          if (err instanceof UndoTransactionError) {
+                            toast.error(t(`transaction.error.${err.code}`));
+                          } else {
+                            toast.error(t("transaction.error.unknown"));
+                          }
+                        }
                       },
                     });
                   } catch {

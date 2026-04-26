@@ -311,6 +311,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id: string;
           source: Database["public"]["Enums"]["transactions_source_enum"];
+          undone_at: string | null;
           updated_at: string;
         };
         Insert: {
@@ -324,6 +325,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id: string;
           source?: Database["public"]["Enums"]["transactions_source_enum"];
+          undone_at?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -337,6 +339,7 @@ export type Database = {
           kind?: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id?: string;
           source?: Database["public"]["Enums"]["transactions_source_enum"];
+          undone_at?: string | null;
           updated_at?: string;
         };
         Relationships: [
@@ -444,6 +447,7 @@ export type Database = {
           created_at: string | null;
           cycle_day: number | null;
           cycle_id: string | null;
+          days_covered: number | null;
           id: string | null;
           kind: Database["public"]["Enums"]["transactions_kind_enum"] | null;
           member_id: string | null;
@@ -456,6 +460,7 @@ export type Database = {
           created_at?: string | null;
           cycle_day?: number | null;
           cycle_id?: string | null;
+          days_covered?: number | null;
           id?: string | null;
           kind?: Database["public"]["Enums"]["transactions_kind_enum"] | null;
           member_id?: string | null;
@@ -468,6 +473,7 @@ export type Database = {
           created_at?: string | null;
           cycle_day?: number | null;
           cycle_id?: string | null;
+          days_covered?: number | null;
           id?: string | null;
           kind?: Database["public"]["Enums"]["transactions_kind_enum"] | null;
           member_id?: string | null;
@@ -541,6 +547,10 @@ export type Database = {
       restart_member_cycle: { Args: { p_member_id: string }; Returns: string };
       show_limit: { Args: never; Returns: number };
       show_trgm: { Args: { "": string }; Returns: string[] };
+      undo_transaction: {
+        Args: { p_transaction_id: string };
+        Returns: undefined;
+      };
       update_member: {
         Args: {
           p_daily_amount: number;

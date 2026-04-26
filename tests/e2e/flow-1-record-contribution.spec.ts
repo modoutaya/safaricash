@@ -98,5 +98,49 @@ test.describe("Flow 1 — record contribution online (Story 4.3)", () => {
       .select("id", { count: "exact", head: true })
       .eq("transaction_id", newTxId);
     expect(smsCount).toBe(1);
+
+    // -----------------------------------------------------------------
+    // Story 4.5 — soft-undo within the 5-second window.
+    // -----------------------------------------------------------------
+    await page.getByRole("button", { name: /annuler \(\ds\)/i }).click();
+
+    // 1. transactions.undone_at populated.
+    await expect
+      .poll(
+        async () => {
+          const { data } = await service
+            .from("transactions")
+            .select("undone_at")
+            .eq("id", newTxId)
+            .single();
+          return data?.undone_at;
+        },
+        { timeout: 5000 },
+      )
+      .not.toBeNull();
+
+    // 2. transactions_decrypted view filters out the undone row.
+    const { data: viewRow } = await service
+      .from("transactions_decrypted")
+      .select("id")
+      .eq("id", newTxId)
+      .maybeSingle();
+    expect(viewRow).toBeNull();
+
+    // 3. Audit transaction.undone event lands.
+    const { count: undoneCount } = await service
+      .from("audit_log")
+      .select("event_id", { count: "exact", head: true })
+      .eq("entity_id", newTxId)
+      .eq("event_type", "transaction.undone");
+    expect(undoneCount).toBe(1);
+
+    // 4. sms_queue row → abandoned.
+    const { data: smsAfter } = await service
+      .from("sms_queue")
+      .select("status")
+      .eq("transaction_id", newTxId)
+      .single();
+    expect(smsAfter?.status).toBe("abandoned");
   });
 });
