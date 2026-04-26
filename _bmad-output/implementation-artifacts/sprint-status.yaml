@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-26
-# touched: 5-1-advance-simulation-panel → ready-for-dev (kicks off Epic 5; pure presentation component for Flow 2 advance simulation); epic-5: backlog → in-progress
+# touched: 5-2-advance-situation-context → ready-for-dev (Flow 2 advance screen at /members/:id/advance; situation panel + suggested chips + free-form input + Story 5.1 simulation panel; CTA disabled until 5.3/5.4)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -88,7 +88,7 @@ development_status:
   # Epic 5 — Emergency Advance Flow
   epic-5: in-progress  # kicked off 2026-04-26 with Story 5.1 (AdvanceSimulationPanel)
   5-1-advance-simulation-panel: ready-for-dev  # spec generated 2026-04-26 via bmad-create-story; pure presentation component (4-row card: Total cycle projected / Commission / Advance / Projected final balance) driven by Story 3.2's cycle-engine primitives (commission, computeProjectedFinalBalance, canAcceptAdvance); 3 states (empty / valid / over-limit per UX spec line 1033-1061); aria-live=polite on row 4; no internal state, no hooks, no migrations; mirrors Story 4.2 pure-component discipline
-  5-2-advance-situation-context: backlog
+  5-2-advance-situation-context: ready-for-dev  # spec generated 2026-04-26 via bmad-create-story; ships /members/:id/advance route + AdvanceFlow screen (situation panel showing cycle day / contributed / existing advances via Story 2.4 useMemberProfile, 3 suggested-amount chips ADVANCE_SUGGESTED_AMOUNTS=[50k,100k,150k], free-form numeric input, Story 5.1 simulation panel consuming candidateAmount); MemberList onAdvance navigates here; closed-cycle/no-active-cycle/not-found redirect defensively; primary CTA renders DISABLED — Story 5.3 enables-when-valid (motive + saver ack), Story 5.4 commits; no migrations, no RPC, no domain changes
   5-3-motive-saver-acknowledgment: backlog
   5-4-commit-advance-transaction: backlog
   epic-5-retrospective: optional
