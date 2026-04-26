@@ -1,19 +1,28 @@
 // Story 3.5 — useCyclesEndingAlert hook tests.
 //
-// Mocks `useMembers` directly via module-level vi.mock so we don't need
-// to seed the TanStack Query cache for every case. Mirrors Story 2.5/2.6
-// hook-test discipline.
+// Wraps in QueryClientProvider + seeded MEMBERS_QUERY_KEY data per the
+// Story 2.4 pattern. The supabase RPC is stubbed at the module level so
+// fetchRawMembersData never runs — the seeded cache short-circuits the
+// query and useMembers returns the seeded view-model directly.
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { MemberWithMeta } from "@/features/member";
+import { MEMBERS_QUERY_KEY, type MemberWithMeta } from "@/features/member";
 
-const useMembersMock = vi.fn();
-
-vi.mock("@/features/member/api/useMembers", () => ({
-  useMembers: () => useMembersMock(),
-  MEMBERS_QUERY_KEY: ["members", "list"],
+vi.mock("@/infrastructure/supabase/client", () => ({
+  // useMembers calls supabase.from(...).select(...).order(...) but the
+  // QueryClient cache hit short-circuits the network call. The stub is
+  // here purely so any escaping import doesn't blow up at module load.
+  supabase: {
+    from: () => ({
+      select: () => ({
+        order: () => Promise.resolve({ data: [], error: null }),
+      }),
+    }),
+  },
 }));
 
 import { useCyclesEndingAlert } from "./useCyclesEndingAlert";
@@ -31,9 +40,21 @@ function mkMember(
   };
 }
 
+function makeWrapper(seedData?: MemberWithMeta[]) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+  });
+  if (seedData !== undefined) {
+    client.setQueryData(MEMBERS_QUERY_KEY, seedData);
+  }
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+  return { Wrapper, client };
+}
+
 describe("useCyclesEndingAlert", () => {
   beforeEach(() => {
-    useMembersMock.mockReset();
     sessionStorage.clear();
   });
 
@@ -42,20 +63,17 @@ describe("useCyclesEndingAlert", () => {
   });
 
   it("count > 0 + not dismissed → returns count + members + isDismissed=false", () => {
-    useMembersMock.mockReturnValue({
-      data: [
-        mkMember({ id: "1", name: "A" }),
-        mkMember({ id: "2", name: "B" }),
-        mkMember({
-          id: "3",
-          name: "Out",
-          currentCycle: { id: "c", startDate: "2026-04-01", dayNumber: 5 },
-        }),
-      ],
-      isLoading: false,
-    });
+    const { Wrapper } = makeWrapper([
+      mkMember({ id: "1", name: "A" }),
+      mkMember({ id: "2", name: "B" }),
+      mkMember({
+        id: "3",
+        name: "Out",
+        currentCycle: { id: "c", startDate: "2026-04-01", dayNumber: 5 },
+      }),
+    ]);
 
-    const { result } = renderHook(() => useCyclesEndingAlert());
+    const { result } = renderHook(() => useCyclesEndingAlert(), { wrapper: Wrapper });
 
     expect(result.current.count).toBe(2);
     expect(result.current.members.map((m) => m.id)).toEqual(["1", "2"]);
@@ -65,23 +83,17 @@ describe("useCyclesEndingAlert", () => {
 
   it("sessionStorage flag pre-set on mount → isDismissed=true", () => {
     sessionStorage.setItem("sc_cycle_ending_alert_dismissed", "1");
-    useMembersMock.mockReturnValue({
-      data: [mkMember({ id: "1", name: "A" })],
-      isLoading: false,
-    });
+    const { Wrapper } = makeWrapper([mkMember({ id: "1", name: "A" })]);
 
-    const { result } = renderHook(() => useCyclesEndingAlert());
+    const { result } = renderHook(() => useCyclesEndingAlert(), { wrapper: Wrapper });
 
     expect(result.current.isDismissed).toBe(true);
   });
 
   it("dismiss() flips isDismissed AND writes the sessionStorage flag", () => {
-    useMembersMock.mockReturnValue({
-      data: [mkMember({ id: "1", name: "A" })],
-      isLoading: false,
-    });
+    const { Wrapper } = makeWrapper([mkMember({ id: "1", name: "A" })]);
 
-    const { result } = renderHook(() => useCyclesEndingAlert());
+    const { result } = renderHook(() => useCyclesEndingAlert(), { wrapper: Wrapper });
 
     expect(result.current.isDismissed).toBe(false);
     expect(sessionStorage.getItem("sc_cycle_ending_alert_dismissed")).toBeNull();
@@ -94,13 +106,27 @@ describe("useCyclesEndingAlert", () => {
     expect(sessionStorage.getItem("sc_cycle_ending_alert_dismissed")).toBe("1");
   });
 
-  it("useMembers loading → isLoading=true with empty count + members", () => {
-    useMembersMock.mockReturnValue({ data: undefined, isLoading: true });
+  it("useMembers cache miss → isLoading=true with empty count + members", () => {
+    // No setQueryData → useMembers triggers the queryFn (stubbed to return
+    // an empty list above), but until it resolves, the hook reports
+    // isLoading=true.
+    const { Wrapper } = makeWrapper(undefined);
 
-    const { result } = renderHook(() => useCyclesEndingAlert());
+    const { result } = renderHook(() => useCyclesEndingAlert(), { wrapper: Wrapper });
 
     expect(result.current.isLoading).toBe(true);
     expect(result.current.count).toBe(0);
     expect(result.current.members).toEqual([]);
+  });
+
+  it("dismiss() reference is stable across renders (useCallback contract)", () => {
+    const { Wrapper } = makeWrapper([mkMember({ id: "1", name: "A" })]);
+
+    const { result, rerender } = renderHook(() => useCyclesEndingAlert(), { wrapper: Wrapper });
+    const dismissRef1 = result.current.dismiss;
+    rerender();
+    const dismissRef2 = result.current.dismiss;
+
+    expect(dismissRef1).toBe(dismissRef2);
   });
 });
