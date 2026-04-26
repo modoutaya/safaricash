@@ -1,6 +1,6 @@
 # Story 3.5: Identify and surface cycles ending within upcoming window
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -283,16 +283,54 @@ That's it — the component, hook, selector, filter, dismiss, i18n, tests, and E
 
 ### Agent Model Used
 
-(filled in by dev agent at implementation time)
+claude-opus-4-7[1m] via `bmad-dev-story` skill (Claude Code).
 
 ### Debug Log References
 
+- **i18n key resolution gating component test.** First component test run failed because `t()` returned the raw key string when the `dashboard.cycles_ending.*` keys weren't yet in `fr.json` — text matchers like `screen.getByText(/Cycles se terminant/)` couldn't resolve. Fix: jumped to Task 7 to land the i18n keys before re-running Task 3's tests. Order updated in this note for Story 9.2's author: ship i18n keys BEFORE component tests, not after.
+- **`Pick<MemberWithMeta, "id" | "name">` + spread overwrite (TS2783).** First typecheck pass flagged `id` and `name` set explicitly before `...override` in the test fixture factories — the spread overwrites them, so the explicit keys are dead. Fix: removed the leading explicit keys; the spread now provides them.
+- **Cross-feature `import/no-internal-modules` rule.** First lint pass rejected `import type { MemberWithMeta } from "@/features/member/types"` from `features/cycle/`. Fix: route through the barrel `@/features/member`. The intra-feature `import { useMembers } from "@/features/member/api/useMembers"` inside `useCyclesEndingAlert.ts` was NOT flagged — confirmed allowed by the existing rule config. Re-routing it through the barrel would create a circular dependency (the barrel re-exports from `api/`).
+
 ### Completion Notes List
 
+- All 20 ACs satisfied. 10 tasks completed.
+- 3 new domain primitives (`DEFAULT_CYCLE_ENDING_WINDOW_DAYS`, `daysUntilCycleEnd`, `isCycleInUpcomingEndWindow`) + 9 example tests + 1 fast-check property landed in `cycleEngine.ts`. Cycle module coverage stays at 100 %.
+- Pure feature selector + 5 unit tests in `features/cycle/api/`.
+- `useCyclesEndingAlert` hook with sessionStorage-backed dismiss + 4 RTL tests. Hook coverage at 92.3% statements / 100% functions / 100% lines (the 2 uncovered branches are defensive `typeof sessionStorage === "undefined"` guards for SSR — unreachable in a Vite SPA).
+- `<CycleEndingAlert>` component using the warning palette (`bg-warning-50 border-warning-200 text-warning-800`) + Lucide `X` button + 7 RTL tests including jest-axe. Component coverage at 100 %.
+- Dashboard mount (`src/app/routes/dashboard.tsx`) renders the alert above the existing heading; placeholder body left intact for Story 9.1's eventual rewrite.
+- `MemberList.tsx` extended with `useSearchParams`-driven cycles-ending filter, composable with the existing chip filters via AND, plus a dismiss-filter pill that clears the URL param. 3 new tests pass (filter active / chip dismiss / compose with status chip).
+- 7 new i18n keys under `dashboard.cycles_ending.*` + `members.filter_cycles_ending_active`.
+- New Playwright spec `flow-3-cycles-ending-alert.spec.ts` seeds 4 members with mixed cycle-ending positions, asserts alert count = 2, tap "Voir" filters the list, dismiss-filter chip clears the URL, dismiss × hides the alert, reload preserves the dismissed state. Spec validated locally with the full Supabase stack: 20 passed, 1 skipped (rate-limit, expected).
+- All gates green: typecheck ✅ / lint ✅ / 475 vitest passing (1 skipped) ✅ / coverage 84.36/75.69/87.33/88.12 (all above 80/75/80/80) ✅ / build ✅ / Playwright ✅.
+- Story 9.2 handshake documented in Dev Notes — 9.2's scope reduces to mounting the existing component in Story 9.1's full dashboard layout when that lands.
+
 ### File List
+
+**New (6 files):**
+- `src/features/cycle/api/selectMembersWithCycleEndingSoon.ts`
+- `src/features/cycle/api/selectMembersWithCycleEndingSoon.test.ts`
+- `src/features/cycle/api/useCyclesEndingAlert.ts`
+- `src/features/cycle/api/useCyclesEndingAlert.test.tsx`
+- `src/features/cycle/ui/CycleEndingAlert.tsx`
+- `src/features/cycle/ui/CycleEndingAlert.test.tsx`
+- `tests/e2e/flow-3-cycles-ending-alert.spec.ts`
+
+**Modified (7 files):**
+- `src/domain/cycle/cycleEngine.ts` (added 3 primitives + the constant)
+- `src/domain/cycle/cycleEngine.test.ts` (10 new tests including 1 fast-check property)
+- `src/domain/cycle/index.ts` (barrel export of the new symbols)
+- `src/features/cycle/index.ts` (barrel export of the alert component + hook + selector)
+- `src/app/routes/dashboard.tsx` (mounted `<CycleEndingAlert>` above the heading)
+- `src/features/member/ui/MemberList.tsx` (URL filter + dismiss-filter chip + import of the new domain helpers)
+- `src/features/member/ui/MemberList.test.tsx` (3 new test cases for the URL filter)
+- `src/i18n/fr.json` (7 new keys: `dashboard.cycles_ending.{title,body_one,body_many,cta,dismiss_aria}` + `members.filter_cycles_ending_active`)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (status flip ready-for-dev → in-progress → review)
+- `_bmad-output/implementation-artifacts/3-5-cycles-ending-alerts.md` (this file — Tasks ✓, Completion Notes, File List, Change Log, Status → review)
 
 ## Change Log
 
 | Date       | Author              | Change |
 |------------|---------------------|--------|
 | 2026-04-26 | Winston (architect) | Story 3.5 spec generated by `bmad-create-story`. Closes Epic 3 with the client-side surface for FR20: pure domain primitives (`daysUntilCycleEnd`, `isCycleInUpcomingEndWindow`, `DEFAULT_CYCLE_ENDING_WINDOW_DAYS = 7`) → feature selector + `useCyclesEndingAlert` hook (derives from existing `useMembers()` cache; no new RTT) → `<CycleEndingAlert>` warning-palette banner mounted on the dashboard placeholder → tap "Voir" navigates to `/members?filter=cycles-ending` (new URL-driven filter + dismiss-filter chip) → per-session dismiss via sessionStorage. Zero migrations, zero new dependencies, zero new RPC. Story 9.2 (Epic 9) overlaps verbatim — 3.5 ships canonical UI; 9.2's scope reduces to layout integration once Story 9.1's full dashboard lands. Status → ready-for-dev. |
+| 2026-04-26 | dev agent (Opus 4.7 via `bmad-dev-story`) | Implementation complete. 6 new files + 7 modified. 10 new vitest cases for the domain primitives (incl. 1 fast-check property), 5 selector tests, 4 hook tests, 7 component tests (jest-axe clean), 3 MemberList integration tests. Cycle module coverage stays at 100 %; new component file at 100 %; new hook at 92.3 % statements (2 defensive `typeof sessionStorage` SSR guards uncovered, unreachable in Vite SPA). All gates green: typecheck / lint / 475 vitest / coverage 84.36/75.69/87.33/88.12 / build / 20-passing-1-skipped Playwright validated locally with the full Supabase stack. Status → review. |

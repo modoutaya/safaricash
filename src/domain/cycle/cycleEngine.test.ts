@@ -13,12 +13,15 @@ import { describe, expect, it } from "vitest";
 import {
   CONTRIBUTION_DAYS,
   CYCLE_TOTAL_DAYS,
+  DEFAULT_CYCLE_ENDING_WINDOW_DAYS,
   canAcceptAdvance,
   commission,
   computeMemberStats,
   computeProjectedFinalBalance,
   cycleDay,
+  daysUntilCycleEnd,
   isCycleClosedForTransactions,
+  isCycleInUpcomingEndWindow,
   isSettlementReady,
   settle,
 } from "./cycleEngine";
@@ -256,6 +259,61 @@ describe("cycleEngine — example tests", () => {
 
     it("returns false for a null cycle (no cycle = nothing to gate)", () => {
       expect(isCycleClosedForTransactions(null)).toBe(false);
+    });
+  });
+
+  describe("DEFAULT_CYCLE_ENDING_WINDOW_DAYS (Story 3.5)", () => {
+    it("is 7 days (frozen contract — single point of edit per AC #1)", () => {
+      expect(DEFAULT_CYCLE_ENDING_WINDOW_DAYS).toBe(7);
+    });
+  });
+
+  describe("daysUntilCycleEnd (Story 3.5)", () => {
+    it("day 1 → 29 days remaining", () => {
+      expect(daysUntilCycleEnd(1)).toBe(29);
+    });
+
+    it("day 15 → 15 days remaining", () => {
+      expect(daysUntilCycleEnd(15)).toBe(15);
+    });
+
+    it("day 30 → 0 days remaining (boundary)", () => {
+      expect(daysUntilCycleEnd(30)).toBe(0);
+    });
+
+    it("clamps out-of-band day 31 to 0 (defensive)", () => {
+      expect(daysUntilCycleEnd(31)).toBe(0);
+    });
+  });
+
+  describe("isCycleInUpcomingEndWindow (Story 3.5)", () => {
+    it("day 23 with window 7 → true (7 remaining, inclusive)", () => {
+      expect(isCycleInUpcomingEndWindow(23, 7)).toBe(true);
+    });
+
+    it("day 24 with window 7 → true (6 remaining)", () => {
+      expect(isCycleInUpcomingEndWindow(24, 7)).toBe(true);
+    });
+
+    it("day 22 with window 7 → false (8 remaining, outside)", () => {
+      expect(isCycleInUpcomingEndWindow(22, 7)).toBe(false);
+    });
+
+    it("day 30 with window 7 → true (0 remaining, inclusive boundary)", () => {
+      expect(isCycleInUpcomingEndWindow(30, 7)).toBe(true);
+    });
+
+    it("INV (Story 3.5 AC #11): isCycleInUpcomingEndWindow(day, w) ≡ (CYCLE_TOTAL_DAYS - day ≤ w) ∀ day∈[1,30], w∈[0,30]", () => {
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 1, max: 30 }),
+          fc.integer({ min: 0, max: 30 }),
+          (day, windowDays) => {
+            const expected = CYCLE_TOTAL_DAYS - day <= windowDays;
+            return isCycleInUpcomingEndWindow(day, windowDays) === expected;
+          },
+        ),
+      );
     });
   });
 

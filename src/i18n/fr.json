@@ -52,12 +52,22 @@
     "signout_loading": "Déconnexion…",
     "signed_out_success": "Vous êtes déconnecté"
   },
+  "dashboard": {
+    "cycles_ending": {
+      "title": "Cycles se terminant cette semaine",
+      "body_one": "1 membre — clôture imminente",
+      "body_many": "{count} membres — clôture imminente",
+      "cta": "Voir",
+      "dismiss_aria": "Masquer cette alerte"
+    }
+  },
   "members": {
     "title": "Membres",
     "search_placeholder": "Rechercher un membre…",
     "filter_actif": "Actif",
     "filter_avance": "Avance",
     "filter_termine": "Terminé",
+    "filter_cycles_ending_active": "Cycles à clôturer ×",
     "count_label_zero": "Aucun membre",
     "count_label_one": "1 membre",
     "count_label_many": "{n} membres",
