@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-26
-# touched: 4-4-record-rattrapage → ready-for-dev (FR23 multi-day catch-up; extends Story 4.3 pipeline with days_covered column + record_rattrapage RPC + long-press inline grid)
+# touched: 4-5-undo-transaction-window → ready-for-dev (rewrites Story 4.3 hard-DELETE to soft-undo + transaction.undone audit event; closes Epic 4)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -82,7 +82,7 @@ development_status:
   4-2-progressive-toast-component: done  # PR #30 merged 2026-04-24; pure component shipped
   4-3-record-contribution-online: review  # implemented 2026-04-24/25; full Flow 1 online path; 441 vitest, 29 edge, 19 Playwright validated locally
   4-4-record-rattrapage: ready-for-dev  # spec generated 2026-04-26 via bmad-create-story; FR23 — adds transactions.days_covered column + cross-kind CHECK constraint + record_rattrapage SECURITY DEFINER RPC (server-computes amount = dailyAmount × daysCovered) + useRecordRattrapage hook + shared toast helper with bodyOverride slot + long-press (500ms) + secondary-link reveals on the action sheet → inline × 2/× 3/× 4 jours grid (options disabled when N > daysRemaining); closed-cycle gate inherited from Story 3.4; sms_queue enqueue inherited from Story 4.3; Story 6.x will render the templated body using kind + days_covered
-  4-5-undo-transaction-window: backlog
+  4-5-undo-transaction-window: ready-for-dev  # spec generated 2026-04-26 via bmad-create-story; rewrites Story 4.3 hard-DELETE to soft-undo (transactions.undone_at column + undo_transaction SECURITY DEFINER RPC with 5-s server-side window guard + typed transaction.undone audit event + transactions_decrypted view filter + sms_queue.transaction_id FK flipped from CASCADE to SET NULL); MemberList wraps onUndo in typed-error toast handling; post-5-s "redirect to transaction-edit flow" BDD line explicitly deferred (no FR yet)
   epic-4-retrospective: optional
 
   # Epic 5 — Emergency Advance Flow
