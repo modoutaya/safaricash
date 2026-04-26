@@ -40,7 +40,7 @@ describe("CycleEndingAlert", () => {
     vi.clearAllMocks();
   });
 
-  it("renders nothing when count is 0", () => {
+  it("renders an empty live region (sr-only) when count is 0 — keeps the live region mounted for SR announce-on-mutation", () => {
     useCyclesEndingAlertMock.mockReturnValue({
       count: 0,
       members: dummyMembers,
@@ -48,11 +48,16 @@ describe("CycleEndingAlert", () => {
       dismiss: vi.fn(),
       isLoading: false,
     });
-    const { container } = renderWithRouter();
-    expect(container.firstChild).toBeNull();
+    renderWithRouter();
+    const region = screen.getByTestId("cycle-ending-alert");
+    expect(region).toBeInTheDocument();
+    expect(region).toHaveAttribute("aria-live", "polite");
+    // Empty content: no title, no link, no dismiss button.
+    expect(screen.queryByText(/Cycles se terminant/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
-  it("renders nothing when dismissed", () => {
+  it("renders empty live region when dismissed", () => {
     useCyclesEndingAlertMock.mockReturnValue({
       count: 3,
       members: dummyMembers,
@@ -60,11 +65,12 @@ describe("CycleEndingAlert", () => {
       dismiss: vi.fn(),
       isLoading: false,
     });
-    const { container } = renderWithRouter();
-    expect(container.firstChild).toBeNull();
+    renderWithRouter();
+    expect(screen.getByTestId("cycle-ending-alert")).toBeInTheDocument();
+    expect(screen.queryByText(/Cycles se terminant/)).not.toBeInTheDocument();
   });
 
-  it("renders nothing while loading", () => {
+  it("renders empty live region while loading", () => {
     useCyclesEndingAlertMock.mockReturnValue({
       count: 0,
       members: dummyMembers,
@@ -72,8 +78,9 @@ describe("CycleEndingAlert", () => {
       dismiss: vi.fn(),
       isLoading: true,
     });
-    const { container } = renderWithRouter();
-    expect(container.firstChild).toBeNull();
+    renderWithRouter();
+    expect(screen.getByTestId("cycle-ending-alert")).toBeInTheDocument();
+    expect(screen.queryByText(/Cycles se terminant/)).not.toBeInTheDocument();
   });
 
   it("renders title + count-aware body + Voir link + dismiss button when count > 0", () => {
@@ -116,6 +123,38 @@ describe("CycleEndingAlert", () => {
     renderWithRouter();
     fireEvent.click(screen.getByRole("button", { name: /masquer/i }));
     expect(dismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("after dismiss → re-render with isDismissed=true → banner contents disappear", () => {
+    useCyclesEndingAlertMock.mockReturnValue({
+      count: 2,
+      members: dummyMembers,
+      isDismissed: false,
+      dismiss: vi.fn(),
+      isLoading: false,
+    });
+    const { rerender } = renderWithRouter();
+    expect(screen.getByText(/Cycles se terminant cette semaine/)).toBeInTheDocument();
+
+    // The second render simulates the post-dismiss state — the hook now
+    // reports isDismissed=true; the banner contents must vanish (the live
+    // region itself stays mounted by design — patch 6 in the code review).
+    useCyclesEndingAlertMock.mockReturnValue({
+      count: 2,
+      members: dummyMembers,
+      isDismissed: true,
+      dismiss: vi.fn(),
+      isLoading: false,
+    });
+    rerender(
+      <MemoryRouter>
+        <CycleEndingAlert />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByText(/Cycles se terminant cette semaine/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /voir/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /masquer/i })).not.toBeInTheDocument();
   });
 
   it("axe-clean", async () => {

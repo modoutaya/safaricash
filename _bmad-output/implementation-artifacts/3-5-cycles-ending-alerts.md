@@ -1,6 +1,6 @@
 # Story 3.5: Identify and surface cycles ending within upcoming window
 
-Status: review
+Status: done
 
 ## Story
 
@@ -128,39 +128,64 @@ so that **I can plan settlements and avoid being caught off-guard (FR20).**
 
 ## Tasks / Subtasks
 
-- [ ] **Task 0 — Domain primitives (AC #1 #2 #11).** Edit `src/domain/cycle/cycleEngine.ts` + `cycleEngine.test.ts` + `index.ts`:
+- [x] **Task 0 — Domain primitives (AC #1 #2 #11).** Edit `src/domain/cycle/cycleEngine.ts` + `cycleEngine.test.ts` + `index.ts`:
   - Add `DEFAULT_CYCLE_ENDING_WINDOW_DAYS`, `daysUntilCycleEnd`, `isCycleInUpcomingEndWindow`.
   - Export from the barrel.
   - Add 4 + 4 example tests + 1 fast-check property + 1 default-constant assertion.
   - Confirm cycle module 100 % coverage maintained.
 
-- [ ] **Task 1 — Feature selector (AC #3 #12).** New `src/features/cycle/api/selectMembersWithCycleEndingSoon.ts` + `.test.ts`. Pure function; 5 unit-test cases. No new external deps.
+- [x] **Task 1 — Feature selector (AC #3 #12).** New `src/features/cycle/api/selectMembersWithCycleEndingSoon.ts` + `.test.ts`. Pure function; 5 unit-test cases. No new external deps.
 
-- [ ] **Task 2 — Hook (AC #4 #13).** New `src/features/cycle/api/useCyclesEndingAlert.ts` + `.test.tsx`. Wraps `useMembers` + selector + sessionStorage + local `useState` for re-render. 4 RTL test cases.
+- [x] **Task 2 — Hook (AC #4 #13).** New `src/features/cycle/api/useCyclesEndingAlert.ts` + `.test.tsx`. Wraps `useMembers` + selector + sessionStorage + local `useState` for re-render. 4 RTL test cases.
 
-- [ ] **Task 3 — Component (AC #5 #14).** New `src/features/cycle/ui/CycleEndingAlert.tsx` + `.test.tsx`. Banner + Lucide `X` button + axe-clean. Use semantic Tailwind tokens (NO hard-coded hex). 5 RTL test cases.
+- [x] **Task 3 — Component (AC #5 #14).** New `src/features/cycle/ui/CycleEndingAlert.tsx` + `.test.tsx`. Banner + Lucide `X` button + axe-clean. Use semantic Tailwind tokens (NO hard-coded hex). 5 RTL test cases.
 
-- [ ] **Task 4 — Barrel update (AC #6).** Edit `src/features/cycle/index.ts` to export `CycleEndingAlert` + its props type.
+- [x] **Task 4 — Barrel update (AC #6).** Edit `src/features/cycle/index.ts` to export `CycleEndingAlert` + its props type.
 
-- [ ] **Task 5 — Dashboard mount (AC #6).** Edit `src/app/routes/dashboard.tsx` to render `<CycleEndingAlert />` above the existing heading. Keep the existing placeholder body intact (Story 9.1 will rework).
+- [x] **Task 5 — Dashboard mount (AC #6).** Edit `src/app/routes/dashboard.tsx` to render `<CycleEndingAlert />` above the existing heading. Keep the existing placeholder body intact (Story 9.1 will rework).
 
-- [ ] **Task 6 — Member-list filter (AC #7 #15).** Edit `src/features/member/ui/MemberList.tsx`:
+- [x] **Task 6 — Member-list filter (AC #7 #15).** Edit `src/features/member/ui/MemberList.tsx`:
   - Add `useSearchParams` integration.
   - Extend `useFilteredMembers` (or wrap with a second `useMemo`) to apply the cycles-ending filter.
   - Render the dismiss-filter chip when the URL param is active.
   - Wire the `setSearchParams({})` clear.
   - Extend `MemberList.test.tsx` with the 3 cases per AC #15.
 
-- [ ] **Task 7 — i18n keys (AC #17).** Add the 7 keys to `src/i18n/fr.json`. The TypeScript `TranslationKey` derivation will pick them up automatically.
+- [x] **Task 7 — i18n keys (AC #17).** Add the 7 keys to `src/i18n/fr.json`. The TypeScript `TranslationKey` derivation will pick them up automatically.
 
-- [ ] **Task 8 — E2E (AC #16).** New `tests/e2e/flow-3-cycles-ending-alert.spec.ts`. Mirror the seed pattern from `flow-1-record-contribution.spec.ts` (Story 4.3) for service-role data setup. **Run locally** before push.
+- [x] **Task 8 — E2E (AC #16).** New `tests/e2e/flow-3-cycles-ending-alert.spec.ts`. Mirror the seed pattern from `flow-1-record-contribution.spec.ts` (Story 4.3) for service-role data setup. **Run locally** before push.
 
-- [ ] **Task 9 — All gates (AC #20).** `npm run typecheck` / `lint` / `test -- --coverage` / `build` / **`npx playwright test` LOCALLY**.
+- [x] **Task 9 — All gates (AC #20).** `npm run typecheck` / `lint` / `test -- --coverage` / `build` / **`npx playwright test` LOCALLY**.
 
-- [ ] **Task 10 — Hygiene + status flip.**
+- [x] **Task 10 — Hygiene + status flip.**
   - Story file: Completion Notes + File List + Change Log entry.
   - `sprint-status.yaml`: `3-5-cycles-ending-alerts: backlog → ready-for-dev` (this skill does it on save) → after dev: `→ review`.
   - Add a one-liner in Story 9.2's eventual Dev Notes (when 9.2 is created) that 3.5 ships the canonical alert UI; 9.2's scope reduces to layout integration when Story 9.1 lands.
+
+### Review Findings
+
+Code review run 2026-04-26 via `/bmad-code-review` (3 parallel adversarial layers — Blind Hunter, Edge Case Hunter, Acceptance Auditor — Sonnet model). 17 raw findings → 8 patches + 2 deferred + 7 dismissed.
+
+- [x] **[Review][Patch] `setSearchParams({})` wipes ALL URL query params, not just `filter`** [src/features/member/ui/MemberList.tsx:170] — when a future story adds a second URL param (sort, search), the dismiss-filter chip silently nukes them. Fix: delete only the `filter` key and preserve the rest. Source: blind+edge.
+- [x] **[Review][Patch] E2E `Date.now()`-derived `start_date` flakes near UTC-midnight / DST boundaries** [tests/e2e/flow-3-cycles-ending-alert.spec.ts:33-35] — wall-clock millisecond arithmetic with `MS_PER_DAY = 86_400_000` shifts the computed `dayNumber` by ±1 when the test runs near midnight or across a DST transition. Fix: floor to UTC date or compute via `Date.UTC` arithmetic. Source: blind+edge.
+- [x] **[Review][Patch] Missing i18n key `dashboard.cycles_ending.body_zero`** [src/i18n/fr.json] — AC #17 explicitly lists 7 keys; only 6 landed. Defensive zero-state key keeps the type-derived `TranslationKey` enum clean if a future change re-introduces the zero state. Source: auditor (AC #17).
+- [x] **[Review][Patch] Hook test bypasses `QueryClientProvider` via module-level `vi.mock`** [src/features/cycle/api/useCyclesEndingAlert.test.tsx] — AC #13 requires "Wraps in `QueryClientProvider` with seeded `useMembers()` data (mirror Story 2.4 pattern)". Current test stubs the hook entirely, never exercising the cache path. Fix: rewrite using `QueryClientProvider` + `setQueryData(MEMBERS_QUERY_KEY, ...)`. Source: auditor (AC #13).
+- [x] **[Review][Patch] `aria-label` on dismiss-filter chip + visible × glyph + Lucide `<X />` icon = double-symbol render + screen reader reads "multiplié"** [src/i18n/fr.json + src/features/member/ui/MemberList.tsx:169-176] — `aria-label={t("members.filter_cycles_ending_active")}` resolves to `"Cycles à clôturer ×"`; SR announces "Cycles à clôturer multiplié"; visually two × glyphs render. Fix: drop the literal × from the i18n value (keep `"Cycles à clôturer"`); set `aria-label` via a separate key like `"Retirer le filtre cycles à clôturer"`; keep the Lucide icon as the visual close. Source: blind+edge.
+- [x] **[Review][Patch] `aria-live="polite"` live-region timing — section unmounts on dismiss/load + injects fresh on first render** [src/features/cycle/ui/CycleEndingAlert.tsx:33-43] — (a) NVDA/JAWS may not announce a freshly-injected live region; (b) some readers announce removal as noise. Fix: keep the `<section role="status" aria-live="polite">` mounted at all times, conditionally render its CONTENTS instead. Source: blind+edge.
+- [x] **[Review][Patch] `dismiss` callback recreated on every render (no `useCallback`)** [src/features/cycle/api/useCyclesEndingAlert.ts:42-47] — latent stale-reference trap if a future consumer wraps the alert in `React.memo`. Fix: wrap in `useCallback` with empty deps. Source: blind+edge.
+- [x] **[Review][Patch] Component test "tap dismiss → component disappears" is incomplete** [src/features/cycle/ui/CycleEndingAlert.test.tsx] — AC #14 requires asserting the banner unmounts after dismiss; current test only verifies the callback fires. Fix: re-render with `isDismissed: true` after the click and assert `container.firstChild === null`. Source: auditor (AC #14).
+- [x] **[Review][Defer] No test for `useMembers` returning `isError: true`** [src/features/cycle/api/useCyclesEndingAlert.ts] — deferred, pre-existing dashboard-error pattern (placeholder dashboard doesn't surface error states; Story 9.1 will when it ships the real layout). Tracked in deferred-work.md.
+- [x] **[Review][Defer] Tailwind warning-palette token mismatch (`warning-50/200/800/900` not in config)** [src/features/cycle/ui/CycleEndingAlert.tsx + cross-cutting] — deferred, pre-existing palette-token drift across `MemberActionSheet`, `ProgressiveToast`, etc. Story 3.5 followed the existing convention. Tracked in deferred-work.md.
+
+**Dismissed (7) — not actionable:**
+
+- Selector race (cycle status flip vs view-model lag) — handled by `pickCurrentCycle`'s null-return for completed cycles + selector's null-guard.
+- URL filter casing not normalised — app-controlled URLs only.
+- `daysUntilCycleEnd(0)` clamp below — input domain [1, 30] enforced upstream by `computeCycleDay`'s clamp.
+- `bodyKey` no negative guard — `count` is `members.length`, always ≥ 0; `count === 0 → return null` guard fires upstream.
+- Selector evaluation ordering of null vs termine checks — both produce the same result; data-model invariant (termine ⇒ no active cycle) makes the order moot.
+- Dismiss-filter chip keyboard tab order — DOM order matches semantic order; "actually fine" per Edge Hunter's own analysis.
+- Hook test mocks internal path not barrel — matches the production import path (intentional; documented in Dev Notes).
 
 ## Dev Notes
 

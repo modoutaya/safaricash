@@ -20,9 +20,14 @@ import type { SeededCollector } from "./fixtures/seed-collector";
 
 const MS_PER_DAY = 86_400_000;
 
-/** Seed 1 member with an active cycle starting `daysAgo` days ago, so the
- *  member's cycle has `daysAgo + 1 = cycleDay` (computed by Story 2.1's
- *  `computeCycleDay`). */
+/** Seed 1 member with an active cycle starting `cycleDay - 1` UTC days ago,
+ *  so the member's cycle has `cycleDay` (computed by Story 2.1's
+ *  `computeCycleDay`, which uses `Date.UTC` arithmetic).
+ *
+ *  Uses UTC date arithmetic — wall-clock `Date.now() - N * MS_PER_DAY`
+ *  drifts ±1 day across DST transitions or near local-midnight runs.
+ *  `computeCycleDay` itself anchors to `${startDate}T00:00:00Z`, so the
+ *  test must produce a UTC-floored start date that matches. */
 async function seedMemberAtCycleDay(
   service: SupabaseClient,
   collector: SeededCollector,
@@ -30,7 +35,9 @@ async function seedMemberAtCycleDay(
   cycleDay: number,
   memberStatus: "active" | "completed" = "active",
 ): Promise<{ memberId: string; cycleId: string }> {
-  const startMs = Date.now() - (cycleDay - 1) * MS_PER_DAY;
+  const today = new Date();
+  const todayUtcMs = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const startMs = todayUtcMs - (cycleDay - 1) * MS_PER_DAY;
   const startDate = new Date(startMs).toISOString().slice(0, 10);
   const endDate = new Date(startMs + 29 * MS_PER_DAY).toISOString().slice(0, 10);
 
