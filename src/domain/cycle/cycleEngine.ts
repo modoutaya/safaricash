@@ -120,6 +120,15 @@ export function isCycleClosedForTransactions(cycle: { status: CycleStatusValue }
 export const DEFAULT_CYCLE_ENDING_WINDOW_DAYS = 7;
 
 /**
+ * Story 4.4 / FR23 — discrete N-day rattrapage options surfaced on the
+ * member action sheet's long-press / secondary-link reveal. Pinned at
+ * [2, 3, 4] per BDD line 857. UX preference, not a domain math invariant
+ * — but lives in the cycle-engine module to keep the inline grid tied to
+ * the same source of truth as the cycle math.
+ */
+export const RATTRAPAGE_DAY_OPTIONS = [2, 3, 4] as const;
+
+/**
  * Story 3.5 — days remaining in the cycle for a given 1-indexed day. Pure
  * scalar in/out (INV-7 — no `Date.now()` reads). Clamps to ≥ 0 so that
  * defensive callers passing day > 30 don't yield negative remainders.

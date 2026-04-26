@@ -18,9 +18,14 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/domain/EmptyState";
 import { MemberActionSheet } from "@/components/domain/MemberActionSheet";
 import { DEFAULT_CYCLE_ENDING_WINDOW_DAYS, isCycleInUpcomingEndWindow } from "@/domain/cycle";
-import { showContributionToast } from "@/features/transaction/api/showContributionToast";
+import { CYCLE_TOTAL_DAYS } from "@/domain/cycle";
+import {
+  showContributionToast,
+  showRattrapageToast,
+} from "@/features/transaction/api/showContributionToast";
 import { undoTransaction } from "@/features/transaction/api/undoTransaction";
 import { useRecordContribution } from "@/features/transaction/api/useRecordContribution";
+import { useRecordRattrapage } from "@/features/transaction/api/useRecordRattrapage";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
 
@@ -82,6 +87,8 @@ export function MemberList(): JSX.Element {
   const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
   // Story 4.3 — Flow 1 online commit path.
   const recordContribution = useRecordContribution();
+  // Story 4.4 — rattrapage commit path.
+  const recordRattrapage = useRecordRattrapage();
   const queryClient = useQueryClient();
   // Story 3.5 — URL-driven cycles-ending filter (entry point: dashboard alert
   // CTA). When set, filters the list to members whose cycle ends within the
@@ -259,6 +266,7 @@ export function MemberList(): JSX.Element {
           }}
           {...(activeMember.currentCycle
             ? {
+                daysRemaining: Math.max(0, CYCLE_TOTAL_DAYS - activeMember.currentCycle.dayNumber),
                 onRecordContribution: async (memberId: string) => {
                   setActiveMemberId(null);
                   const cycle = activeMember.currentCycle!;
@@ -278,6 +286,29 @@ export function MemberList(): JSX.Element {
                   } catch {
                     // RecordContributionError is surfaced by the hook;
                     // a future PR can wire toast.error() with mapped copy.
+                  }
+                },
+                onRattrapage: async (memberId: string, daysCovered: number) => {
+                  setActiveMemberId(null);
+                  const cycle = activeMember.currentCycle!;
+                  try {
+                    const txId = await recordRattrapage.mutateAsync({
+                      memberId,
+                      cycleId: cycle.id,
+                      dailyAmount: activeMember.dailyAmount,
+                      cycleDay: cycle.dayNumber,
+                      daysCovered,
+                    });
+                    showRattrapageToast({
+                      memberName: activeMember.name,
+                      daysCovered,
+                      onUndo: () => {
+                        void undoTransaction(txId, queryClient);
+                      },
+                    });
+                  } catch {
+                    // RecordRattrapageError surfaced by the hook;
+                    // future PR will wire toast.error() with mapped copy.
                   }
                 },
               }

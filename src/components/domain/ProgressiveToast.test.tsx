@@ -24,6 +24,23 @@ describe("ProgressiveToast", () => {
     expect(onUndo).toHaveBeenCalled();
   });
 
+  it("Story 4.4 — `just-committed` with bodyOverride replaces the default contribution copy", () => {
+    render(
+      <ProgressiveToast
+        state={{
+          kind: "just-committed",
+          secondsLeft: 5,
+          memberName: NAME,
+          bodyOverride: "Rattrapage enregistré (3 jours) — Awa Diallo",
+        }}
+        onUndo={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/rattrapage enregistré \(3 jours\) — awa diallo/i)).toBeInTheDocument();
+    // Default contribution copy is suppressed.
+    expect(screen.queryByText(/cotisation enregistrée/i)).not.toBeInTheDocument();
+  });
+
   it("renders 'sending' state with spinner + member name", () => {
     const { container } = render(
       <ProgressiveToast state={{ kind: "sending", memberName: NAME }} />,

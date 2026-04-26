@@ -226,10 +226,13 @@
       "secondary_rattrapage": "Rattrapage",
       "secondary_advance": "Prêt",
       "secondary_custom": "Montant personnalisé",
-      "secondary_view_profile": "Voir profil"
+      "secondary_view_profile": "Voir profil",
+      "rattrapage_aria": "Sélectionnez le nombre de jours à rattraper",
+      "rattrapage_option": "× {n} jours"
     },
     "toast": {
       "committed": "Cotisation enregistrée — {name}",
+      "rattrapage_committed": "Rattrapage enregistré ({days} jours) — {name}",
       "undo_cta": "Annuler ({secondsLeft}s)",
       "sending": "Envoi du reçu à {name}…",
       "delivered": "Reçu délivré ✓ — {name}",
@@ -245,5 +248,15 @@
     "not_granted": "Aucun accès accordé",
     "revoke_cta": "Révoquer l'accès",
     "revoke_toast": "Accès révoqué. SafariCash ne lira plus vos contacts."
+  },
+  "transaction": {
+    "error": {
+      "rattrapage_invalid_days": "Nombre de jours invalide",
+      "cycle_closed": "Le cycle est clôturé. Redémarrez-en un nouveau pour reprendre les cotisations.",
+      "unauthorized": "Vous devez être reconnecté pour enregistrer cette transaction",
+      "validation": "Données invalides — vérifiez le montant",
+      "network": "Pas de réseau — vérifiez votre connexion",
+      "unknown": "Erreur inattendue — réessayez"
+    }
   }
 }

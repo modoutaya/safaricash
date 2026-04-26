@@ -18,15 +18,20 @@
 // ux-design-specification.md:433-470 (Flow 1 spec),
 // architecture.md:878 (component slot).
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { isCycleClosedForTransactions } from "@/domain/cycle";
+import { RATTRAPAGE_DAY_OPTIONS, isCycleClosedForTransactions } from "@/domain/cycle";
 import { formatFcfaAmount } from "@/features/member/api/formatAmount";
 import { memberInitials } from "@/features/member/api/memberInitials";
 import { useT } from "@/i18n/useT";
 
 type CycleStatusValue = "active" | "with_advance" | "completed" | "settled";
+
+/** Story 4.4 — long-press timing. 500ms is the ergonomic reveal threshold
+ *  per UX spec line 453 (UX-DR6). Below this, the press is interpreted as
+ *  a click on the primary CTA (commit a contribution). */
+const RATTRAPAGE_LONGPRESS_MS = 500;
 
 export interface MemberActionSheetMember {
   id: string;
@@ -39,8 +44,14 @@ export interface MemberActionSheetProps {
   onOpenChange: (next: boolean) => void;
   member: MemberActionSheetMember;
   currentCycle: { status: CycleStatusValue } | null;
+  /** Story 4.4 — caller passes daysRemaining when a current cycle exists,
+   *  so the inline rattrapage grid can grey out N > daysRemaining options.
+   *  When the cycle is null/closed the value is ignored. */
+  daysRemaining?: number;
   onRecordContribution?: (memberId: string) => void;
-  onRattrapage?: (memberId: string) => void;
+  /** Story 4.4 — signature changes from Story 4.1's `(id) => void` to
+   *  `(id, daysCovered) => void`. The grid passes the selected N. */
+  onRattrapage?: (memberId: string, daysCovered: number) => void;
   onAdvance?: (memberId: string) => void;
   onCustomAmount?: (memberId: string) => void;
   onViewProfile: (memberId: string) => void;
@@ -51,6 +62,7 @@ export function MemberActionSheet({
   onOpenChange,
   member,
   currentCycle,
+  daysRemaining = 0,
   onRecordContribution,
   onRattrapage,
   onAdvance,
@@ -60,6 +72,13 @@ export function MemberActionSheet({
   const t = useT();
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const closed = isCycleClosedForTransactions(currentCycle);
+
+  // Story 4.4 — inline rattrapage grid state. Opens via long-press on the
+  // primary CTA OR tap on the secondary "Rattrapage" link. Resets when
+  // the sheet closes.
+  const [rattrapageMenuOpen, setRattrapageMenuOpen] = useState(false);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressedLongRef = useRef(false);
 
   useEffect(() => {
     const node = dialogRef.current;
@@ -71,7 +90,20 @@ export function MemberActionSheet({
     }
   }, [open]);
 
-  const close = () => onOpenChange(false);
+  // The internal close path resets the inline grid + long-press state.
+  // The external close path (parent flips `open` to false / unmounts the
+  // sheet) is handled by React's natural unmount of the dialog tree —
+  // MemberList sets `activeMemberId = null`, which removes this sheet
+  // entirely, so local state resets automatically on the next open.
+  const close = () => {
+    setRattrapageMenuOpen(false);
+    pressedLongRef.current = false;
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    onOpenChange(false);
+  };
 
   // Backdrop click — the click target is the <dialog> itself when the
   // user taps the overlay area outside the inner content. Tapping the
@@ -87,6 +119,48 @@ export function MemberActionSheet({
     if (!handler) return;
     handler(member.id);
     close();
+  };
+
+  // Story 4.4 — long-press logic on the primary CTA. pointerdown arms the
+  // timer; pointerup/cancel/leave clears it. If the timer fires (≥ 500ms
+  // held) we open the rattrapage grid AND set pressedLongRef so the
+  // synthetic click that would otherwise commit a contribution is
+  // suppressed in handlePrimaryClick.
+  const armLongPress = () => {
+    if (closed || !onRattrapage) return;
+    pressedLongRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      pressedLongRef.current = true;
+      setRattrapageMenuOpen(true);
+      longPressTimerRef.current = null;
+    }, RATTRAPAGE_LONGPRESS_MS);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handlePrimaryClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (pressedLongRef.current) {
+      e.preventDefault();
+      pressedLongRef.current = false;
+      return;
+    }
+    callIfReady(onRecordContribution)();
+  };
+
+  const handleRattrapagePick = (n: number) => {
+    if (!onRattrapage) return;
+    onRattrapage(member.id, n);
+    close();
+  };
+
+  const handleSecondaryRattrapageTap = () => {
+    if (closed || !onRattrapage) return;
+    setRattrapageMenuOpen((prev) => !prev);
   };
 
   return (
@@ -130,7 +204,11 @@ export function MemberActionSheet({
           type="button"
           size="lg"
           className="w-full"
-          onClick={callIfReady(onRecordContribution)}
+          onClick={handlePrimaryClick}
+          onPointerDown={armLongPress}
+          onPointerUp={cancelLongPress}
+          onPointerLeave={cancelLongPress}
+          onPointerCancel={cancelLongPress}
           disabled={!onRecordContribution || closed}
         >
           {t("members.action_sheet.primary_cta", {
@@ -138,13 +216,40 @@ export function MemberActionSheet({
           })}
         </Button>
 
+        {rattrapageMenuOpen && onRattrapage && !closed ? (
+          <div
+            role="group"
+            aria-label={t("members.action_sheet.rattrapage_aria")}
+            className="grid grid-cols-3 gap-2"
+          >
+            {RATTRAPAGE_DAY_OPTIONS.map((n) => {
+              const disabled = n > daysRemaining;
+              return (
+                <Button
+                  key={n}
+                  type="button"
+                  variant="outline"
+                  size="default"
+                  onClick={() => handleRattrapagePick(n)}
+                  disabled={disabled}
+                  aria-disabled={disabled}
+                  data-rattrapage-option={n}
+                >
+                  {t("members.action_sheet.rattrapage_option", { n })}
+                </Button>
+              );
+            })}
+          </div>
+        ) : null}
+
         <div className="grid grid-cols-2 gap-2">
           <Button
             type="button"
             variant="ghost"
             size="default"
-            onClick={callIfReady(onRattrapage)}
+            onClick={handleSecondaryRattrapageTap}
             disabled={!onRattrapage || closed}
+            aria-expanded={rattrapageMenuOpen}
           >
             {t("members.action_sheet.secondary_rattrapage")}
           </Button>
