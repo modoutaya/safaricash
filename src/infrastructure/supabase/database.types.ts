@@ -1,11 +1,6 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5";
-  };
   graphql_public: {
     Tables: {
       [_ in never]: never;
@@ -311,6 +306,7 @@ export type Database = {
           created_at: string;
           cycle_day: number;
           cycle_id: string;
+          days_covered: number;
           id: string;
           kind: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id: string;
@@ -323,6 +319,7 @@ export type Database = {
           created_at?: string;
           cycle_day: number;
           cycle_id: string;
+          days_covered?: number;
           id?: string;
           kind: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id: string;
@@ -335,6 +332,7 @@ export type Database = {
           created_at?: string;
           cycle_day?: number;
           cycle_id?: string;
+          days_covered?: number;
           id?: string;
           kind?: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id?: string;
@@ -512,45 +510,46 @@ export type Database = {
       canonical_jsonb: { Args: { j: Json }; Returns: string };
       create_member_with_cycle: {
         Args: {
+          p_created_via?: Database["public"]["Enums"]["members_created_via_enum"];
+          p_daily_amount: number;
           p_name: string;
           p_phone_number: string;
-          p_daily_amount: number;
-          p_created_via?: Database["public"]["Enums"]["members_created_via_enum"];
         };
         Returns: string;
       };
-      emit_session_event: {
-        Args: { p_reason: string };
-        Returns: undefined;
+      delete_member: { Args: { p_id: string }; Returns: undefined };
+      emit_session_event: { Args: { p_reason: string }; Returns: undefined };
+      record_contribution: {
+        Args: {
+          p_amount: number;
+          p_cycle_day: number;
+          p_cycle_id: string;
+          p_member_id: string;
+        };
+        Returns: string;
       };
+      record_rattrapage: {
+        Args: {
+          p_cycle_day: number;
+          p_cycle_id: string;
+          p_daily_amount: number;
+          p_days_covered: number;
+          p_member_id: string;
+        };
+        Returns: string;
+      };
+      restart_member_cycle: { Args: { p_member_id: string }; Returns: string };
+      show_limit: { Args: never; Returns: number };
+      show_trgm: { Args: { "": string }; Returns: string[] };
       update_member: {
         Args: {
+          p_daily_amount: number;
           p_id: string;
           p_name: string;
           p_phone_number: string;
-          p_daily_amount: number;
         };
         Returns: undefined;
       };
-      restart_member_cycle: {
-        Args: { p_member_id: string };
-        Returns: string;
-      };
-      delete_member: {
-        Args: { p_id: string };
-        Returns: undefined;
-      };
-      record_contribution: {
-        Args: {
-          p_member_id: string;
-          p_cycle_id: string;
-          p_amount: number;
-          p_cycle_day: number;
-        };
-        Returns: string;
-      };
-      show_limit: { Args: never; Returns: number };
-      show_trgm: { Args: { "": string }; Returns: string[] };
       vault_decrypt: { Args: { secret_id: string }; Returns: string };
       vault_encrypt: { Args: { plaintext: string }; Returns: string };
     };
@@ -565,7 +564,9 @@ export type Database = {
       transactions_source_enum: "online" | "offline_reconciled";
       users_role_enum: "collector" | "super_admin";
     };
-    CompositeTypes: Record<string, never>;
+    CompositeTypes: {
+      [_ in never]: never;
+    };
   };
 };
 

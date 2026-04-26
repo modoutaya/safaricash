@@ -12,6 +12,9 @@
 //   offline        → "Hors-ligne — envoi au prochain réseau"
 //   failed         → "Échec de l'envoi — retenter" + Retenter
 //
+// Story 4.4 — `bodyOverride` slot on the `just-committed` state lets the
+// rattrapage toast (showRattrapageToast) reuse the same lifecycle but
+// render a different body (e.g., "Rattrapage enregistré (3 jours) — X").
 // Mirrors the pure-presentation pattern from MemberActionSheet (Story 4.1).
 
 import { Loader2, X } from "lucide-react";
@@ -21,7 +24,7 @@ import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
 
 export type ProgressiveToastState =
-  | { kind: "just-committed"; secondsLeft: number; memberName: string }
+  | { kind: "just-committed"; secondsLeft: number; memberName: string; bodyOverride?: string }
   | { kind: "sending"; memberName: string }
   | { kind: "delivered"; memberName: string }
   | { kind: "offline"; memberName: string }
@@ -91,7 +94,9 @@ export function ProgressiveToast({ state, onUndo, onRetry, onDismiss }: Progress
 function renderCopy(state: ProgressiveToastState, t: ReturnType<typeof useT>): string {
   switch (state.kind) {
     case "just-committed":
-      return t("members.toast.committed", { name: state.memberName });
+      // Story 4.4 — bodyOverride lets rattrapage / future kinds replace the
+      // default contribution copy without expanding the lifecycle states.
+      return state.bodyOverride ?? t("members.toast.committed", { name: state.memberName });
     case "sending":
       return t("members.toast.sending", { name: state.memberName });
     case "delivered":

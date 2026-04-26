@@ -14,6 +14,7 @@ import {
   CONTRIBUTION_DAYS,
   CYCLE_TOTAL_DAYS,
   DEFAULT_CYCLE_ENDING_WINDOW_DAYS,
+  RATTRAPAGE_DAY_OPTIONS,
   canAcceptAdvance,
   commission,
   computeMemberStats,
@@ -265,6 +266,12 @@ describe("cycleEngine — example tests", () => {
   describe("DEFAULT_CYCLE_ENDING_WINDOW_DAYS (Story 3.5)", () => {
     it("is 7 days (frozen contract — single point of edit per AC #1)", () => {
       expect(DEFAULT_CYCLE_ENDING_WINDOW_DAYS).toBe(7);
+    });
+  });
+
+  describe("RATTRAPAGE_DAY_OPTIONS (Story 4.4)", () => {
+    it("is exactly [2, 3, 4] (frozen contract per BDD line 857)", () => {
+      expect(RATTRAPAGE_DAY_OPTIONS).toEqual([2, 3, 4]);
     });
   });
 
