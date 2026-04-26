@@ -9,7 +9,7 @@
 // Lives under `features/cycle/api/` because it's a derivation, not a
 // query — TanStack Query stays out of this file.
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { DEFAULT_CYCLE_ENDING_WINDOW_DAYS } from "@/domain/cycle";
 import { useMembers } from "@/features/member/api/useMembers";
@@ -42,12 +42,12 @@ export function useCyclesEndingAlert(
 
   const members = data ? selectMembersWithCycleEndingSoon(data, windowDays) : [];
 
-  const dismiss = () => {
+  const dismiss = useCallback(() => {
     if (typeof sessionStorage !== "undefined") {
       sessionStorage.setItem(CYCLE_ENDING_ALERT_DISMISS_KEY, "1");
     }
     setDismissed(true);
-  };
+  }, []);
 
   return {
     count: members.length,

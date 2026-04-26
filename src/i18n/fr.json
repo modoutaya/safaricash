@@ -55,6 +55,7 @@
   "dashboard": {
     "cycles_ending": {
       "title": "Cycles se terminant cette semaine",
+      "body_zero": "Aucun cycle dans la fenêtre",
       "body_one": "1 membre — clôture imminente",
       "body_many": "{count} membres — clôture imminente",
       "cta": "Voir",
@@ -67,7 +68,8 @@
     "filter_actif": "Actif",
     "filter_avance": "Avance",
     "filter_termine": "Terminé",
-    "filter_cycles_ending_active": "Cycles à clôturer ×",
+    "filter_cycles_ending_active": "Cycles à clôturer",
+    "filter_cycles_ending_dismiss_aria": "Retirer le filtre cycles à clôturer",
     "count_label_zero": "Aucun membre",
     "count_label_one": "1 membre",
     "count_label_many": "{n} membres",

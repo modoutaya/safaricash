@@ -167,8 +167,14 @@ export function MemberList(): JSX.Element {
       {cyclesEndingFilterActive ? (
         <button
           type="button"
-          onClick={() => setSearchParams({})}
-          aria-label={t("members.filter_cycles_ending_active")}
+          onClick={() => {
+            // Story 3.5 — preserve any other URL params; only strip `filter`.
+            // Future stories may add ?sort= / ?search= etc.
+            const next = new URLSearchParams(searchParams);
+            next.delete("filter");
+            setSearchParams(next);
+          }}
+          aria-label={t("members.filter_cycles_ending_dismiss_aria")}
           className="inline-flex items-center gap-1 self-start rounded-full border border-warning-200 bg-warning-50 px-3 py-2 text-body-2 font-medium text-warning-800 hover:bg-warning-bg/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span>{t("members.filter_cycles_ending_active")}</span>
