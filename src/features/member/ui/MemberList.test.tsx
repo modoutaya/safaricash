@@ -291,6 +291,124 @@ describe("MemberList", () => {
     expect(screen.getByTestId("profile-route")).toBeInTheDocument();
   });
 
+  // Story 3.5 — URL-driven cycles-ending filter.
+  it("Story 3.5 — ?filter=cycles-ending shows only members in the upcoming-end window", () => {
+    useMembersMock.mockReturnValue({
+      data: [
+        makeMember({
+          id: "in1",
+          name: "InWindow1",
+          currentCycle: { id: "c-in1", startDate: "2026-04-01", dayNumber: 25 },
+        }),
+        makeMember({
+          id: "out1",
+          name: "OutOfWindow",
+          currentCycle: { id: "c-out", startDate: "2026-04-01", dayNumber: 5 },
+        }),
+        makeMember({
+          id: "in2",
+          name: "InWindow2",
+          currentCycle: { id: "c-in2", startDate: "2026-04-01", dayNumber: 30 },
+        }),
+      ],
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <MemoryRouter initialEntries={["/members?filter=cycles-ending"]}>
+          <MemberList />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("heading", { level: 2, name: /InWindow1/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: /InWindow2/ })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 2, name: /OutOfWindow/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("Story 3.5 — dismiss-filter chip clears the URL param and restores all members", () => {
+    useMembersMock.mockReturnValue({
+      data: [
+        makeMember({
+          id: "in1",
+          name: "InWindow1",
+          currentCycle: { id: "c-in1", startDate: "2026-04-01", dayNumber: 25 },
+        }),
+        makeMember({
+          id: "out1",
+          name: "OutOfWindow",
+          currentCycle: { id: "c-out", startDate: "2026-04-01", dayNumber: 5 },
+        }),
+      ],
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <MemoryRouter initialEntries={["/members?filter=cycles-ending"]}>
+          <MemberList />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(
+      screen.queryByRole("heading", { level: 2, name: /OutOfWindow/ }),
+    ).not.toBeInTheDocument();
+
+    const dismissChip = screen.getByRole("button", { name: /cycles à clôturer/i });
+    fireEvent.click(dismissChip);
+
+    expect(screen.getByRole("heading", { level: 2, name: /OutOfWindow/ })).toBeInTheDocument();
+    // Chip is gone after dismissal.
+    expect(screen.queryByRole("button", { name: /cycles à clôturer/i })).not.toBeInTheDocument();
+  });
+
+  it("Story 3.5 — URL filter composes with status chip via AND (avance + cycles-ending)", () => {
+    useMembersMock.mockReturnValue({
+      data: [
+        makeMember({
+          id: "actif-in",
+          name: "ActifInWindow",
+          displayStatus: "actif",
+          currentCycle: { id: "c-a-in", startDate: "2026-04-01", dayNumber: 28 },
+        }),
+        makeMember({
+          id: "avance-in",
+          name: "AvanceInWindow",
+          displayStatus: "avance",
+          currentCycle: { id: "c-av-in", startDate: "2026-04-01", dayNumber: 28 },
+        }),
+        makeMember({
+          id: "avance-out",
+          name: "AvanceOutOfWindow",
+          displayStatus: "avance",
+          currentCycle: { id: "c-av-out", startDate: "2026-04-01", dayNumber: 5 },
+        }),
+      ],
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <MemoryRouter initialEntries={["/members?filter=cycles-ending"]}>
+          <MemberList />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /^avance$/i }));
+    expect(screen.getByRole("heading", { level: 2, name: /AvanceInWindow/ })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 2, name: /ActifInWindow/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 2, name: /AvanceOutOfWindow/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("passes axe a11y on a populated list", async () => {
     useMembersMock.mockReturnValue({
       data: [

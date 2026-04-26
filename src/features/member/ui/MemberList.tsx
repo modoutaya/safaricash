@@ -8,15 +8,16 @@
 //   success + search no match  → no_search_match_headline / subtext.
 //   success + ≥1 member        → search box + filter chips + card list.
 
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/domain/EmptyState";
 import { MemberActionSheet } from "@/components/domain/MemberActionSheet";
+import { DEFAULT_CYCLE_ENDING_WINDOW_DAYS, isCycleInUpcomingEndWindow } from "@/domain/cycle";
 import { showContributionToast } from "@/features/transaction/api/showContributionToast";
 import { undoTransaction } from "@/features/transaction/api/undoTransaction";
 import { useRecordContribution } from "@/features/transaction/api/useRecordContribution";
@@ -27,6 +28,8 @@ import { normalizeForSearch } from "../api/normalizeForSearch";
 import { useMembers } from "../api/useMembers";
 import { MEMBER_HEADER_CTA_THRESHOLD, type DisplayStatus, type MemberWithMeta } from "../types";
 import { MemberCard } from "./MemberCard";
+
+const CYCLES_ENDING_FILTER = "cycles-ending";
 
 const ALL_CHIPS: readonly DisplayStatus[] = ["actif", "avance", "termine"] as const;
 
@@ -43,15 +46,26 @@ function useFilteredMembers(
   members: readonly MemberWithMeta[],
   query: string,
   selectedChips: ReadonlySet<DisplayStatus>,
+  cyclesEndingFilterActive: boolean,
 ): MemberWithMeta[] {
   return useMemo(() => {
     const normalizedQuery = normalizeForSearch(query.trim());
     return members.filter((m) => {
       if (selectedChips.size > 0 && !selectedChips.has(m.displayStatus)) return false;
+      if (cyclesEndingFilterActive) {
+        // Story 3.5 — keep only members whose cycle is in the upcoming-end
+        // window. Members without an active cycle are excluded.
+        if (m.currentCycle === null) return false;
+        if (
+          !isCycleInUpcomingEndWindow(m.currentCycle.dayNumber, DEFAULT_CYCLE_ENDING_WINDOW_DAYS)
+        ) {
+          return false;
+        }
+      }
       if (normalizedQuery === "") return true;
       return normalizeForSearch(m.name).includes(normalizedQuery);
     });
-  }, [members, query, selectedChips]);
+  }, [members, query, selectedChips, cyclesEndingFilterActive]);
 }
 
 export function MemberList(): JSX.Element {
@@ -69,8 +83,18 @@ export function MemberList(): JSX.Element {
   // Story 4.3 — Flow 1 online commit path.
   const recordContribution = useRecordContribution();
   const queryClient = useQueryClient();
+  // Story 3.5 — URL-driven cycles-ending filter (entry point: dashboard alert
+  // CTA). When set, filters the list to members whose cycle ends within the
+  // default window. Composes with the chip filters via AND.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const cyclesEndingFilterActive = searchParams.get("filter") === CYCLES_ENDING_FILTER;
 
-  const filtered = useFilteredMembers(members ?? [], deferredQuery, selectedChips);
+  const filtered = useFilteredMembers(
+    members ?? [],
+    deferredQuery,
+    selectedChips,
+    cyclesEndingFilterActive,
+  );
   const activeMember = activeMemberId
     ? ((members ?? []).find((m) => m.id === activeMemberId) ?? null)
     : null;
@@ -139,6 +163,18 @@ export function MemberList(): JSX.Element {
         aria-label={t("members.search_placeholder")}
         className="w-full rounded-lg border border-hairline bg-card px-4 py-3 text-body-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       />
+
+      {cyclesEndingFilterActive ? (
+        <button
+          type="button"
+          onClick={() => setSearchParams({})}
+          aria-label={t("members.filter_cycles_ending_active")}
+          className="inline-flex items-center gap-1 self-start rounded-full border border-warning-200 bg-warning-50 px-3 py-2 text-body-2 font-medium text-warning-800 hover:bg-warning-bg/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span>{t("members.filter_cycles_ending_active")}</span>
+          <X size={14} aria-hidden />
+        </button>
+      ) : null}
 
       <div role="group" aria-label="Filtres" className="flex flex-wrap gap-2">
         {ALL_CHIPS.map((chip) => {

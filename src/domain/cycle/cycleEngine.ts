@@ -112,6 +112,32 @@ export function isCycleClosedForTransactions(cycle: { status: CycleStatusValue }
   return cycle.status === "completed" || cycle.status === "settled";
 }
 
+/**
+ * Story 3.5 / FR20 — default upcoming-end window for the dashboard alert.
+ * Single point of edit per AC #1 ("configurable" satisfied by the named
+ * constant; no env-var / RPC parameter at MVP).
+ */
+export const DEFAULT_CYCLE_ENDING_WINDOW_DAYS = 7;
+
+/**
+ * Story 3.5 — days remaining in the cycle for a given 1-indexed day. Pure
+ * scalar in/out (INV-7 — no `Date.now()` reads). Clamps to ≥ 0 so that
+ * defensive callers passing day > 30 don't yield negative remainders.
+ */
+export function daysUntilCycleEnd(cycleDayValue: number): number {
+  return Math.max(0, CYCLE_TOTAL_DAYS - cycleDayValue);
+}
+
+/**
+ * Story 3.5 — true iff the cycle's current day puts it within `windowDays`
+ * of completion (inclusive of day 30 / 0 days remaining — a cycle on its
+ * last calendar day is still "ending soon" until Story 3.3's status
+ * trigger flips it to `completed`).
+ */
+export function isCycleInUpcomingEndWindow(cycleDayValue: number, windowDays: number): boolean {
+  return daysUntilCycleEnd(cycleDayValue) <= windowDays;
+}
+
 /** Pure derived stats per FR17. Replaces the Story 2.4
  *  src/features/member/api/computeMemberStats.ts helper. */
 export interface MemberStats {

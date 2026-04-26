@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-26
-# touched: 5-4-commit-advance-transaction → ready-for-dev (closes Epic 5; record_advance RPC + Zod schema + useRecordAdvance hook + showAdvanceToast + route wiring; Stories 3.3/3.4/4.3/1.2 triggers fire for free)
+# touched: 3-5-cycles-ending-alerts → review (FR20 client-side surface implemented; full gates green; 20/20 Playwright validated locally)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -73,7 +73,7 @@ development_status:
   3-2-cycle-engine-pure-module: done  # PR #22 merged 2026-04-24; cycle module 100% coverage; fast-check installed; computeMemberStats moved to domain
   3-3-cycle-status-transitions: done  # PR #24 merged 2026-04-24; promote_cycle_on_advance trigger + cycle.transitioned audit event
   3-4-prevent-post-completion-contributions: done  # PR #26 merged 2026-04-24; FR19 DB enforcement + isCycleClosedForTransactions helper
-  3-5-cycles-ending-alerts: ready-for-dev  # spec generated 2026-04-26 via bmad-create-story; client-side FR20 surface (pure domain primitives + selector + useCyclesEndingAlert hook + CycleEndingAlert banner mounted on dashboard placeholder + /members?filter=cycles-ending URL filter + sessionStorage per-session dismiss); zero migrations, zero new deps; Story 9.2 overlaps and reduces to layout integration once 9.1 lands
+  3-5-cycles-ending-alerts: review  # implemented 2026-04-26 via bmad-dev-story; 6 new files + 7 modified; 23 new vitest cases (10 domain incl. fast-check property + 5 selector + 4 hook + 7 component jest-axe + 3 MemberList integration); cycle module 100% coverage maintained; new flow-3-cycles-ending-alert.spec.ts E2E validated locally (20 passed, 1 skipped); zero migrations / new RPC / new deps
   epic-3-retrospective: optional
 
   # Epic 4 — Daily Transaction Capture (Core)
