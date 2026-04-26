@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-26
-# touched: 4-5-undo-transaction-window → ready-for-dev (rewrites Story 4.3 hard-DELETE to soft-undo + transaction.undone audit event; closes Epic 4)
+# touched: 5-1-advance-simulation-panel → ready-for-dev (kicks off Epic 5; pure presentation component for Flow 2 advance simulation); epic-5: backlog → in-progress
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -86,8 +86,8 @@ development_status:
   epic-4-retrospective: optional
 
   # Epic 5 — Emergency Advance Flow
-  epic-5: backlog
-  5-1-advance-simulation-panel: backlog
+  epic-5: in-progress  # kicked off 2026-04-26 with Story 5.1 (AdvanceSimulationPanel)
+  5-1-advance-simulation-panel: ready-for-dev  # spec generated 2026-04-26 via bmad-create-story; pure presentation component (4-row card: Total cycle projected / Commission / Advance / Projected final balance) driven by Story 3.2's cycle-engine primitives (commission, computeProjectedFinalBalance, canAcceptAdvance); 3 states (empty / valid / over-limit per UX spec line 1033-1061); aria-live=polite on row 4; no internal state, no hooks, no migrations; mirrors Story 4.2 pure-component discipline
   5-2-advance-situation-context: backlog
   5-3-motive-saver-acknowledgment: backlog
   5-4-commit-advance-transaction: backlog
