@@ -249,6 +249,17 @@
     "revoke_cta": "Révoquer l'accès",
     "revoke_toast": "Accès révoqué. SafariCash ne lira plus vos contacts."
   },
+  "advance": {
+    "simulation": {
+      "row_total": "Total cycle projeté",
+      "row_commission": "Commission",
+      "row_advance": "Prêt",
+      "row_final_balance": "Solde final projeté",
+      "amount_placeholder": "— FCFA",
+      "over_limit_row": "Dépasse le solde disponible",
+      "over_limit_note": "Le prêt ne peut pas dépasser le solde projeté."
+    }
+  },
   "transaction": {
     "error": {
       "rattrapage_invalid_days": "Nombre de jours invalide",
