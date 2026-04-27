@@ -274,7 +274,19 @@
         "helper": "Ou choisissez un montant suggéré ci-dessus."
       },
       "cta_grant": "Accorder le prêt",
-      "cta_disabled_tooltip": "Saisissez un motif et l'acquittement (Story 5.3)",
+      "motive": {
+        "label": "Motif du prêt",
+        "helper": "Au moins 3 caractères. Sera consigné dans l'historique d'audit.",
+        "placeholder": "Ex. urgence médicale, frais de scolarité…"
+      },
+      "ack": {
+        "label": "J'ai compris que ce prêt réduit mon solde final"
+      },
+      "cta_blocked": {
+        "amount": "Saisissez un montant valide.",
+        "motive": "Saisissez un motif d'au moins 3 caractères.",
+        "ack": "Cochez l'acquittement du saver."
+      },
       "error": {
         "load": "Impossible de charger ce membre. Réessayez."
       }
