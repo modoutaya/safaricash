@@ -1,6 +1,6 @@
 # generated: 2026-04-19
-# last_updated: 2026-04-27
-# touched: 6-1-sms-dispatch-edge-function → review (durable SMS commitment infrastructure shipped)
+# last_updated: 2026-04-26
+# touched: 6-2-sms-worker-termii-retry → ready-for-dev (scheduled drain + Termii backoff + audit chain extension spec'd)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -96,7 +96,8 @@ development_status:
   # Epic 6 — Saver Trust Communications
   epic-6: in-progress  # kicked off 2026-04-27 with Story 6.1 (sms-dispatch infrastructure)
   6-1-sms-dispatch-edge-function: review  # implemented 2026-04-27 via bmad-dev-story; 3 migrations (schema extension + trigger rewrite + audit_append_external SECURITY DEFINER helper) + sms-dispatch Edge Function (POST, JWT-auth, RLS-respecting tx lookup, RFC 7807, hashed-phone structured logging) + 5 trigger contract tests + 8 Edge Function contract tests; opens Epic 6; full gates green (548 vitest / 65 edge / build / typecheck / lint)
-  6-2-sms-worker-termii-retry: backlog
+  6-2-sms-worker-termii-retry: ready-for-dev  # spec drafted 2026-04-26 via bmad-create-story; scheduled drain Edge Function (FOR UPDATE SKIP LOCKED + per-row tx + Promise.all batch parallelisation) + sendSmsNoRetry termii client extension + pure backoff module (10s→600s, 24h abandon) + audit_append_external allowlist extension (sms.sent/failed/abandoned, 1-line diff vs 6.1 baseline) + pg_cron 30s schedule migration; 24 ACs + 11 tasks + 14+5+8+4 contract tests
+
   6-3-sms-copy-templates: backlog
   6-4-receipt-url-worker: backlog
   6-5-first-sms-consent-optout: backlog
