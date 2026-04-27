@@ -133,12 +133,151 @@ describe("AdvanceFlow", () => {
     expect(screen.getAllByText(/150[\s\u00a0]000 FCFA/).length).toBeGreaterThanOrEqual(1);
   });
 
-  it("CTA renders DISABLED with the placeholder tooltip (Story 5.3 enables; 5.4 commits)", () => {
+  it("CTA renders DISABLED in the default empty state — tooltip surfaces the amount gap", () => {
     useMemberProfileMock.mockReturnValue(mkProfile());
     renderWithRouter();
     const cta = screen.getByRole("button", { name: /^accorder le prêt$/i });
     expect(cta).toBeDisabled();
-    expect(cta).toHaveAttribute("title", expect.stringContaining("motif"));
+    // Default state: amount=0, motive empty, ack unchecked → amount gate
+    // takes precedence (first unmet condition).
+    expect(cta).toHaveAttribute("title", expect.stringContaining("montant valide"));
+  });
+
+  // -------------------------------------------------------------------
+  // Story 5.3 — motive + saver-acknowledgment + precedence-ordered gate.
+  // -------------------------------------------------------------------
+
+  describe("Story 5.3 — motive + ack gate", () => {
+    it("saver-ack checkbox is NOT pre-checked (BDD line 931)", () => {
+      useMemberProfileMock.mockReturnValue(mkProfile());
+      renderWithRouter();
+      const ack = screen.getByLabelText(
+        /j'ai compris que ce prêt réduit mon solde final/i,
+      ) as HTMLInputElement;
+      expect(ack).not.toBeChecked();
+    });
+
+    it("ack checkbox copy is the EXACT BDD literal (verbatim)", () => {
+      useMemberProfileMock.mockReturnValue(mkProfile());
+      renderWithRouter();
+      // Match the EXACT string (anchored). Any drift breaks this test.
+      expect(
+        screen.getByText("J'ai compris que ce prêt réduit mon solde final"),
+      ).toBeInTheDocument();
+    });
+
+    it("amount valid + motive empty + unchecked → CTA disabled, tooltip says 'motif'", () => {
+      useMemberProfileMock.mockReturnValue(mkProfile());
+      renderWithRouter();
+      fireEvent.change(screen.getByLabelText(/montant du prêt/i), { target: { value: "20000" } });
+      const cta = screen.getByRole("button", { name: /^accorder le prêt$/i });
+      expect(cta).toBeDisabled();
+      expect(cta).toHaveAttribute("title", expect.stringContaining("motif"));
+    });
+
+    it("amount valid + motive < 3 chars + unchecked → CTA disabled, tooltip still 'motif'", () => {
+      useMemberProfileMock.mockReturnValue(mkProfile());
+      renderWithRouter();
+      fireEvent.change(screen.getByLabelText(/montant du prêt/i), { target: { value: "20000" } });
+      fireEvent.change(screen.getByLabelText(/motif du prêt/i), { target: { value: "ok" } });
+      const cta = screen.getByRole("button", { name: /^accorder le prêt$/i });
+      expect(cta).toBeDisabled();
+      expect(cta).toHaveAttribute("title", expect.stringContaining("motif"));
+    });
+
+    it("amount valid + motive valid + unchecked → CTA disabled, tooltip says 'acquittement'", () => {
+      useMemberProfileMock.mockReturnValue(mkProfile());
+      renderWithRouter();
+      fireEvent.change(screen.getByLabelText(/montant du prêt/i), { target: { value: "20000" } });
+      fireEvent.change(screen.getByLabelText(/motif du prêt/i), { target: { value: "urgence" } });
+      const cta = screen.getByRole("button", { name: /^accorder le prêt$/i });
+      expect(cta).toBeDisabled();
+      expect(cta).toHaveAttribute("title", expect.stringContaining("acquittement"));
+    });
+
+    it("amount valid + motive valid + checked → CTA enabled, no title", () => {
+      useMemberProfileMock.mockReturnValue(mkProfile());
+      renderWithRouter();
+      fireEvent.change(screen.getByLabelText(/montant du prêt/i), { target: { value: "20000" } });
+      fireEvent.change(screen.getByLabelText(/motif du prêt/i), { target: { value: "urgence" } });
+      fireEvent.click(screen.getByLabelText(/j'ai compris que ce prêt/i));
+      const cta = screen.getByRole("button", { name: /^accorder le prêt$/i });
+      expect(cta).toBeEnabled();
+      expect(cta).not.toHaveAttribute("title");
+    });
+
+    it("over-limit amount + valid motive + checked → CTA disabled, tooltip 'montant'", () => {
+      useMemberProfileMock.mockReturnValue(mkProfile());
+      renderWithRouter();
+      // dailyAmount=5000, no existing → capacity = 145_000. 200_000 over-limits.
+      fireEvent.change(screen.getByLabelText(/montant du prêt/i), { target: { value: "200000" } });
+      fireEvent.change(screen.getByLabelText(/motif du prêt/i), { target: { value: "urgence" } });
+      fireEvent.click(screen.getByLabelText(/j'ai compris que ce prêt/i));
+      const cta = screen.getByRole("button", { name: /^accorder le prêt$/i });
+      expect(cta).toBeDisabled();
+      expect(cta).toHaveAttribute("title", expect.stringContaining("montant"));
+    });
+
+    it("motive whitespace-only treated as empty — gate stays at 'motif'", () => {
+      useMemberProfileMock.mockReturnValue(mkProfile());
+      renderWithRouter();
+      fireEvent.change(screen.getByLabelText(/montant du prêt/i), { target: { value: "20000" } });
+      fireEvent.change(screen.getByLabelText(/motif du prêt/i), { target: { value: "   " } });
+      const cta = screen.getByRole("button", { name: /^accorder le prêt$/i });
+      expect(cta).toBeDisabled();
+      expect(cta).toHaveAttribute("title", expect.stringContaining("motif"));
+    });
+
+    it("CTA tap when enabled with onConfirm prop → calls onConfirm({ amount, motive: trimmed, acknowledged: true })", () => {
+      useMemberProfileMock.mockReturnValue(mkProfile());
+      const onConfirm = vi.fn();
+      // Render the AdvanceFlow directly (not via the route), so we can
+      // inject the optional onConfirm prop.
+      render(
+        <MemoryRouter initialEntries={["/x"]}>
+          <Routes>
+            <Route path="/x" element={<AdvanceFlow memberId={MEMBER_ID} onConfirm={onConfirm} />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      fireEvent.change(screen.getByLabelText(/montant du prêt/i), { target: { value: "20000" } });
+      fireEvent.change(screen.getByLabelText(/motif du prêt/i), {
+        target: { value: "  urgence  " },
+      });
+      fireEvent.click(screen.getByLabelText(/j'ai compris que ce prêt/i));
+      fireEvent.click(screen.getByRole("button", { name: /^accorder le prêt$/i }));
+      expect(onConfirm).toHaveBeenCalledTimes(1);
+      expect(onConfirm).toHaveBeenCalledWith({
+        amount: 20000,
+        motive: "urgence",
+        acknowledged: true,
+      });
+    });
+
+    it("CTA tap when enabled WITHOUT onConfirm prop is a no-op (defensive)", () => {
+      useMemberProfileMock.mockReturnValue(mkProfile());
+      renderWithRouter(); // route file does NOT pass onConfirm in Story 5.2
+      fireEvent.change(screen.getByLabelText(/montant du prêt/i), { target: { value: "20000" } });
+      fireEvent.change(screen.getByLabelText(/motif du prêt/i), { target: { value: "urgence" } });
+      fireEvent.click(screen.getByLabelText(/j'ai compris que ce prêt/i));
+      // No throw, no navigation.
+      expect(() =>
+        fireEvent.click(screen.getByRole("button", { name: /^accorder le prêt$/i })),
+      ).not.toThrow();
+    });
+
+    it("aria-describedby points to the hidden help span when CTA is disabled; absent when enabled", () => {
+      useMemberProfileMock.mockReturnValue(mkProfile());
+      renderWithRouter();
+      let cta = screen.getByRole("button", { name: /^accorder le prêt$/i });
+      expect(cta).toHaveAttribute("aria-describedby", "advance-cta-help");
+
+      fireEvent.change(screen.getByLabelText(/montant du prêt/i), { target: { value: "20000" } });
+      fireEvent.change(screen.getByLabelText(/motif du prêt/i), { target: { value: "urgence" } });
+      fireEvent.click(screen.getByLabelText(/j'ai compris que ce prêt/i));
+      cta = screen.getByRole("button", { name: /^accorder le prêt$/i });
+      expect(cta).not.toHaveAttribute("aria-describedby");
+    });
   });
 
   it("tap a chip → input value updates AND simulation panel echoes − {amount} FCFA", () => {

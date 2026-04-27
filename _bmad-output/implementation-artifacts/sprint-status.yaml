@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-27
-# touched: 5-2-advance-situation-context → review (AdvanceFlow screen + route + MemberList wiring)
+# touched: 5-3-motive-saver-acknowledgment → review (motive + saver-ack + precedence-ordered CTA gate)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -89,7 +89,7 @@ development_status:
   epic-5: in-progress  # kicked off 2026-04-26 with Story 5.1 (AdvanceSimulationPanel)
   5-1-advance-simulation-panel: review  # implemented 2026-04-27 via bmad-dev-story; pure component AdvanceSimulationPanel.tsx (4-row card driven by Story 3.2 cycle-engine primitives, 3 states empty/valid/over-limit, aria-live=polite on row 4 only, currency formatted via formatFcfaAmount, all colours via Tailwind tokens); 8 vitest tests incl. jest-axe across 3 states; 7 i18n keys under advance.simulation.*; no E2E (deferred to 5.4 commit-path)
   5-2-advance-situation-context: review  # implemented 2026-04-27 via bmad-dev-story; AdvanceFlow screen at /members/:id/advance (situation panel via Story 2.4 useMemberProfile + 3 suggested-amount chips ADVANCE_SUGGESTED_AMOUNTS=[50k,100k,150k] + free-form numeric input + Story 5.1 simulation panel); MemberList onAdvance wires navigation; closed-cycle / no-active-cycle / not-found redirect defensively; CTA disabled (Story 5.3 enables, 5.4 commits); 11 AdvanceFlow tests + 1 MemberList integration; jest-axe clean
-  5-3-motive-saver-acknowledgment: ready-for-dev  # spec generated 2026-04-26 via bmad-create-story; extends Story 5.2 AdvanceFlow with motive textarea (≥3 chars trimmed) + saver-acknowledgment checkbox (NOT pre-checked, copy verbatim from BDD line 930) + precedence-ordered CTA gate (amount → motive → ack) with contextual disabled-tooltip; adds optional onConfirm prop + exports AdvanceConfirmPayload shape; Story 5.4 wires the route file to pass a real handler; pure component extension, no migrations/RPC/domain changes
+  5-3-motive-saver-acknowledgment: review  # implemented 2026-04-27 via bmad-dev-story; AdvanceFlow extended with motive textarea (≥3 chars trimmed) + saver-ack checkbox (NOT pre-checked, BDD ligne 930 copy verbatim) + precedence-ordered CTA gate (amount→motive→ack) with contextual disabled tooltip; AdvanceConfirmPayload extended to {amount, motive, acknowledged}; 11 new test cases; all gates green
   5-4-commit-advance-transaction: ready-for-dev  # spec generated 2026-04-26 via bmad-create-story; closes Epic 5; 2 migrations (motive + saver_acknowledged columns + cross-kind CHECK constraint, then record_advance SECURITY DEFINER RPC with server-side capacity check) + RecordAdvanceInputSchema (Zod) + useRecordAdvance hook + showAdvanceToast helper + route wiring of onConfirm; triggers fire for free (Story 3.4 closed-cycle gate, Story 1.2 audit with motive+ack in payload, Story 4.3 SMS enqueue, Story 3.3 active→with_advance flip); cycle-status-sticky-after-undo documented as deferred limitation; 10 i18n keys under advance.error.*; new Flow 2 E2E
   epic-5-retrospective: optional
 

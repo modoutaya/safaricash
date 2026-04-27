@@ -27,11 +27,13 @@ import { cn } from "@/lib/utils";
 
 import { ADVANCE_SUGGESTED_AMOUNTS } from "../api/advanceConstants";
 
-/** Story 5.3 will populate this payload via onConfirm; Story 5.4 will
- *  wire the commit handler at the route layer. Exporting now so 5.3's
- *  CTA gate logic can refer to a stable shape. */
+/** Story 5.3 — payload shape consumed by the eventual onConfirm handler.
+ *  Story 5.4 will wire the commit handler at the route layer + map this
+ *  shape to the record_advance RPC arguments. */
 export interface AdvanceConfirmPayload {
   amount: number;
+  motive: string;
+  acknowledged: boolean;
 }
 
 export interface AdvanceFlowProps {
@@ -55,6 +57,12 @@ export function AdvanceFlow({ memberId, onConfirm }: AdvanceFlowProps): JSX.Elem
     const n = Number.parseInt(rawAmount, 10);
     return Number.isFinite(n) && n > 0 ? n : 0;
   }, [rawAmount]);
+
+  // Story 5.3 — motive + saver-acknowledgment gate. Trim only at submit
+  // time so the user can enter leading whitespace mid-edit; the audit
+  // payload still gets the trimmed string (handler-side responsibility).
+  const [motive, setMotive] = useState("");
+  const [acknowledged, setAcknowledged] = useState(false);
 
   const data = profileQuery.data;
 
@@ -94,17 +102,40 @@ export function AdvanceFlow({ memberId, onConfirm }: AdvanceFlowProps): JSX.Elem
   }
 
   const handleChipTap = (n: number) => setRawAmount(String(n));
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!onConfirm) return;
-    onConfirm({ amount: candidateAmount });
-  };
 
   const canAcceptCheck = (n: number): boolean => {
     // Mirror canAcceptAdvance's check inline so the chip can reflect
     // capacity without double-importing.
     const total = existingAdvanceAmounts.reduce((a, b) => a + b, 0) + n;
     return total <= data.member.daily_amount * (CYCLE_TOTAL_DAYS - 1);
+  };
+
+  // Story 5.3 — precedence-ordered CTA gate (amount → motive → ack).
+  // Surfaces the FIRST gap in the user's mental sequence, not all of
+  // them — UX spec § Error Recovery Patterns.
+  const trimmedMotive = motive.trim();
+  const amountGateOk = candidateAmount > 0 && canAcceptCheck(candidateAmount);
+  const motiveGateOk = trimmedMotive.length >= 3;
+  const ackGateOk = acknowledged === true;
+  const ctaEnabled = amountGateOk && motiveGateOk && ackGateOk;
+  const ctaTooltipKey:
+    | "advance.flow.cta_blocked.amount"
+    | "advance.flow.cta_blocked.motive"
+    | "advance.flow.cta_blocked.ack"
+    | null = !amountGateOk
+    ? "advance.flow.cta_blocked.amount"
+    : !motiveGateOk
+      ? "advance.flow.cta_blocked.motive"
+      : !ackGateOk
+        ? "advance.flow.cta_blocked.ack"
+        : null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ctaEnabled || !onConfirm) return;
+    // Trim motive on the way out so the audit payload doesn't carry
+    // incidental whitespace.
+    onConfirm({ amount: candidateAmount, motive: trimmedMotive, acknowledged: true });
   };
 
   return (
@@ -197,19 +228,58 @@ export function AdvanceFlow({ memberId, onConfirm }: AdvanceFlowProps): JSX.Elem
           candidateAmount={candidateAmount}
         />
 
-        {/* Disabled CTA — Story 5.3 enables-when-valid; Story 5.4 commits. */}
+        {/* Story 5.3 — motive textarea (≥ 3 chars trimmed). */}
+        <div className="flex flex-col gap-1">
+          <label htmlFor="advance-motive" className="text-body-2 text-text-secondary">
+            {t("advance.flow.motive.label")}
+          </label>
+          <textarea
+            id="advance-motive"
+            aria-required
+            rows={3}
+            maxLength={280}
+            value={motive}
+            onChange={(e) => setMotive(e.target.value)}
+            placeholder={t("advance.flow.motive.placeholder")}
+            className="w-full rounded-md border border-hairline bg-card px-4 py-3 text-body-1 text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <p className="text-body-2 text-text-secondary">{t("advance.flow.motive.helper")}</p>
+        </div>
+
+        {/* Story 5.3 — saver-acknowledgment checkbox (NOT pre-checked).
+            Copy is locked verbatim from BDD line 930. */}
+        <label
+          htmlFor="advance-saver-ack"
+          className="flex min-h-[44px] cursor-pointer items-center gap-2 text-body-2 text-text-primary"
+        >
+          <input
+            id="advance-saver-ack"
+            type="checkbox"
+            aria-required
+            checked={acknowledged}
+            onChange={(e) => setAcknowledged(e.target.checked)}
+            className="h-5 w-5 cursor-pointer rounded border-hairline text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+          />
+          <span>{t("advance.flow.ack.label")}</span>
+        </label>
+
+        {/* CTA — disabled when any gate fails; tooltip reflects the
+            FIRST unmet condition (amount → motive → ack). Story 5.4
+            wires onConfirm at the route layer. */}
         <Button
           type="submit"
           size="lg"
-          disabled
-          title={t("advance.flow.cta_disabled_tooltip")}
-          aria-describedby="advance-cta-help"
+          disabled={!ctaEnabled}
+          title={ctaTooltipKey ? t(ctaTooltipKey) : undefined}
+          aria-describedby={ctaTooltipKey ? "advance-cta-help" : undefined}
         >
           {t("advance.flow.cta_grant")}
         </Button>
-        <span id="advance-cta-help" className="sr-only">
-          {t("advance.flow.cta_disabled_tooltip")}
-        </span>
+        {ctaTooltipKey ? (
+          <span id="advance-cta-help" className="sr-only">
+            {t(ctaTooltipKey)}
+          </span>
+        ) : null}
       </form>
     </section>
   );
