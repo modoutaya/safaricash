@@ -25,6 +25,7 @@ import DashboardRoute from "@/app/routes/dashboard";
 import LoginRoute from "@/app/routes/login";
 import MembersRoute from "@/app/routes/members";
 import MemberProfileRoute from "@/app/routes/members/[id]";
+import MemberAdvanceRoute from "@/app/routes/members/[id].advance";
 import MemberEditRoute from "@/app/routes/members/[id].edit";
 import MembersImportRoute from "@/app/routes/members/import";
 import MembersNewRoute from "@/app/routes/members/new";
@@ -52,6 +53,8 @@ export const router = createBrowserRouter([
               // static segment ("edit") over a bare param.
               { path: "members/:id", element: <MemberProfileRoute /> },
               { path: "members/:id/edit", element: <MemberEditRoute /> },
+              // Story 5.2 — advance flow lives at /members/:id/advance.
+              { path: "members/:id/advance", element: <MemberAdvanceRoute /> },
               { path: "settings", element: <SettingsRoute /> },
             ],
           },

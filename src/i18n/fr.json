@@ -258,6 +258,26 @@
       "amount_placeholder": "— FCFA",
       "over_limit_row": "Dépasse le solde disponible",
       "over_limit_note": "Le prêt ne peut pas dépasser le solde projeté."
+    },
+    "flow": {
+      "title": "Accorder un prêt",
+      "back_label": "Retour au profil",
+      "situation": {
+        "title": "Situation actuelle",
+        "cycle_day": "Jour {day} sur 30",
+        "contributed": "Versé : {amount} FCFA",
+        "advances": "Avances en cours : {amount} FCFA"
+      },
+      "suggested_label": "Montants suggérés",
+      "amount_input": {
+        "label": "Montant du prêt (FCFA)",
+        "helper": "Ou choisissez un montant suggéré ci-dessus."
+      },
+      "cta_grant": "Accorder le prêt",
+      "cta_disabled_tooltip": "Saisissez un motif et l'acquittement (Story 5.3)",
+      "error": {
+        "load": "Impossible de charger ce membre. Réessayez."
+      }
     }
   },
   "transaction": {

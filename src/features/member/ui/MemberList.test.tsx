@@ -252,6 +252,38 @@ describe("MemberList", () => {
     expect(screen.getByText(/vérifiez l'orthographe/i)).toBeInTheDocument();
   });
 
+  it("Story 5.2 — tap 'Prêt' link navigates to /members/:id/advance", () => {
+    HTMLDialogElement.prototype.showModal = function () {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close = function () {
+      this.removeAttribute("open");
+      this.dispatchEvent(new Event("close"));
+    };
+    useMembersMock.mockReturnValue({
+      data: [makeMember({ id: "11111111-1111-4111-8111-111111111111", name: "Fatou" })],
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <MemoryRouter initialEntries={["/members"]}>
+          <Routes>
+            <Route path="/members" element={<MemberList />} />
+            <Route
+              path="/members/:id/advance"
+              element={<div data-testid="advance-route">advance</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /fatou/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^prêt$/i }));
+    expect(screen.getByTestId("advance-route")).toBeInTheDocument();
+  });
+
   it("Story 4.1 — card tap opens the action sheet (not direct navigate); Voir profil navigates", () => {
     // jsdom doesn't implement <dialog>'s showModal/close — same shim used
     // by RestartCycleDialog.test.tsx (Story 2.7).

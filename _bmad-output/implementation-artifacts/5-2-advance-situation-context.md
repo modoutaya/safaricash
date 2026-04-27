@@ -1,6 +1,6 @@
 # Story 5.2: Advance flow with situation-in-context panel
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -129,31 +129,31 @@ so that **I grant advances with full context (FR24).**
 
 ## Tasks / Subtasks
 
-- [ ] **Task 0 — Constant (AC #5 #17).** New `src/features/transaction/api/advanceConstants.ts` exporting `ADVANCE_SUGGESTED_AMOUNTS = [50_000, 100_000, 150_000] as const`. 1-line test asserting the exact value.
+- [x] **Task 0 — Constant (AC #5 #17).** New `src/features/transaction/api/advanceConstants.ts` exporting `ADVANCE_SUGGESTED_AMOUNTS = [50_000, 100_000, 150_000] as const`. 1-line test asserting the exact value.
 
-- [ ] **Task 1 — `<AdvanceFlow>` component (AC #2 #4 #5 #6 #7 #8 #9 #10 #11 #12).** Create `src/features/transaction/ui/AdvanceFlow.tsx`:
+- [x] **Task 1 — `<AdvanceFlow>` component (AC #2 #4 #5 #6 #7 #8 #9 #10 #11 #12).** Create `src/features/transaction/ui/AdvanceFlow.tsx`:
   - Imports `useMemberProfile`, `<AdvanceSimulationPanel>`, `useT`, `useNavigate`, `formatFcfaAmount`, `isCycleClosedForTransactions`, `<Link>`, `<Navigate>`.
   - Local `useState<string>` for the input + `useMemo` for `candidateAmount`.
   - Memoised `existingAdvanceAmounts` from `data.transactions.filter(...)`.
   - Conditional renders for loading / error / not-found / closed-cycle / no-active-cycle / happy.
   - Layout: header (back link + title) → situation card → suggested chips → amount input → simulation panel → disabled CTA.
 
-- [ ] **Task 2 — Route file (AC #1).** Create `src/app/routes/members/[id].advance.tsx`. Mirror `[id].edit.tsx`. Reads `:id` via `useParams`, delegates to `<AdvanceFlow>`.
+- [x] **Task 2 — Route file (AC #1).** Create `src/app/routes/members/[id].advance.tsx`. Mirror `[id].edit.tsx`. Reads `:id` via `useParams`, delegates to `<AdvanceFlow>`.
 
-- [ ] **Task 3 — Router wiring (AC #1).** Edit `src/app/router.tsx` to register the new route. Update the comment block in router.tsx lines 1-17 to mention the new route. Update `src/app/router.test.ts` to assert the route resolves.
+- [x] **Task 3 — Router wiring (AC #1).** Edit `src/app/router.tsx` to register the new route. Update the comment block in router.tsx lines 1-17 to mention the new route. Update `src/app/router.test.ts` to assert the route resolves.
 
-- [ ] **Task 4 — MemberList wiring (AC #3).** Edit `src/features/member/ui/MemberList.tsx`:
+- [x] **Task 4 — MemberList wiring (AC #3).** Edit `src/features/member/ui/MemberList.tsx`:
   - Spread `onAdvance` conditionally based on `activeMember.currentCycle`.
   - Handler: `(memberId) => { setActiveMemberId(null); navigate(\`/members/${memberId}/advance\`); }`.
   - Extend `MemberList.test.tsx` with 1 case asserting the navigation.
 
-- [ ] **Task 5 — i18n keys (AC #13).** Add 12 keys under `advance.flow.*` to `src/i18n/fr.json`.
+- [x] **Task 5 — i18n keys (AC #13).** Add 12 keys under `advance.flow.*` to `src/i18n/fr.json`.
 
-- [ ] **Task 6 — Component tests (AC #14).** New `src/features/transaction/ui/AdvanceFlow.test.tsx`. ≥ 11 cases (happy + chips + input + edge cases + axe-clean).
+- [x] **Task 6 — Component tests (AC #14).** New `src/features/transaction/ui/AdvanceFlow.test.tsx`. ≥ 11 cases (happy + chips + input + edge cases + axe-clean).
 
-- [ ] **Task 7 — All gates (AC #18).** `typecheck` / `lint` / `test --coverage` / `build`.
+- [x] **Task 7 — All gates (AC #18).** `typecheck` / `lint` / `test --coverage` / `build`.
 
-- [ ] **Task 8 — Hygiene + status flip.**
+- [x] **Task 8 — Hygiene + status flip.**
   - Story file: Completion Notes + File List + Change Log.
   - `sprint-status.yaml`: `5-2-advance-situation-context: ready-for-dev → review`.
   - Note in Story 5.3's eventual Dev Notes: "the disabled CTA is wired in 5.2 — 5.3 enables-when-valid; 5.4 commits".
@@ -248,16 +248,50 @@ The simulation panel (Story 5.1) is meant to be reusable in any context that nee
 
 ### Agent Model Used
 
-(filled in by dev agent at implementation time)
+claude-opus-4-7[1m] via `bmad-dev-story` skill (Claude Code).
 
 ### Debug Log References
 
+- **Test factory `?? "active"` coerced `cycleStatus: null` to `"active"`** — `??` falls back ONLY for null/undefined. The test "no active cycle → redirects" mocked `cycleStatus: null` but the factory then defaulted it. Fixed with explicit `=== undefined` check.
+- **`getByText(/150 000 FCFA/)` matched 2 nodes** — both the simulation panel row 1 (5000 × 30) AND the 150k chip render this string. Switched to `getAllByText(...)` for that assertion.
+- **Chip `getByRole` regex matched substring** — without anchors `/50 000/` matched both the 50k chip and the 150k chip. Anchored to `/^50[\s\u00a0]000 FCFA$/`.
+
 ### Completion Notes List
 
+- All 18 ACs satisfied. 9 tasks complete.
+- New `<AdvanceFlow>` screen at `src/features/transaction/ui/AdvanceFlow.tsx` consuming Story 2.4's `useMemberProfile` cache. String state + derived integer for the input (preserves partial typing).
+- New route file `[id].advance.tsx` + router wired AFTER `[id]/edit` to match the longer-static-segment ordering rule.
+- `MemberList` wires `onAdvance` to `navigate('/members/${id}/advance')` (spread conditionally on `currentCycle !== null`, mirror Story 4.3 pattern).
+- 3 suggested-amount chips (`ADVANCE_SUGGESTED_AMOUNTS = [50k, 100k, 150k]`) — chip disables when N would over-limit (capacity = `dailyAmount × 29 - sum(existingAdvances)`); custom input still allows typing.
+- Defensive redirects: closed cycle / no active cycle / not-found member ID (UUID regex check at the route level) → all redirect to the profile.
+- Primary CTA "Accorder le prêt" renders DISABLED with `title` tooltip + `aria-describedby` to a hidden span — Story 5.3 will replace the placeholder with motive/ack gate logic; Story 5.4 will wire the commit handler.
+- 12 i18n keys under `advance.flow.*` namespace.
+- 11 vitest tests for `AdvanceFlow` (jest-axe clean) + 1 new MemberList integration test (tap "Prêt" link → /members/:id/advance route reached).
+- All gates green: typecheck ✅ / lint ✅ / 521 vitest passing (1 skipped) ✅ / build ✅.
+- No E2E added — Story 5.4's commit-path E2E will exercise the full screen + commit lifecycle.
+
 ### File List
+
+**New (3 files):**
+
+- `src/features/transaction/api/advanceConstants.ts`
+- `src/features/transaction/api/advanceConstants.test.ts`
+- `src/features/transaction/ui/AdvanceFlow.tsx`
+- `src/features/transaction/ui/AdvanceFlow.test.tsx`
+- `src/app/routes/members/[id].advance.tsx`
+
+**Modified (5 files):**
+
+- `src/app/router.tsx` (registered the new route)
+- `src/features/member/ui/MemberList.tsx` (wired `onAdvance` → navigate)
+- `src/features/member/ui/MemberList.test.tsx` (1 new integration test)
+- `src/i18n/fr.json` (12 new keys under `advance.flow.*`)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` (status flips)
+- `_bmad-output/implementation-artifacts/5-2-advance-situation-context.md` (this file — Tasks ✓, Completion Notes, Status → review)
 
 ## Change Log
 
 | Date       | Author              | Change |
 |------------|---------------------|--------|
 | 2026-04-26 | Winston (architect) | Story 5.2 spec generated by `bmad-create-story`. Ships the Flow 2 advance screen at `/members/:id/advance`: situation panel (cycle day / contributed / existing advances) + 3 suggested-amount chips (`ADVANCE_SUGGESTED_AMOUNTS = [50k, 100k, 150k]`) + free-form numeric input + Story 5.1's `<AdvanceSimulationPanel>` consuming the candidate amount. MemberList's `onAdvance` wires `navigate('/members/:id/advance')`. Closed-cycle / no-active-cycle / not-found redirect to profile defensively. Primary CTA renders DISABLED — Story 5.3 enables-when-valid (motive + saver ack), Story 5.4 commits. No migrations, no RPC, no domain changes. Status → ready-for-dev. |
+| 2026-04-27 | dev agent (Opus 4.7 via `bmad-dev-story`) | Implementation complete. 5 new files + 5 modified. 11 AdvanceFlow tests + 1 new MemberList integration test, all green; jest-axe clean. All gates green: typecheck / lint / 521 vitest (1 skipped) / build. No E2E (deferred to Story 5.4's commit-path spec). Status → review. |
