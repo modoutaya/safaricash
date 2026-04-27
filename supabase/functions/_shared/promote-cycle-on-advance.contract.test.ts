@@ -112,6 +112,10 @@ async function insertTransaction(
   });
   if (vaultErr || !secret) throw new Error(`insertTx: vault_encrypt — ${vaultErr?.message}`);
 
+  // Story 5.4 — kind=advance now requires motive + saver_acknowledged
+  // (migration 0032 cross-kind CHECK constraint). Other kinds keep
+  // motive/ack as NULL.
+  const isAdvance = args.kind === "advance";
   const { error: txErr } = await service.from("transactions").insert({
     collector_id: args.collectorId,
     member_id: args.memberId,
@@ -120,6 +124,8 @@ async function insertTransaction(
     amount_encrypted: secret,
     cycle_day: args.cycleDay,
     source: "online",
+    motive: isAdvance ? "test motive" : null,
+    saver_acknowledged: isAdvance ? true : null,
   });
   if (txErr) throw new Error(`insertTx(${args.kind}): ${txErr.message}`);
 }

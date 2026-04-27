@@ -232,6 +232,7 @@
     },
     "toast": {
       "committed": "Cotisation enregistrée — {name}",
+      "advance_committed": "Prêt accordé — {name}",
       "rattrapage_committed": "Rattrapage enregistré ({days} jours) — {name}",
       "undo_cta": "Annuler ({secondsLeft}s)",
       "sending": "Envoi du reçu à {name}…",
@@ -290,6 +291,17 @@
       "error": {
         "load": "Impossible de charger ce membre. Réessayez."
       }
+    },
+    "error": {
+      "unauthorized": "Vous devez être reconnecté pour accorder un prêt",
+      "cycle_closed": "Le cycle est clôturé. Impossible d'accorder un prêt.",
+      "over_limit": "Le prêt dépasse le solde disponible. Réduisez le montant.",
+      "invalid_motive": "Saisissez un motif d'au moins 3 caractères.",
+      "missing_acknowledgment": "L'acquittement du saver est requis.",
+      "validation": "Données invalides — vérifiez les champs.",
+      "not_found": "Membre ou cycle introuvable.",
+      "network": "Pas de réseau — vérifiez votre connexion.",
+      "unknown": "Erreur inattendue — réessayez."
     }
   },
   "transaction": {

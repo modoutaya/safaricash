@@ -36,4 +36,5 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/_shared/record-contribution.contract.test.ts \
   supabase/functions/_shared/record-rattrapage.contract.test.ts \
   supabase/functions/_shared/undo-transaction.contract.test.ts \
+  supabase/functions/_shared/record-advance.contract.test.ts \
   "$@"

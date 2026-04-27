@@ -310,6 +310,8 @@ export type Database = {
           id: string;
           kind: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id: string;
+          motive: string | null;
+          saver_acknowledged: boolean | null;
           source: Database["public"]["Enums"]["transactions_source_enum"];
           undone_at: string | null;
           updated_at: string;
@@ -324,6 +326,8 @@ export type Database = {
           id?: string;
           kind: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id: string;
+          motive?: string | null;
+          saver_acknowledged?: boolean | null;
           source?: Database["public"]["Enums"]["transactions_source_enum"];
           undone_at?: string | null;
           updated_at?: string;
@@ -338,6 +342,8 @@ export type Database = {
           id?: string;
           kind?: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id?: string;
+          motive?: string | null;
+          saver_acknowledged?: boolean | null;
           source?: Database["public"]["Enums"]["transactions_source_enum"];
           undone_at?: string | null;
           updated_at?: string;
@@ -525,6 +531,17 @@ export type Database = {
       };
       delete_member: { Args: { p_id: string }; Returns: undefined };
       emit_session_event: { Args: { p_reason: string }; Returns: undefined };
+      record_advance: {
+        Args: {
+          p_amount: number;
+          p_cycle_day: number;
+          p_cycle_id: string;
+          p_member_id: string;
+          p_motive: string;
+          p_saver_acknowledged: boolean;
+        };
+        Returns: string;
+      };
       record_contribution: {
         Args: {
           p_amount: number;
