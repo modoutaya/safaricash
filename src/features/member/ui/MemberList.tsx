@@ -270,6 +270,11 @@ export function MemberList(): JSX.Element {
           {...(activeMember.currentCycle
             ? {
                 daysRemaining: Math.max(0, CYCLE_TOTAL_DAYS - activeMember.currentCycle.dayNumber),
+                // Story 5.2 — "Prêt" secondary link navigates to /members/:id/advance.
+                onAdvance: (id: string) => {
+                  setActiveMemberId(null);
+                  navigate(`/members/${id}/advance`);
+                },
                 onRecordContribution: async (memberId: string) => {
                   setActiveMemberId(null);
                   const cycle = activeMember.currentCycle!;
