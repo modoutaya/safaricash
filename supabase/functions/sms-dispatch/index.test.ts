@@ -243,11 +243,22 @@ if (env) {
   });
 
   Deno.test({
-    name: "wrong method (GET) — 405",
+    name: "wrong method (GET) — 405 (with auth, since Supabase Kong gateway rejects unauthenticated requests with 401 before the function runs)",
     ...denoOpts,
     fn: async () => {
-      const res = await fetch(env.fnUrl, { method: "GET" });
-      assertEquals(res.status, 405);
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "ed4");
+      try {
+        const res = await fetch(env.fnUrl, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${c.jwt}` },
+        });
+        assertEquals(res.status, 405);
+      } finally {
+        await cleanup(service, c);
+      }
     },
   });
 
