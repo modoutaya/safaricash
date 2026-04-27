@@ -34,6 +34,17 @@ export const KNOWN_PROBLEMS = {
     type: `${PROBLEM_BASE}/request/invalid`,
     title: "Invalid request",
   },
+  // Story 6.1 — sms-dispatch needs distinct 404 / 405 codes.
+  not_found: {
+    status: 404,
+    type: `${PROBLEM_BASE}/request/not_found`,
+    title: "Not found",
+  },
+  method_not_allowed: {
+    status: 405,
+    type: `${PROBLEM_BASE}/request/method_not_allowed`,
+    title: "Method not allowed",
+  },
   // Story 1.5b — password re-auth (PRD v1.3). Replaces the otp_* keys from
   // Story 1.3. The Edge Function never returns enumeration-distinguishing
   // errors: "credentials_invalid" covers both unknown phone and wrong password.
