@@ -240,6 +240,7 @@ export type Database = {
       };
       sms_queue: {
         Row: {
+          abandoned_at: string | null;
           attempts: number;
           body: string;
           collector_id: string;
@@ -247,11 +248,15 @@ export type Database = {
           delivered_at: string | null;
           id: string;
           last_attempt_at: string | null;
+          next_retry_at: string | null;
           recipient_phone: string;
+          retry_count: number;
           status: Database["public"]["Enums"]["sms_queue_status_enum"];
+          template_key: string;
           transaction_id: string | null;
         };
         Insert: {
+          abandoned_at?: string | null;
           attempts?: number;
           body: string;
           collector_id: string;
@@ -259,11 +264,15 @@ export type Database = {
           delivered_at?: string | null;
           id?: string;
           last_attempt_at?: string | null;
+          next_retry_at?: string | null;
           recipient_phone: string;
+          retry_count?: number;
           status?: Database["public"]["Enums"]["sms_queue_status_enum"];
+          template_key: string;
           transaction_id?: string | null;
         };
         Update: {
+          abandoned_at?: string | null;
           attempts?: number;
           body?: string;
           collector_id?: string;
@@ -271,8 +280,11 @@ export type Database = {
           delivered_at?: string | null;
           id?: string;
           last_attempt_at?: string | null;
+          next_retry_at?: string | null;
           recipient_phone?: string;
+          retry_count?: number;
           status?: Database["public"]["Enums"]["sms_queue_status_enum"];
+          template_key?: string;
           transaction_id?: string | null;
         };
         Relationships: [
@@ -519,6 +531,15 @@ export type Database = {
       };
     };
     Functions: {
+      audit_append_external: {
+        Args: {
+          p_entity_id: string;
+          p_entity_table: string;
+          p_event_type: string;
+          p_payload: Json;
+        };
+        Returns: string;
+      };
       canonical_jsonb: { Args: { j: Json }; Returns: string };
       create_member_with_cycle: {
         Args: {
