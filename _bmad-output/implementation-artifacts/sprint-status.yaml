@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-28
-# touched: 6-2-sms-worker-termii-retry → review (scheduled drain + Termii backoff + audit chain extension shipped)
+# touched: 6-3-sms-copy-templates → ready-for-dev (4 SMS template specs + receipt_token column + format_sms_body SQL helper)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -98,7 +98,8 @@ development_status:
   6-1-sms-dispatch-edge-function: review  # implemented 2026-04-27 via bmad-dev-story; 3 migrations (schema extension + trigger rewrite + audit_append_external SECURITY DEFINER helper) + sms-dispatch Edge Function (POST, JWT-auth, RLS-respecting tx lookup, RFC 7807, hashed-phone structured logging) + 5 trigger contract tests + 8 Edge Function contract tests; opens Epic 6; full gates green (548 vitest / 65 edge / build / typecheck / lint)
   6-2-sms-worker-termii-retry: review  # implemented 2026-04-28 via bmad-dev-story; 3 migrations (audit allowlist 1-line extension + pg_cron 30s schedule + claim_sms_queue_batch RPC + audit_append_external 5-arg overload) + sms-worker Edge Function (POST + service-role-key gate + Promise.all batch parallelisation + FOR UPDATE SKIP LOCKED drain + backoff 10s→600s cap + 24h abandon + soft-undo skip via undo_transaction) + sendSmsNoRetry termii client extension + pure backoff module 100% covered + 4 new contract test files (8 backoff + 12 worker + 6 allowlist + 5 cron); shared test-fixtures extracted from Story 6.1 tests; full gates green (548 vitest / 94 edge / build / typecheck / lint)
 
-  6-3-sms-copy-templates: backlog
+  6-3-sms-copy-templates: ready-for-dev  # spec drafted 2026-04-28 via bmad-create-story; receipt_token column (128-bit entropy + unique idx) + format_sms_body SQL helper (4 templates: first/subsequent/settlement/dispute_ack) + trigger replacement (3-line diff vs Story 6.1 baseline) + GSM-7 / 7-bit ASCII compliance + banking-language linter + tracker-not-mover disclosure (NFR-S10) + receipt URL via app.receipt_url_base GUC; 20 ACs + 9 tasks + 8+4+8 contract tests
+
   6-4-receipt-url-worker: backlog
   6-5-first-sms-consent-optout: backlog
   6-6-resend-cycle-history: backlog
