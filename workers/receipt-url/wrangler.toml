@@ -1,0 +1,36 @@
+# SafariCash Story 6.4 — receipt URL public surface (FR30 / UX-DR19).
+# Serves the saver-facing receipt page at safaricash.app/r/{token}; reads
+# the transaction via service-role lookup against Supabase. No-JS HTML
+# baseline; dispute-CTA points at a deferred-501 path that Story 10.2 wires
+# (UX-DR20).
+#
+# Deploy: npm run worker:receipt-url:deploy
+# Local:  npm run worker:receipt-url:dev   (binds 127.0.0.1:8788)
+#
+# Operator setup (post-first-deploy):
+#   1. wrangler secret put SUPABASE_SERVICE_ROLE_KEY  # service-role JWT
+#   2. Cloudflare dashboard → Routes → safaricash.app/r/* → safaricash-receipt-url
+
+name = "safaricash-receipt-url"
+main = "src/index.ts"
+# Pinned to a Cloudflare-released compatibility date (matches the
+# rate-limit Worker). Bump only after reviewing the runtime changelog.
+compatibility_date = "2026-04-01"
+# nodejs_compat NOT required — uses Web standard APIs only (fetch,
+# Request/Response, URL, Intl). Keeps cold start minimal.
+
+# Runtime env vars. Override per-environment via wrangler secret put.
+[vars]
+# Target Supabase project URL. Operator MUST override per-environment
+# (dev/staging/prod) — the pre-deploy lint script rejects the placeholder.
+SUPABASE_PROJECT_URL = "https://example.supabase.co"
+
+# SUPABASE_SERVICE_ROLE_KEY: never put in [vars] — set as a SECRET only:
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# Story 6.4 reads it from env at request time; first request returns 500
+# if unset.
+
+# Smaller observability + reliability footprint.
+[observability]
+enabled = true
+head_sampling_rate = 1.0

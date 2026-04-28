@@ -124,6 +124,13 @@ module.exports = {
       files: ["src/components/ui/**/*.{ts,tsx}", "tailwind.config.ts", "vite.config.ts"],
       rules: { "no-restricted-syntax": "off" },
     },
+    // Story 6.4 — receipt-url Worker has no Tailwind build step (it ships
+    // inline CSS in a no-JS HTML page per UX-DR19). The saver-facing
+    // brand palette is intentional here; brand-hex usage is sanctioned.
+    {
+      files: ["workers/receipt-url/src/render.ts"],
+      rules: { "no-restricted-syntax": "off" },
+    },
     {
       files: ["**/*.test.{ts,tsx}", "tests/**/*.{ts,tsx}"],
       env: { node: true },
