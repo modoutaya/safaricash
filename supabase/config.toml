@@ -410,8 +410,12 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# [edge_runtime.secrets]
-# secret_key = "env(SECRET_VALUE)"
+# Story 6.5 — propagate the Termii inbound webhook secret to the edge
+# runtime so the sms-inbound function can read it via Deno.env.get().
+# CI / local dev set TERMII_INBOUND_SECRET in the shell before
+# `supabase start`; this block does the substitution at container-spawn time.
+[edge_runtime.secrets]
+TERMII_INBOUND_SECRET = "env(TERMII_INBOUND_SECRET)"
 
 [analytics]
 enabled = true
