@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-28
-# touched: 6-5-first-sms-consent-optout → review (sms_opt_out wired + STOP webhook + receipt-url POST opt-out shipped)
+# touched: 6-6-resend-cycle-history → ready-for-dev (full-cycle resend RPC + Edge Function + member profile UI spec'd)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -104,7 +104,8 @@ development_status:
 
   6-5-first-sms-consent-optout: review  # implemented 2026-04-28 via bmad-dev-story; 6 migrations (sms_opt_out columns + partial idx / trigger replacement / audit allowlist 1-line ext / set_member_sms_opt_out RPC / get_member_id_from_token RPC / find_members_by_phone RPC) + sms-inbound Edge Function (Termii STOP webhook with ?secret= gate + multi-collector opt-out) + receipt-url Worker GET/POST /r/{token}/opt-out routes + render module additions; full gates green (584 vitest / 121 edge / build / typecheck / lint)
 
-  6-6-resend-cycle-history: backlog
+  6-6-resend-cycle-history: ready-for-dev  # spec drafted 2026-04-28 via bmad-create-story; 4 migrations (template_key 'resend' / audit allowlist 'sms.resend_initiated' / format_resend_sms_body wrapper / enqueue_resend_history RPC with Story 4.5 undo + Story 6.5 opt-out handshakes) + sms-resend-history Edge Function (POST + JWT + password re-auth via shared verify-password helper) + member profile UI button + reuse PasswordReauthDialog + 8 i18n keys + 1 Playwright E2E + 4+7+8 contract cases; 21 ACs + 14 tasks
+
   6-7-per-transaction-receipt-share: backlog
   6-8-whatsapp-secondary-delivery: backlog
   epic-6-retrospective: optional
