@@ -39,4 +39,8 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/_shared/record-advance.contract.test.ts \
   supabase/functions/_shared/sms-dispatch-trigger.contract.test.ts \
   supabase/functions/sms-dispatch/index.test.ts \
+  supabase/functions/sms-worker/backoff.test.ts \
+  supabase/functions/sms-worker/index.test.ts \
+  supabase/functions/_shared/sms-worker-audit-allowlist.contract.test.ts \
+  supabase/functions/_shared/sms-worker-cron-schedule.contract.test.ts \
   "$@"

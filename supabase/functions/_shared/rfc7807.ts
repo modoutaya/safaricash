@@ -29,6 +29,14 @@ export const KNOWN_PROBLEMS = {
     type: `${PROBLEM_BASE}/auth/user_not_provisioned`,
     title: "User not provisioned",
   },
+  // Story 6.2 — sms-worker drains rows belonging to ALL collectors. Running
+  // it under any other JWT would constrain the drain to one collector's
+  // rows and starve every other queue.
+  auth_service_role_required: {
+    status: 403,
+    type: `${PROBLEM_BASE}/auth/service_role_required`,
+    title: "Service role required",
+  },
   request_invalid: {
     status: 400,
     type: `${PROBLEM_BASE}/request/invalid`,

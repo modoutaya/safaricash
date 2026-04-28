@@ -139,6 +139,21 @@ async function sendOnce(args: TermiiSendArgs): Promise<TermiiSendResult> {
 }
 
 /**
+ * Worker-grade single-shot SMS send.
+ *
+ * Caller is responsible for retry / backoff. For the OTP synchronous path,
+ * use `sendSms()` which retries 3× internally — that retry policy is
+ * appropriate for OTP fire-and-fail-fast (Story 1.3) where the caller
+ * blocks on the user. The sms-worker (Story 6.2) is the system of record
+ * for the durable retry policy (10s → 600s with 24h abandon) and MUST NOT
+ * layer its own retry on top of an internal retry.
+ *
+ * NEVER log args.body — the receipt content is saver-facing PII. Caller
+ * must mask the body in any log line referencing this call.
+ */
+export const sendSmsNoRetry = sendOnce;
+
+/**
  * Sends an SMS via Termii with bounded retries on 5xx / network errors.
  * 4xx errors (bad request, bad credentials) fail immediately — no retry.
  *

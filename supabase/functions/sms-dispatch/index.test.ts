@@ -16,12 +16,7 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
-type PhoneCollector = {
-  userId: string;
-  phone: string;
-  password: string;
-  jwt: string;
-};
+import { cleanup, seedCollector, seedMemberWithCycle } from "../_shared/test-fixtures.ts";
 
 function envOrSkip(): {
   url: string;
@@ -34,69 +29,6 @@ function envOrSkip(): {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !anonKey || !serviceKey) return null;
   return { url, anonKey, serviceKey, fnUrl: `${url}/functions/v1/sms-dispatch` };
-}
-
-async function seedCollector(
-  service: SupabaseClient,
-  anon: SupabaseClient,
-  label: string,
-): Promise<PhoneCollector> {
-  const stamp = Date.now();
-  const bytes = new Uint8Array(7);
-  crypto.getRandomValues(bytes);
-  const suffix = Array.from(bytes)
-    .map((b) => (b % 10).toString())
-    .join("");
-  const phone = `+22177${suffix}`;
-  const password = `Pw-${label}-${suffix}-${stamp}`;
-
-  const { data, error } = await service.auth.admin.createUser({
-    phone,
-    password,
-    phone_confirm: true,
-  });
-  if (error || !data.user) throw new Error(`seed(${label}): ${error?.message}`);
-  const userId = data.user.id;
-
-  const { error: usersErr } = await service
-    .from("users")
-    .insert({ id: userId, phone_number: phone, role: "collector" });
-  if (usersErr) {
-    await service.auth.admin.deleteUser(userId);
-    throw new Error(`seed(${label}): users insert — ${usersErr.message}`);
-  }
-
-  const { data: signIn, error: signInErr } = await anon.auth.signInWithPassword({
-    phone,
-    password,
-  });
-  if (signInErr || !signIn.session?.access_token) {
-    await service.auth.admin.deleteUser(userId);
-    throw new Error(`seed(${label}): signIn — ${signInErr?.message}`);
-  }
-  return { userId, phone, password, jwt: signIn.session.access_token };
-}
-
-async function seedMemberWithCycle(
-  userClient: SupabaseClient,
-  service: SupabaseClient,
-  collectorId: string,
-  phoneNumber = "+221770000666",
-): Promise<{ memberId: string; cycleId: string }> {
-  const { data: memberId, error: createErr } = await userClient.rpc("create_member_with_cycle", {
-    p_name: "Test Member",
-    p_phone_number: phoneNumber,
-    p_daily_amount: 500,
-  });
-  if (createErr || !memberId) throw new Error(`seedMember: ${createErr?.message}`);
-  const { data: cycle } = await service
-    .from("cycles")
-    .select("id")
-    .eq("member_id", memberId)
-    .eq("collector_id", collectorId)
-    .single();
-  if (!cycle) throw new Error("seedMember: cycle not found");
-  return { memberId, cycleId: cycle.id };
 }
 
 async function recordContrib(
@@ -112,13 +44,6 @@ async function recordContrib(
   });
   if (error || !txId) throw new Error(`record_contribution: ${error?.message}`);
   return txId as string;
-}
-
-async function cleanup(service: SupabaseClient, c: PhoneCollector): Promise<void> {
-  await service.from("transactions").delete().eq("collector_id", c.userId);
-  await service.from("cycles").delete().eq("collector_id", c.userId);
-  await service.from("members").delete().eq("collector_id", c.userId);
-  await service.auth.admin.deleteUser(c.userId);
 }
 
 const env = envOrSkip();
