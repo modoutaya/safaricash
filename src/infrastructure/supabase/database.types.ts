@@ -583,6 +583,18 @@ export type Database = {
         Args: { p_template_key: string; p_transaction_id: string };
         Returns: string;
       };
+      get_receipt_payload: {
+        Args: { p_token: string };
+        Returns: {
+          amount: number;
+          created_at: string;
+          cycle_day: number;
+          daily_amount: number;
+          kind: string;
+          member_first_name: string;
+          projected_balance: number;
+        }[];
+      };
       record_advance: {
         Args: {
           p_amount: number;

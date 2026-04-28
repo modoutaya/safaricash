@@ -107,6 +107,30 @@ jobs:
           cat /tmp/wrangler-dev.log >&2 || true
           exit 1
 
+      # ----- Receipt-url Worker dev server (Story 6.4) — port 8788.
+      - name: Start wrangler dev (receipt-url worker)
+        run: |
+          npx wrangler dev \
+            --config workers/receipt-url/wrangler.toml \
+            --port 8788 \
+            --ip 127.0.0.1 \
+            --log-level warn \
+            --var SUPABASE_PROJECT_URL:http://127.0.0.1:54321 \
+            --var SUPABASE_SERVICE_ROLE_KEY:${{ env.SUPABASE_LOCAL_SERVICE_ROLE_KEY }} \
+            > /tmp/wrangler-receipt-url.log 2>&1 &
+          echo "WRANGLER_RECEIPT_URL_PID=$!" >> "$GITHUB_ENV"
+
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8788/health > /dev/null; then
+              echo "wrangler dev (receipt-url) ready after ${i}x 0.5s polls"
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "wrangler dev (receipt-url) did not become ready within 30s — last logs:" >&2
+          cat /tmp/wrangler-receipt-url.log >&2 || true
+          exit 1
+
       - name: Unit tests with coverage (Vitest + SQL↔TS contract)
         env:
           SUPABASE_TEST_URL: http://127.0.0.1:54321
@@ -161,6 +185,8 @@ jobs:
           SUPABASE_TEST_SEED_READY: "1"
           # Story 1.8 — rate-limit.spec.ts auto-detects this.
           WORKER_BASE_URL: http://127.0.0.1:8787
+          # Story 6.4 — receipt-url-worker.spec.ts auto-detects this.
+          RECEIPT_URL_WORKER_BASE: http://127.0.0.1:8788
           # Vite reads VITE_* from process.env; without these the dev server
           # spawned by playwright.config.ts crashes at module-load in
           # src/infrastructure/supabase/env.ts and React never mounts.
@@ -195,6 +221,9 @@ jobs:
         run: |
           if [ -n "${WRANGLER_PID:-}" ]; then
             kill "$WRANGLER_PID" 2>/dev/null || true
+          fi
+          if [ -n "${WRANGLER_RECEIPT_URL_PID:-}" ]; then
+            kill "$WRANGLER_RECEIPT_URL_PID" 2>/dev/null || true
           fi
 
       - name: Stop local Supabase stack

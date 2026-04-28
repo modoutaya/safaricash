@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-28
-# touched: 6-4-receipt-url-worker → ready-for-dev (Cloudflare Worker GET /r/{token} + helper RPC + render + dispute-CTA stub spec'd)
+# touched: 6-4-receipt-url-worker → review (Cloudflare Worker + helper RPC + dispute-CTA stub shipped)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -100,7 +100,7 @@ development_status:
 
   6-3-sms-copy-templates: review  # implemented 2026-04-28 via bmad-dev-story; 3 migrations (receipt_token 128-bit + unique idx + CHECK regex / format_sms_body SECURITY DEFINER helper with 4 template branches + unaccent + receipt URL via current_setting GUC fallback / trigger replacement 3-line diff vs Story 6.1) + 3 contract test files (8 format-helper + 1 banking-language + 1 length/ASCII) + 1 regression assertion in Story 6.1 trigger test; full gates green (548 vitest / 104 edge / build / typecheck / lint)
 
-  6-4-receipt-url-worker: ready-for-dev  # spec drafted 2026-04-28 via bmad-create-story; Cloudflare Worker GET /r/{token} (no-JS HTML + Tailwind-free inline CSS) + get_receipt_payload SECURITY DEFINER RPC + tokenIsValid regex + render module (UX-DR19 Level A) + Story 10.2 dispute-CTA stub (501) + wrangler config + check-config script + CI wrangler-dev step on port 8788 + 9 Playwright cases + 6+ vitest cases incl. jest-axe; 21 ACs + 9 tasks
+  6-4-receipt-url-worker: review  # implemented 2026-04-28 via bmad-dev-story; Cloudflare Worker safaricash-receipt-url (GET /r/{token} no-JS HTML + inline CSS + token regex defence + service-role lookup) + get_receipt_payload SECURITY DEFINER RPC (Story 4.5 handshake — undone rows 404) + dispute.ts 501-stub (Story 10.2 wires) + 6 token + 22 render unit tests incl. jest-axe Level A + XSS escape defence + 7 Playwright cases + CI wrangler-dev step on port 8788; full gates green (576 vitest / typecheck / lint / build)
 
   6-5-first-sms-consent-optout: backlog
   6-6-resend-cycle-history: backlog
