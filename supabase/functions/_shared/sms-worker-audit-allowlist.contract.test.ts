@@ -40,7 +40,7 @@ if (env) {
   });
   const denoOpts = { sanitizeResources: false, sanitizeOps: false };
 
-  for (const evt of ["sms.sent", "sms.failed", "sms.abandoned"] as const) {
+  for (const evt of ["sms.sent", "sms.failed", "sms.abandoned", "sms.opt_out"] as const) {
     Deno.test({
       name: `audit_append_external('${evt}', ...) — accepted`,
       ...denoOpts,

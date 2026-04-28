@@ -14,7 +14,13 @@
 // NEVER logs full token, member name, or amount. Token prefix only.
 
 import { disputeGet, disputePost } from "./dispute";
-import { renderNotFoundHtml, renderReceiptHtml, type ReceiptPayload } from "./render";
+import {
+  renderNotFoundHtml,
+  renderOptOutConfirmedHtml,
+  renderOptOutFormHtml,
+  renderReceiptHtml,
+  type ReceiptPayload,
+} from "./render";
 import { tokenIsValid } from "./token";
 
 export interface Env {
@@ -54,12 +60,16 @@ function notFoundText(): Response {
   return new Response("Reçu introuvable.", { status: 404, headers: TEXT_HEADERS });
 }
 
-async function fetchReceiptPayload(env: Env, token: string): Promise<ReceiptPayload | null> {
+async function supabaseRpc<T>(
+  env: Env,
+  rpcName: string,
+  args: Record<string, unknown>,
+): Promise<T | null> {
   if (!env.SUPABASE_SERVICE_ROLE_KEY) {
-    logJson("error", "receipt_url.service_role_unset", {});
+    logJson("error", "receipt_url.service_role_unset", { rpc: rpcName });
     return null;
   }
-  const url = `${env.SUPABASE_PROJECT_URL}/rest/v1/rpc/get_receipt_payload`;
+  const url = `${env.SUPABASE_PROJECT_URL}/rest/v1/rpc/${rpcName}`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
@@ -67,19 +77,45 @@ async function fetchReceiptPayload(env: Env, token: string): Promise<ReceiptPayl
       apikey: env.SUPABASE_SERVICE_ROLE_KEY,
       Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
     },
-    body: JSON.stringify({ p_token: token }),
+    body: JSON.stringify(args),
   });
   if (!res.ok) {
-    logJson("error", "receipt_url.rpc_failed", {
-      token_prefix: tokenPrefix(token),
-      status: res.status,
-    });
+    logJson("error", "receipt_url.rpc_failed", { rpc: rpcName, status: res.status });
     return null;
   }
-  const rows = (await res.json()) as ReceiptPayload[];
+  return (await res.json()) as T;
+}
+
+async function fetchReceiptPayload(env: Env, token: string): Promise<ReceiptPayload | null> {
+  const rows = await supabaseRpc<ReceiptPayload[]>(env, "get_receipt_payload", { p_token: token });
   if (!Array.isArray(rows) || rows.length === 0) return null;
-  const row = rows[0];
-  return row ?? null;
+  return rows[0] ?? null;
+}
+
+async function fetchMemberIdFromToken(env: Env, token: string): Promise<string | null> {
+  const result = await supabaseRpc<string | null>(env, "get_member_id_from_token", {
+    p_token: token,
+  });
+  return result ?? null;
+}
+
+async function setMemberSmsOptOut(env: Env, memberId: string): Promise<boolean> {
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) return false;
+  const url = `${env.SUPABASE_PROJECT_URL}/rest/v1/rpc/set_member_sms_opt_out`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify({ p_member_id: memberId, p_via: "receipt_url" }),
+  });
+  if (!res.ok) {
+    logJson("error", "receipt_url.opt_out_rpc_failed", { status: res.status });
+    return false;
+  }
+  return true;
 }
 
 export default {
@@ -96,8 +132,8 @@ export default {
       return new Response("ok", { status: 200, headers: TEXT_HEADERS });
     }
 
-    // Receipt page route: /r/{token} or /r/{token}/dispute
-    const receiptMatch = path.match(/^\/r\/([^/]+)(?:\/(dispute))?$/);
+    // Receipt page route: /r/{token} or /r/{token}/dispute or /r/{token}/opt-out
+    const receiptMatch = path.match(/^\/r\/([^/]+)(?:\/(dispute|opt-out))?$/);
     if (receiptMatch) {
       const rawToken = receiptMatch[1] ?? "";
       const subroute = receiptMatch[2];
@@ -106,6 +142,43 @@ export default {
         if (!tokenIsValid(rawToken)) return notFoundHtml();
         if (method === "GET") return disputeGet(rawToken);
         if (method === "POST") return disputePost();
+        return new Response("Method Not Allowed", { status: 405, headers: TEXT_HEADERS });
+      }
+
+      if (subroute === "opt-out") {
+        if (!tokenIsValid(rawToken)) return notFoundHtml();
+
+        if (method === "GET") {
+          return new Response(renderOptOutFormHtml(rawToken), {
+            status: 200,
+            headers: HTML_HEADERS,
+          });
+        }
+        if (method === "POST") {
+          try {
+            const memberId = await fetchMemberIdFromToken(env, rawToken);
+            if (!memberId) {
+              return notFoundHtml();
+            }
+            const ok = await setMemberSmsOptOut(env, memberId);
+            if (!ok) {
+              return new Response("Service unavailable", { status: 500, headers: TEXT_HEADERS });
+            }
+            logJson("info", "receipt_url.opted_out", {
+              token_prefix: tokenPrefix(rawToken),
+            });
+            return new Response(renderOptOutConfirmedHtml(), {
+              status: 200,
+              headers: HTML_HEADERS,
+            });
+          } catch (err) {
+            logJson("error", "receipt_url.opt_out_unhandled", {
+              token_prefix: tokenPrefix(rawToken),
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return new Response("Service unavailable", { status: 500, headers: TEXT_HEADERS });
+          }
+        }
         return new Response("Method Not Allowed", { status: 405, headers: TEXT_HEADERS });
       }
 

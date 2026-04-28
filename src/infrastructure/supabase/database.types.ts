@@ -201,6 +201,9 @@ export type Database = {
           name_encrypted: string;
           phone_number_encrypted: string;
           phone_number_hash: string | null;
+          sms_opt_out: boolean;
+          sms_opt_out_at: string | null;
+          sms_opt_out_via: string | null;
           status: Database["public"]["Enums"]["members_status_enum"];
           updated_at: string;
         };
@@ -213,6 +216,9 @@ export type Database = {
           name_encrypted: string;
           phone_number_encrypted: string;
           phone_number_hash?: string | null;
+          sms_opt_out?: boolean;
+          sms_opt_out_at?: string | null;
+          sms_opt_out_via?: string | null;
           status?: Database["public"]["Enums"]["members_status_enum"];
           updated_at?: string;
         };
@@ -225,6 +231,9 @@ export type Database = {
           name_encrypted?: string;
           phone_number_encrypted?: string;
           phone_number_hash?: string | null;
+          sms_opt_out?: boolean;
+          sms_opt_out_at?: string | null;
+          sms_opt_out_via?: string | null;
           status?: Database["public"]["Enums"]["members_status_enum"];
           updated_at?: string;
         };
@@ -579,10 +588,17 @@ export type Database = {
       };
       delete_member: { Args: { p_id: string }; Returns: undefined };
       emit_session_event: { Args: { p_reason: string }; Returns: undefined };
+      find_members_by_phone: {
+        Args: { p_phone: string };
+        Returns: {
+          id: string;
+        }[];
+      };
       format_sms_body: {
         Args: { p_template_key: string; p_transaction_id: string };
         Returns: string;
       };
+      get_member_id_from_token: { Args: { p_token: string }; Returns: string };
       get_receipt_payload: {
         Args: { p_token: string };
         Returns: {
@@ -626,6 +642,10 @@ export type Database = {
         Returns: string;
       };
       restart_member_cycle: { Args: { p_member_id: string }; Returns: string };
+      set_member_sms_opt_out: {
+        Args: { p_member_id: string; p_via: string };
+        Returns: undefined;
+      };
       show_limit: { Args: never; Returns: number };
       show_trgm: { Args: { "": string }; Returns: string[] };
       unaccent: { Args: { "": string }; Returns: string };

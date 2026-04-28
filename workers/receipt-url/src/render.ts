@@ -149,6 +149,42 @@ const STYLE_BLOCK = `
     color: #4b5563;
     font-size: 1rem;
   }
+  .opt-out {
+    margin-top: 1rem;
+    text-align: center;
+  }
+  .opt-out a {
+    color: #6b7280;
+    font-size: 0.9rem;
+    text-decoration: underline;
+  }
+  .opt-out small {
+    display: block;
+    margin-top: 0.25rem;
+    color: #9ca3af;
+    font-size: 0.8rem;
+  }
+  .opt-out-form {
+    margin-top: 1rem;
+    text-align: center;
+  }
+  .opt-out-form button {
+    background: #4b5563;
+    color: #ffffff;
+    padding: 0.75rem 1.25rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .opt-out-form button:hover, .opt-out-form button:focus {
+    background: #374151;
+  }
+  .opt-out-confirmed {
+    color: #4b5563;
+    font-size: 1rem;
+  }
 `.trim();
 
 function htmlShell(title: string, bodyContent: string, lang: string = "fr"): string {
@@ -207,11 +243,46 @@ export function renderReceiptHtml(token: string, payload: ReceiptPayload): strin
     <small>${REVERSIBILITY_NOTE}</small>
   </section>
 
+  <section class="opt-out" aria-label="Ne plus recevoir de SMS">
+    <a href="/r/${escapeHtml(token)}/opt-out">Ne plus recevoir de SMS</a>
+    <small>Votre opt-out est traçable et peut être annulé via votre collecteur.</small>
+  </section>
+
   <aside class="disclosure">${TRACKER_DISCLOSURE}</aside>
 </main>
 `.trim();
 
   return htmlShell(`Reçu SafariCash — ${payload.member_first_name}`, body);
+}
+
+export function renderOptOutFormHtml(token: string): string {
+  const body = `
+<main>
+  <header>
+    <h1>SafariCash</h1>
+  </header>
+  <p>Confirmer l'arrêt des SMS de SafariCash sur ce numéro&nbsp;? Cette décision est traçable et peut être annulée via votre collecteur.</p>
+  <form class="opt-out-form" method="POST" action="/r/${escapeHtml(token)}/opt-out">
+    <button type="submit">Confirmer l'opt-out</button>
+  </form>
+  <p class="opt-out"><a href="/r/${escapeHtml(token)}">Retour au reçu</a></p>
+  <aside class="disclosure">${TRACKER_DISCLOSURE}</aside>
+</main>
+`.trim();
+  return htmlShell("Opt-out — SafariCash", body);
+}
+
+export function renderOptOutConfirmedHtml(): string {
+  const body = `
+<main>
+  <header>
+    <h1>SafariCash</h1>
+  </header>
+  <p class="opt-out-confirmed">Vous ne recevrez plus de SMS de SafariCash. Cette décision est traçable et réversible — contactez votre collecteur pour reprendre les notifications.</p>
+  <aside class="disclosure">${TRACKER_DISCLOSURE}</aside>
+</main>
+`.trim();
+  return htmlShell("Opt-out confirmé — SafariCash", body);
 }
 
 export function renderNotFoundHtml(): string {

@@ -214,6 +214,7 @@ jobs:
           SUPABASE_TEST_ANON_KEY: ${{ env.SUPABASE_LOCAL_ANON_KEY }}
           SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ env.SUPABASE_LOCAL_SERVICE_ROLE_KEY }}
           TERMII_API_KEY: mock-key-not-used-in-tests
+          TERMII_INBOUND_SECRET: ci-test-inbound-secret
         run: npm run test:edge
 
       - name: Stop wrangler dev

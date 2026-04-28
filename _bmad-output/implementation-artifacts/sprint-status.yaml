@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-04-28
-# touched: 6-5-first-sms-consent-optout → ready-for-dev (sms_opt_out + Termii STOP webhook + receipt-url POST opt-out spec'd)
+# touched: 6-5-first-sms-consent-optout → review (sms_opt_out wired + STOP webhook + receipt-url POST opt-out shipped)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -102,7 +102,7 @@ development_status:
 
   6-4-receipt-url-worker: review  # implemented 2026-04-28 via bmad-dev-story; Cloudflare Worker safaricash-receipt-url (GET /r/{token} no-JS HTML + inline CSS + token regex defence + service-role lookup) + get_receipt_payload SECURITY DEFINER RPC (Story 4.5 handshake — undone rows 404) + dispute.ts 501-stub (Story 10.2 wires) + 6 token + 22 render unit tests incl. jest-axe Level A + XSS escape defence + 7 Playwright cases + CI wrangler-dev step on port 8788; full gates green (576 vitest / typecheck / lint / build)
 
-  6-5-first-sms-consent-optout: ready-for-dev  # spec drafted 2026-04-28 via bmad-create-story; members.sms_opt_out columns + partial idx + trigger replacement (5-line diff vs Story 6.3) + audit_append_external allowlist 1-line extension (sms.opt_out) + set_member_sms_opt_out SECURITY DEFINER RPC (idempotent + cancels queued SMS) + sms-inbound Edge Function (Termii STOP keyword webhook + ?secret= gate + multi-collector opt-out) + receipt-url Worker GET/POST /r/{token}/opt-out + render module additions; 21 ACs + 16 tasks + 9 inbound + 6 RPC + 1 trigger + 1 allowlist + 3 render contract/Playwright cases
+  6-5-first-sms-consent-optout: review  # implemented 2026-04-28 via bmad-dev-story; 6 migrations (sms_opt_out columns + partial idx / trigger replacement / audit allowlist 1-line ext / set_member_sms_opt_out RPC / get_member_id_from_token RPC / find_members_by_phone RPC) + sms-inbound Edge Function (Termii STOP webhook with ?secret= gate + multi-collector opt-out) + receipt-url Worker GET/POST /r/{token}/opt-out routes + render module additions; full gates green (584 vitest / 121 edge / build / typecheck / lint)
 
   6-6-resend-cycle-history: backlog
   6-7-per-transaction-receipt-share: backlog

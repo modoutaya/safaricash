@@ -22,6 +22,9 @@ export SUPABASE_TEST_URL="$SUPABASE_URL"
 export SUPABASE_TEST_ANON_KEY="$SUPABASE_ANON_KEY"
 export SUPABASE_TEST_SERVICE_ROLE_KEY="$SUPABASE_SERVICE_ROLE_KEY"
 export TERMII_API_KEY="${TERMII_API_KEY:-mock-key-not-used-in-tests}"
+# Story 6.5 — sms-inbound webhook secret. CI sets this to the same value
+# we pass via ?secret= in the contract test fetches.
+export TERMII_INBOUND_SECRET="${TERMII_INBOUND_SECRET:-ci-test-inbound-secret}"
 
 # --node-modules-dir=auto lets Deno resolve the npm deps pinned in deno.lock
 # (e.g. @supabase/realtime-js@2.103.3, a transitive of jsr:@supabase/supabase-js)
@@ -46,4 +49,6 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/_shared/format-sms-body.contract.test.ts \
   supabase/functions/_shared/sms-templates-banking-language.contract.test.ts \
   supabase/functions/_shared/sms-templates-length.contract.test.ts \
+  supabase/functions/_shared/set-member-sms-opt-out.contract.test.ts \
+  supabase/functions/sms-inbound/index.test.ts \
   "$@"

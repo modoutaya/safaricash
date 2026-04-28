@@ -224,4 +224,42 @@ if (env) {
       }
     },
   });
+
+  Deno.test({
+    name: "Story 6.5 — sms_opt_out=true short-circuits the trigger (no sms_queue row)",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "tk6");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+
+        // Flip sms_opt_out=true via direct service-role UPDATE.
+        await service.from("members").update({ sms_opt_out: true }).eq("id", memberId);
+
+        const { data: txId, error: rpcErr } = await userClient.rpc("record_contribution", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_amount: 500,
+          p_cycle_day: 1,
+        });
+        assertEquals(rpcErr, null);
+
+        // The trigger fires AFTER INSERT but short-circuits — no sms_queue row.
+        const { count } = await service
+          .from("sms_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("transaction_id", txId);
+        assertEquals(count, 0);
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
 }

@@ -1,6 +1,6 @@
 # Story 6.5: First-SMS consent notice and opt-out mechanism
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -209,25 +209,32 @@ so that **I consent to receiving further SMS under UEMOA data protection (FR31).
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Migration 0044: `members.sms_opt_out` columns + index** (AC: #1)
-- [ ] **Task 2 — Migration 0045: trigger replacement (real opt-out check)** (AC: #2, #10)
-- [ ] **Task 3 — Migration 0046: audit allowlist extension** (AC: #3, #11)
-- [ ] **Task 4 — Migration 0047: `set_member_sms_opt_out` RPC** (AC: #4, #8, #9)
-- [ ] **Task 5 — Migration 0048: `get_member_id_from_token` RPC** (AC: #6)
-- [ ] **Task 6 — Termii inbound Edge Function** (AC: #5)
-  - [ ] `supabase/functions/sms-inbound/index.ts` — POST-only, `?secret=` query-string gate, body Zod-light validation, STOP keyword detection, multi-member opt-out.
-- [ ] **Task 7 — Receipt-url Worker opt-out routes** (AC: #6, #7)
-  - [ ] `workers/receipt-url/src/index.ts` — `GET /r/{token}/opt-out` (form) + `POST /r/{token}/opt-out` (action).
-  - [ ] `workers/receipt-url/src/render.ts` — add `renderOptOutFormHtml`, `renderOptOutConfirmedHtml`; update `renderReceiptHtml` to include the opt-out link + traceability note.
-- [ ] **Task 8 — Trigger contract regression** (AC: #12)
-- [ ] **Task 9 — `set_member_sms_opt_out` contract tests** (AC: #13)
-- [ ] **Task 10 — Audit-allowlist regression** (AC: #14)
-- [ ] **Task 11 — Termii inbound contract tests** (AC: #15)
-- [ ] **Task 12 — Playwright Worker opt-out** (AC: #16)
-- [ ] **Task 13 — Render unit tests** (AC: #17)
-- [ ] **Task 14 — Wire test paths in `run-edge-tests.sh`** (AC: #20)
-- [ ] **Task 15 — CI env update** (AC: #18) — add `TERMII_INBOUND_SECRET` to the Edge Function tests env block.
-- [ ] **Task 16 — Verify all gates green** (AC: #21)
+- [x] **Task 1 — Migration 0044: `members.sms_opt_out` columns + partial index** (AC: #1)
+- [x] **Task 2 — Migration 0045: trigger replacement (real opt-out check)** (AC: #2, #10) — diff vs Story 6.3 baseline is the new SELECT + IF block (~7 lines).
+- [x] **Task 3 — Migration 0046: audit allowlist extension** (AC: #3, #11) — 1 allowlist line + comment-line diff vs Story 6.2 baseline.
+- [x] **Task 4 — Migration 0047: `set_member_sms_opt_out` RPC** (AC: #4, #8, #9) — idempotent + cancels in-flight queued sms_queue rows + emits sms.opt_out audit via 5-arg overload.
+- [x] **Task 5 — Migration 0048 + 0049: `get_member_id_from_token` + `find_members_by_phone` RPCs** (AC: #6) — `find_members_by_phone` not in spec but required for the inbound webhook's reverse lookup (vault has no reverse index). Documented as "in spec via AC #5 prose".
+- [x] **Task 6 — Termii inbound Edge Function** (AC: #5)
+  - `supabase/functions/sms-inbound/index.ts` — POST-only, `?secret=` query-string gate (constant-time compare), STOP keyword case-insensitive prefix match, multi-collector opt-out via `find_members_by_phone` RPC.
+- [x] **Task 7 — Receipt-url Worker opt-out routes** (AC: #6, #7)
+  - GET `/r/{token}/opt-out` renders no-JS POST form; POST flips opt-out via service-role + renders confirmation.
+  - `renderReceiptHtml` adds the calm secondary link below the dispute CTA + traceability note.
+- [x] **Task 8 — Trigger contract regression** (AC: #12) — 1 new case in `_shared/sms-dispatch-trigger.contract.test.ts`.
+- [x] **Task 9 — `set_member_sms_opt_out` contract tests** (AC: #13) — 6/6 cases green.
+- [x] **Task 10 — Audit-allowlist regression** (AC: #14) — extended the existing for-loop to include `'sms.opt_out'`.
+- [x] **Task 11 — Termii inbound contract tests** (AC: #15) — 9/9 cases green.
+- [x] **Task 12 — Playwright Worker opt-out** (AC: #16) — 2 new cases in `tests/e2e/receipt-url-worker.spec.ts`.
+- [x] **Task 13 — Render unit tests** (AC: #17) — 3 new exports / 1 modified existing test; 36/36 vitest cases green incl. jest-axe.
+- [x] **Task 14 — Wire test paths in `run-edge-tests.sh`** (AC: #20) — 2 new paths + `TERMII_INBOUND_SECRET` env default.
+- [x] **Task 15 — CI env update** (AC: #18) — `TERMII_INBOUND_SECRET=ci-test-inbound-secret` added to the Edge Function tests env block.
+- [x] **Task 16 — Verify all gates green** (AC: #21)
+  - `npm run typecheck` ✅
+  - `npm run lint` ✅ (after refactor: `postInbound` helper hoisted out of the `if (env)` block to satisfy `no-inner-declarations`)
+  - `npm run test` ✅ — 584 vitest pass
+  - `npm run test:edge` ✅ — 121 edge tests pass / 19 ignored / 0 failed
+  - `npm run build` ✅
+  - `npm run db:types --local` re-run; new columns + RPCs land in the typed surface (12 references).
+  - **Local-dev caveat:** `supabase functions serve` requires `--env-file` to expose `TERMII_INBOUND_SECRET` to the runtime; without it, the function returns 500 with `{ event: "sms_inbound.secret_unset" }`.
 
 ## Dev Notes
 
@@ -313,6 +320,40 @@ claude-opus-4-7[1m]
 
 ### Completion Notes List
 
-Ultimate context engine analysis completed - comprehensive developer guide created.
+- 6 migrations: members.sms_opt_out columns + partial idx; trigger replacement (7-line diff vs Story 6.3); audit allowlist 1-line extension; set_member_sms_opt_out RPC; get_member_id_from_token RPC; find_members_by_phone RPC (added beyond spec — required for the inbound webhook's reverse-vault lookup).
+- TWO opt-out paths fully wired:
+  - sms-inbound Edge Function with `?secret=` query-string gate (constant-time compare). STOP keyword detection is prefix-match (handles "STOP merci", "stop", etc.). Multi-collector saver opts out across all matching members.
+  - Receipt-URL Worker GET/POST `/r/{token}/opt-out` routes. POST flips opt-out via service-role + renders confirmation HTML.
+- Idempotency proven: 6 RPC contract cases incl. duplicate-call no-op + cancellation pattern + already-sent-row preservation.
+- Receipt page (Story 6.4 surface) gets a calm secondary opt-out link below the dispute CTA + traceability note (UX-spec line 122).
+- All gates green: typecheck / lint / 584 vitest / 121 edge tests / build.
 
 ### File List
+
+**New migrations:**
+- `supabase/migrations/20260501000001_add_sms_opt_out_to_members.sql`
+- `supabase/migrations/20260501000002_enqueue_sms_optout_check.sql`
+- `supabase/migrations/20260501000003_audit_append_external_extend_optout.sql`
+- `supabase/migrations/20260501000004_set_member_sms_opt_out.sql`
+- `supabase/migrations/20260501000005_get_member_id_from_token.sql`
+- `supabase/migrations/20260501000006_find_members_by_phone.sql`
+
+**New Edge Function:**
+- `supabase/functions/sms-inbound/index.ts`
+- `supabase/functions/sms-inbound/index.test.ts`
+
+**New contract test:**
+- `supabase/functions/_shared/set-member-sms-opt-out.contract.test.ts`
+
+**Modified:**
+- `supabase/functions/_shared/sms-dispatch-trigger.contract.test.ts` (1 new opt-out short-circuit case)
+- `supabase/functions/_shared/sms-worker-audit-allowlist.contract.test.ts` (extended loop with `'sms.opt_out'`)
+- `workers/receipt-url/src/index.ts` (2 new routes + `supabaseRpc` helper + `setMemberSmsOptOut`/`fetchMemberIdFromToken`)
+- `workers/receipt-url/src/render.ts` (added `renderOptOutFormHtml` + `renderOptOutConfirmedHtml`; updated `renderReceiptHtml` with opt-out link + traceability note)
+- `workers/receipt-url/src/render.test.ts` (3 new test groups)
+- `workers/receipt-url/tsconfig.json` (excluded `*.test.ts` from the Worker tsconfig — they run via vitest with jsdom env)
+- `tests/e2e/receipt-url-worker.spec.ts` (2 new opt-out cases)
+- `scripts/run-edge-tests.sh` (2 new test paths + `TERMII_INBOUND_SECRET` default)
+- `.github/workflows/ci.yml` (TERMII_INBOUND_SECRET env on the Edge Function tests step)
+- `src/infrastructure/supabase/database.types.ts` (re-generated — new columns + 4 new RPCs)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
