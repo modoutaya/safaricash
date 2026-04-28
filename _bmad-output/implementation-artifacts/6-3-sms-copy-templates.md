@@ -1,6 +1,6 @@
 # Story 6.3: SMS copy templates (first, subsequent, settlement, dispute ack)
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -148,45 +148,23 @@ so that **saver-facing language is consistent and compliant with NFR-S10 (UX-DR1
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1 — Migration 0040: `receipt_token` column** (AC #1)
-  - [ ] Save as `supabase/migrations/20260429000001_add_receipt_token_to_transactions.sql`.
-  - [ ] Idempotent ADD COLUMN + backfill + SET NOT NULL + CHECK (NOT VALID then VALIDATE) + DEFAULT + UNIQUE INDEX.
-  - [ ] Apply via `npm run db:migrate`.
-  - [ ] `npm run db:types` to refresh `database.types.ts`.
-
-- [ ] **Task 2 — Migration 0041: `format_sms_body` helper** (AC #2, #3, #4, #5, #6, #7, #9, #11)
-  - [ ] Save as `supabase/migrations/20260429000002_format_sms_body.sql`.
-  - [ ] `CREATE EXTENSION IF NOT EXISTS unaccent;` (idempotent).
-  - [ ] `ALTER DATABASE postgres SET app.receipt_url_base = 'https://safaricash.app/r';` (overridable per env).
-  - [ ] Define `format_sms_body(p_template_key text, p_transaction_id uuid) RETURNS text` SECURITY DEFINER.
-  - [ ] Branch on template_key; helper internal `format_amount(numeric)` PL/pgSQL inline that does `to_char + REPLACE` to ASCII-safe groupings.
-  - [ ] Apply migration; spot-check via psql.
-
-- [ ] **Task 3 — Migration 0042: trigger replacement** (AC #10)
-  - [ ] Save as `supabase/migrations/20260429000003_enqueue_sms_format_body.sql`.
-  - [ ] Re-derive function body from migration 0035 (Story 6.1's `enqueue_sms_on_transaction`); change ONLY the body line `'[STUB] Transaction enregistrée'` → `format_sms_body(v_template_key, new.id)`.
-  - [ ] Diff vs migration 0035 should be ~3 lines.
-  - [ ] Apply migration.
-
-- [ ] **Task 4 — `format_sms_body` contract tests** (AC #15)
-  - [ ] `supabase/functions/_shared/format-sms-body.contract.test.ts` — 8 cases per AC #15.
-  - [ ] Use shared `seedCollector` / `seedMemberWithCycle` from `_shared/test-fixtures.ts`.
-
-- [ ] **Task 5 — Banking-language linter test** (AC #14)
-  - [ ] `supabase/functions/_shared/sms-templates-banking-language.contract.test.ts` — 4 templates × banned-words assertion.
-
-- [ ] **Task 6 — Length-budget + GSM-7 compliance tests** (AC #16, #17)
-  - [ ] `supabase/functions/_shared/sms-templates-length.contract.test.ts` — 4 length asserts + 4 ASCII-regex asserts.
-
-- [ ] **Task 7 — Update Story 6.1 trigger test** (AC #18)
-  - [ ] Edit `supabase/functions/_shared/sms-dispatch-trigger.contract.test.ts` to replace the STUB-body assertion (if present) with `assertStringIncludes(body, 'SafariCash')`.
-
-- [ ] **Task 8 — Wire test paths** (AC #19)
-  - [ ] Add 3 new test paths to `scripts/run-edge-tests.sh`.
-
-- [ ] **Task 9 — Verify all gates green** (AC #20)
-  - [ ] `npm run typecheck` / `lint` / `test` / `test:edge` / `build` all green.
-  - [ ] `npm run db:types` re-run; `database.types.ts` includes `receipt_token`.
+- [x] **Task 1 — Migration 0040: `receipt_token` column** (AC #1)
+- [x] **Task 2 — Migration 0041: `format_sms_body` helper** (AC #2, #3, #4, #5, #6, #7, #9, #11)
+  - Note: `ALTER DATABASE` requires superuser on managed Supabase; dropped from migration in favour of a runtime fallback `current_setting('app.receipt_url_base', true) ?? 'https://safaricash.app/r'`. Per-environment overrides happen via deployment-time `ALTER DATABASE` (run by ops, not by the migration).
+- [x] **Task 3 — Migration 0042: trigger replacement** (AC #10) — diff vs Story 6.1 baseline is exactly 3 lines (body call + 1 comment line).
+- [x] **Task 4 — `format_sms_body` contract tests** (AC #15) — 8/8 cases green.
+- [x] **Task 5 — Banking-language linter test** (AC #14) — 1 case (4 templates × banned-words assertion) green.
+- [x] **Task 6 — Length-budget + GSM-7 compliance tests** (AC #16, #17) — 1 case (worst-case rendering across 4 templates) green.
+- [x] **Task 7 — Update Story 6.1 trigger test** (AC #18) — added `assertStringIncludes(body, 'SafariCash')` to the first-commit case.
+- [x] **Task 8 — Wire test paths** (AC #19) — 3 new test paths added to `scripts/run-edge-tests.sh`.
+- [x] **Task 9 — Verify all gates green** (AC #20)
+  - `npm run typecheck` ✅
+  - `npm run lint` ✅ (after refactor: `recordContrib` helper hoisted to module scope to satisfy `no-inner-declarations`)
+  - `npm run test` ✅ — 548 vitest pass
+  - `npm run test:edge` ✅ — 104 pass / 17 ignored / 0 failed
+  - `npm run build` ✅
+  - `npm run db:types --local` re-run; `receipt_token` lands 3× in the typed surface.
+  - Spot-check via psql: `SELECT length(format_sms_body('first_receipt', id)) FROM transactions LIMIT 1` → 253 chars (well within 320 budget).
 
 ## Dev Notes
 
@@ -276,6 +254,26 @@ claude-opus-4-7[1m]
 
 ### Completion Notes List
 
-Ultimate context engine analysis completed - comprehensive developer guide created.
+- 3 migrations: receipt_token column (128-bit hex + unique idx + CHECK regex), format_sms_body helper (4 template branches + unaccent for ASCII compliance), enqueue trigger replacement (3-line diff vs Story 6.1).
+- The receipt URL base is read at function-call time via `current_setting('app.receipt_url_base', true)` with a literal fallback `'https://safaricash.app/r'`. Per-env overrides via `ALTER DATABASE ... SET ...` (requires superuser; ops handles, not the migration).
+- 3 new contract test files (10 cases total: 8 format-helper + 1 banking-language + 1 length/ASCII) + 1 assertion added to Story 6.1 trigger test.
+- Worst-case rendered lengths: first_receipt 253 chars (budget 320), subsequent_receipt 132 (160), settlement 122 (160), dispute_ack ~100 (160). All bodies pass `^[\x20-\x7E]+$` ASCII regex.
+- All gates green: typecheck / lint / 548 vitest / 104 edge / build.
 
 ### File List
+
+**New migrations:**
+- `supabase/migrations/20260429000001_add_receipt_token_to_transactions.sql`
+- `supabase/migrations/20260429000002_format_sms_body.sql`
+- `supabase/migrations/20260429000003_enqueue_sms_format_body.sql`
+
+**New contract tests:**
+- `supabase/functions/_shared/format-sms-body.contract.test.ts`
+- `supabase/functions/_shared/sms-templates-banking-language.contract.test.ts`
+- `supabase/functions/_shared/sms-templates-length.contract.test.ts`
+
+**Modified:**
+- `supabase/functions/_shared/sms-dispatch-trigger.contract.test.ts` (1 new `assertStringIncludes` for the rendered body)
+- `scripts/run-edge-tests.sh` (3 new test paths)
+- `src/infrastructure/supabase/database.types.ts` (re-generated; `receipt_token` lands)
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
