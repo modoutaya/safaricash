@@ -64,7 +64,7 @@ if (env) {
 
         const { data: row } = await service
           .from("sms_queue")
-          .select("template_key, retry_count, next_retry_at, abandoned_at, status")
+          .select("template_key, retry_count, next_retry_at, abandoned_at, status, body")
           .eq("transaction_id", txId)
           .single();
 
@@ -73,6 +73,9 @@ if (env) {
         assertEquals(row?.next_retry_at, null);
         assertEquals(row?.abandoned_at, null);
         assertEquals(row?.status, "queued");
+        // Story 6.3 — body is now the rendered template (no longer the
+        // STUB literal '[STUB] Transaction enregistrée').
+        assertStringIncludes(row?.body ?? "", "SafariCash");
       } finally {
         await cleanup(service, c);
       }

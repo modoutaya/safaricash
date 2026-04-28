@@ -323,6 +323,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id: string;
           motive: string | null;
+          receipt_token: string;
           saver_acknowledged: boolean | null;
           source: Database["public"]["Enums"]["transactions_source_enum"];
           undone_at: string | null;
@@ -339,6 +340,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id: string;
           motive?: string | null;
+          receipt_token?: string;
           saver_acknowledged?: boolean | null;
           source?: Database["public"]["Enums"]["transactions_source_enum"];
           undone_at?: string | null;
@@ -355,6 +357,7 @@ export type Database = {
           kind?: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id?: string;
           motive?: string | null;
+          receipt_token?: string;
           saver_acknowledged?: boolean | null;
           source?: Database["public"]["Enums"]["transactions_source_enum"];
           undone_at?: string | null;
@@ -531,16 +534,40 @@ export type Database = {
       };
     };
     Functions: {
-      audit_append_external: {
-        Args: {
-          p_entity_id: string;
-          p_entity_table: string;
-          p_event_type: string;
-          p_payload: Json;
-        };
-        Returns: string;
-      };
+      audit_append_external:
+        | {
+            Args: {
+              p_entity_id: string;
+              p_entity_table: string;
+              p_event_type: string;
+              p_payload: Json;
+            };
+            Returns: string;
+          }
+        | {
+            Args: {
+              p_collector_id: string;
+              p_entity_id: string;
+              p_entity_table: string;
+              p_event_type: string;
+              p_payload: Json;
+            };
+            Returns: string;
+          };
       canonical_jsonb: { Args: { j: Json }; Returns: string };
+      claim_sms_queue_batch: {
+        Args: { p_batch_size?: number; p_claim_ttl_seconds?: number };
+        Returns: {
+          age_seconds: number;
+          body: string;
+          collector_id: string;
+          id: string;
+          recipient_phone: string;
+          retry_count: number;
+          template_key: string;
+          transaction_id: string;
+        }[];
+      };
       create_member_with_cycle: {
         Args: {
           p_created_via?: Database["public"]["Enums"]["members_created_via_enum"];
@@ -552,6 +579,10 @@ export type Database = {
       };
       delete_member: { Args: { p_id: string }; Returns: undefined };
       emit_session_event: { Args: { p_reason: string }; Returns: undefined };
+      format_sms_body: {
+        Args: { p_template_key: string; p_transaction_id: string };
+        Returns: string;
+      };
       record_advance: {
         Args: {
           p_amount: number;
@@ -585,6 +616,7 @@ export type Database = {
       restart_member_cycle: { Args: { p_member_id: string }; Returns: string };
       show_limit: { Args: never; Returns: number };
       show_trgm: { Args: { "": string }; Returns: string[] };
+      unaccent: { Args: { "": string }; Returns: string };
       undo_transaction: {
         Args: { p_transaction_id: string };
         Returns: undefined;

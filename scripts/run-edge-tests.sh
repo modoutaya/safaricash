@@ -43,4 +43,7 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/sms-worker/index.test.ts \
   supabase/functions/_shared/sms-worker-audit-allowlist.contract.test.ts \
   supabase/functions/_shared/sms-worker-cron-schedule.contract.test.ts \
+  supabase/functions/_shared/format-sms-body.contract.test.ts \
+  supabase/functions/_shared/sms-templates-banking-language.contract.test.ts \
+  supabase/functions/_shared/sms-templates-length.contract.test.ts \
   "$@"
