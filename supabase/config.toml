@@ -393,6 +393,12 @@ allow_dynamic_registration = false
 # gate for the Send SMS Hook endpoint. Both the function and the hook
 # were decommissioned along with SMS-OTP login.
 
+# Story 6.5 — sms-inbound is the Termii STOP-keyword webhook. Termii does
+# not send a JWT (it has no concept of Supabase auth); the function's own
+# ?secret= query-string gate is the security boundary.
+[functions.sms-inbound]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
