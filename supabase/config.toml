@@ -393,6 +393,12 @@ allow_dynamic_registration = false
 # gate for the Send SMS Hook endpoint. Both the function and the hook
 # were decommissioned along with SMS-OTP login.
 
+# Story 6.5 — sms-inbound is the Termii STOP-keyword webhook. Termii does
+# not send a JWT (it has no concept of Supabase auth); the function's own
+# ?secret= query-string gate is the security boundary.
+[functions.sms-inbound]
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 # Supported request policies: `oneshot`, `per_worker`.
@@ -404,8 +410,12 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
-# [edge_runtime.secrets]
-# secret_key = "env(SECRET_VALUE)"
+# Story 6.5 — propagate the Termii inbound webhook secret to the edge
+# runtime so the sms-inbound function can read it via Deno.env.get().
+# CI / local dev set TERMII_INBOUND_SECRET in the shell before
+# `supabase start`; this block does the substitution at container-spawn time.
+[edge_runtime.secrets]
+TERMII_INBOUND_SECRET = "env(TERMII_INBOUND_SECRET)"
 
 [analytics]
 enabled = true

@@ -199,6 +199,52 @@ test.describe("receipt-url worker (Story 6.4 — saver-facing receipt page)", ()
     }
   });
 
+  test("Story 6.5 — POST /r/{token}/opt-out flips members.sms_opt_out + subsequent contribution skipped", async ({
+    request,
+  }) => {
+    const { userId, jwt, cleanup: cleanupCollector } = await seedCollector();
+    const { token, cleanup: cleanupTx } = await seedMemberWithTransaction(userId, jwt);
+    try {
+      // GET form renders no-JS POST form.
+      const formRes = await request.get(`${WORKER_BASE}/r/${token}/opt-out`);
+      expect(formRes.status()).toBe(200);
+      const formBody = await formRes.text();
+      expect(formBody).toContain('method="POST"');
+      expect(formBody).toContain(`action="/r/${token}/opt-out"`);
+
+      // POST flips opt-out.
+      const optOutRes = await request.post(`${WORKER_BASE}/r/${token}/opt-out`, { data: "" });
+      expect(optOutRes.status()).toBe(200);
+      const confirmedBody = await optOutRes.text();
+      expect(confirmedBody).toContain("Vous ne recevrez plus de SMS");
+
+      // members.sms_opt_out should be true now.
+      const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: tx } = await service
+        .from("transactions")
+        .select("member_id")
+        .eq("receipt_token", token)
+        .single();
+      const { data: member } = await service
+        .from("members")
+        .select("sms_opt_out, sms_opt_out_via")
+        .eq("id", tx!.member_id)
+        .single();
+      expect(member?.sms_opt_out).toBe(true);
+      expect(member?.sms_opt_out_via).toBe("receipt_url");
+    } finally {
+      await cleanupTx();
+      await cleanupCollector();
+    }
+  });
+
+  test("Story 6.5 — opt-out with malformed token → 404", async ({ request }) => {
+    const res = await request.post(`${WORKER_BASE}/r/xyz/opt-out`, { data: "" });
+    expect(res.status()).toBe(404);
+  });
+
   test("5. undone transaction → 404 (Story 4.5 handshake)", async ({ request }) => {
     const { userId, jwt, cleanup: cleanupCollector } = await seedCollector();
     const { token, txId, cleanup: cleanupTx } = await seedMemberWithTransaction(userId, jwt);

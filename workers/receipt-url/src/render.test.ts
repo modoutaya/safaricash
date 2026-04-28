@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 import {
   renderComingSoonDisputeHtml,
   renderNotFoundHtml,
+  renderOptOutConfirmedHtml,
+  renderOptOutFormHtml,
   renderReceiptHtml,
   type ReceiptPayload,
 } from "./render";
@@ -59,6 +61,12 @@ describe("renderReceiptHtml — contribution", () => {
   it("includes the dispute CTA linking to /r/{token}/dispute", () => {
     expect(html).toContain(`href="/r/${TOKEN}/dispute"`);
     expect(html).toContain("Cette transaction n'est pas moi");
+  });
+
+  it("includes the opt-out link with traceability note (Story 6.5)", () => {
+    expect(html).toContain(`href="/r/${TOKEN}/opt-out"`);
+    expect(html).toContain("Ne plus recevoir de SMS");
+    expect(html).toContain("traçable et peut être annulé");
   });
 
   it("includes the tracker-not-mover disclosure", () => {
@@ -153,6 +161,44 @@ describe("renderComingSoonDisputeHtml", () => {
 
   it("includes a back-link to /r/{token}", () => {
     expect(html).toContain(`href="/r/${TOKEN}"`);
+  });
+
+  it("does NOT contain a <script> tag", () => {
+    expect(html).not.toContain("<script");
+  });
+});
+
+describe("renderOptOutFormHtml — Story 6.5", () => {
+  const html = renderOptOutFormHtml(TOKEN);
+
+  it("renders a no-JS POST form to /r/{token}/opt-out", () => {
+    expect(html).toContain('method="POST"');
+    expect(html).toContain(`action="/r/${TOKEN}/opt-out"`);
+    expect(html).toContain('<button type="submit">');
+  });
+
+  it("includes a back-link to the receipt", () => {
+    expect(html).toContain(`href="/r/${TOKEN}"`);
+  });
+
+  it("does NOT contain a <script> tag", () => {
+    expect(html).not.toContain("<script");
+  });
+
+  it("contains the traceability copy", () => {
+    expect(html).toContain("traçable");
+  });
+});
+
+describe("renderOptOutConfirmedHtml — Story 6.5", () => {
+  const html = renderOptOutConfirmedHtml();
+
+  it("contains the confirmation copy", () => {
+    expect(html).toContain("Vous ne recevrez plus de SMS");
+  });
+
+  it("mentions reversibility via the collector", () => {
+    expect(html).toContain("contactez votre collecteur");
   });
 
   it("does NOT contain a <script> tag", () => {

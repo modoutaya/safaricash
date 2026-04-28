@@ -71,6 +71,12 @@ jobs:
       # services we don't need (studio, realtime, storage, edge-runtime, etc.)
       # to keep startup under ~30s.
       - name: Start local Supabase stack
+        env:
+          # Story 6.5 — TERMII_INBOUND_SECRET must be in the env when
+          # supabase start spawns the edge-runtime container so Deno.env
+          # inside the sms-inbound function can read it. Setting it only
+          # on the test step is too late: the container is already running.
+          TERMII_INBOUND_SECRET: ci-test-inbound-secret
         run: |
           # Story 2.6 — edge-runtime is required (re-auth Edge Function is
           # the first E2E consumer; future Stories 7.4 / 9.3 / 6.x will use
@@ -214,6 +220,7 @@ jobs:
           SUPABASE_TEST_ANON_KEY: ${{ env.SUPABASE_LOCAL_ANON_KEY }}
           SUPABASE_TEST_SERVICE_ROLE_KEY: ${{ env.SUPABASE_LOCAL_SERVICE_ROLE_KEY }}
           TERMII_API_KEY: mock-key-not-used-in-tests
+          TERMII_INBOUND_SECRET: ci-test-inbound-secret
         run: npm run test:edge
 
       - name: Stop wrangler dev
