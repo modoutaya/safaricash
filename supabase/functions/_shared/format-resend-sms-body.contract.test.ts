@@ -68,7 +68,12 @@ if (env) {
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
         const txId = await recordContrib(userClient, memberId, cycleId, 1, 500);
 
-        const { data: body, error } = await service.rpc("format_resend_sms_body", {
+        // Use the JWT-bound client — code-review patch D1 added an
+        // ownership check inside format_resend_sms_body that rejects
+        // calls without auth.uid() (28000). Service-role calls are
+        // legitimately rejected by design; production callers always
+        // hold a JWT.
+        const { data: body, error } = await userClient.rpc("format_resend_sms_body", {
           p_transaction_id: txId,
         });
         assertEquals(error, null);
@@ -102,7 +107,7 @@ if (env) {
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
         const txId = await recordContrib(userClient, memberId, cycleId);
 
-        const { data: body } = await service.rpc("format_resend_sms_body", {
+        const { data: body } = await userClient.rpc("format_resend_sms_body", {
           p_transaction_id: txId,
         });
 
@@ -147,7 +152,7 @@ if (env) {
           .single();
         const txId = await recordContrib(userClient, memberId as string, cycle!.id);
 
-        const { data: body } = await service.rpc("format_resend_sms_body", {
+        const { data: body } = await userClient.rpc("format_resend_sms_body", {
           p_transaction_id: txId,
         });
 
@@ -165,11 +170,26 @@ if (env) {
     name: "4. Non-existent transaction_id → P0002",
     ...denoOpts,
     fn: async () => {
-      const { error } = await service.rpc("format_resend_sms_body", {
-        p_transaction_id: crypto.randomUUID(),
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
       });
-      assert(error !== null, "expected an error for a non-existent transaction id");
-      assertEquals(error?.code, "P0002");
+      const c = await seedCollector(service, anon, "frsb4");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        // Seeded collector has an auth.uid context but doesn't own the
+        // random UUID — the ownership check passes (uid != null) and the
+        // not-found branch raises P0002.
+        const { error } = await userClient.rpc("format_resend_sms_body", {
+          p_transaction_id: crypto.randomUUID(),
+        });
+        assert(error !== null, "expected an error for a non-existent transaction id");
+        assertEquals(error?.code, "P0002");
+      } finally {
+        await cleanup(service, c);
+      }
     },
   });
 }

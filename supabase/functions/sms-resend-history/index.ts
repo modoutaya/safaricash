@@ -88,7 +88,7 @@ export async function handler(req: Request): Promise<Response> {
 
   if (req.method !== "POST") {
     return problemResponse(
-      problem("request_invalid", `Only POST is allowed; got ${req.method}`),
+      problem("method_not_allowed", `Only POST is allowed; got ${req.method}`),
       reqUrl,
       { Allow: "POST" },
     );
