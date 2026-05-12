@@ -57,7 +57,11 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
   const [memberResult, cyclesResult, transactionsResult] = await Promise.all([
     supabase
       .from("members_decrypted")
-      .select("id, collector_id, name, phone_number, daily_amount, status, created_at, updated_at")
+      .select(
+        // Story 6.7 — sms_opt_out drives the resend-disabled UI gate in the
+        // TransactionReceiptSheet (column added by Story 6.5 migration 0044).
+        "id, collector_id, name, phone_number, daily_amount, status, created_at, updated_at, sms_opt_out",
+      )
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -66,7 +70,9 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
       .eq("member_id", id),
     supabase
       .from("transactions_decrypted")
-      .select("id, member_id, cycle_id, kind, amount, cycle_day, created_at")
+      // Story 6.7 — receipt_token feeds the share button (Web Share API
+      // composes ${VITE_RECEIPT_URL_BASE}/{token} client-side).
+      .select("id, member_id, cycle_id, kind, amount, cycle_day, created_at, receipt_token")
       .eq("member_id", id),
   ]);
 

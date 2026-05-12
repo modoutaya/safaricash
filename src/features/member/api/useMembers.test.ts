@@ -20,6 +20,7 @@ const baseMember: MemberRow = {
   status: "active",
   created_at: "2026-04-10T00:00:00Z",
   updated_at: "2026-04-10T00:00:00Z",
+  sms_opt_out: false,
 };
 
 const activeCycle: CycleRow = {

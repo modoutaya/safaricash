@@ -19,6 +19,10 @@ export interface MemberProfileProps {
   previousCycles?: CycleRow[];
   transactions: TransactionRow[];
   stats: MemberStats;
+  /** Story 6.7 — tap a transaction row to open the per-receipt sheet.
+   *  When undefined, rows render as non-interactive `<article>` (Story 2.4
+   *  default, kept for tests that don't exercise the receipt flow). */
+  onTransactionTap?: (tx: TransactionRow) => void;
 }
 
 const PREVIOUS_CYCLE_DATE_FORMATTER = new Intl.DateTimeFormat("fr-FR", {
@@ -50,6 +54,7 @@ export function MemberProfile({
   previousCycles = [],
   transactions,
   stats,
+  onTransactionTap,
 }: MemberProfileProps) {
   const t = useT();
   const displayStatus = deriveMemberStatus({ status: member.status }, currentCycle);
@@ -143,11 +148,14 @@ export function MemberProfile({
               const Icon = transactionIcon(tx.kind);
               const isAdvance = tx.kind === "advance";
               const amountPrefix = isAdvance ? "−" : "";
-              return (
-                <li
-                  key={tx.id}
-                  className="flex items-center gap-3 rounded-lg border border-hairline bg-card p-3"
-                >
+              const rowAriaLabel = t("transaction.receipt_sheet.tx_button_label", {
+                kind: t(KIND_LABEL_KEY[tx.kind]),
+                date: formatTransactionTime(tx.created_at),
+                amount: `${amountPrefix}${formatFcfaAmount(tx.amount)}`,
+              });
+              const interactive = onTransactionTap !== undefined;
+              const rowBody = (
+                <>
                   <div
                     aria-hidden
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
@@ -178,6 +186,25 @@ export function MemberProfile({
                       {t("members.profile.transactions.cycle_day_chip", { n: tx.cycle_day })}
                     </span>
                   </div>
+                </>
+              );
+              return (
+                <li key={tx.id}>
+                  {interactive ? (
+                    <button
+                      type="button"
+                      data-tx-id={tx.id}
+                      aria-label={rowAriaLabel}
+                      onClick={() => onTransactionTap?.(tx)}
+                      className="flex w-full items-center gap-3 rounded-lg border border-hairline bg-card p-3 text-left hover:bg-surface-pressed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+                    >
+                      {rowBody}
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-3 rounded-lg border border-hairline bg-card p-3">
+                      {rowBody}
+                    </div>
+                  )}
                 </li>
               );
             })}

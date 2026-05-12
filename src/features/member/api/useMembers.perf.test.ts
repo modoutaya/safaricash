@@ -35,6 +35,7 @@ function synthesiseRawData(n: number): RawMembersData {
       status,
       created_at: new Date(2026, 3, 1 + (i % 20)).toISOString(),
       updated_at: new Date(2026, 3, 1 + (i % 20)).toISOString(),
+      sms_opt_out: false,
     });
     cyclesByMember.set(id, [
       {

@@ -1,7 +1,8 @@
 // Story 2.4 — MemberProfile component tests.
-import { render, screen } from "@testing-library/react";
+// Story 6.7 — added interactive-row regression (`onTransactionTap`).
+import { fireEvent, render, screen } from "@testing-library/react";
 import { axe, toHaveNoViolations } from "jest-axe";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { MemberProfile } from "./MemberProfile";
 import type { CycleRow, MemberRow, MemberStats, TransactionRow } from "../types";
@@ -17,6 +18,7 @@ const MEMBER: MemberRow = {
   status: "active",
   created_at: "2026-04-12T08:00:00Z",
   updated_at: "2026-04-12T08:00:00Z",
+  sms_opt_out: false,
 };
 
 const CYCLE: CycleRow = {
@@ -192,5 +194,36 @@ describe("MemberProfile", () => {
     );
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+  });
+
+  // Story 6.7 AC #21 — interactive rows when onTransactionTap is provided.
+  it("Story 6.7 — renders transactions as <button> when onTransactionTap is provided", () => {
+    const onTransactionTap = vi.fn();
+    render(
+      <MemberProfile
+        member={MEMBER}
+        currentCycle={CYCLE}
+        transactions={[txContrib]}
+        stats={STATS_NO_ADVANCES}
+        onTransactionTap={onTransactionTap}
+      />,
+    );
+    const row = screen.getByRole("button", { name: /Voir le reçu de Cotisation/i });
+    expect(row).toBeInTheDocument();
+    expect(row.getAttribute("data-tx-id")).toBe(txContrib.id);
+    fireEvent.click(row);
+    expect(onTransactionTap).toHaveBeenCalledWith(txContrib);
+  });
+
+  it("Story 6.7 — keeps non-interactive rendering when onTransactionTap is undefined", () => {
+    render(
+      <MemberProfile
+        member={MEMBER}
+        currentCycle={CYCLE}
+        transactions={[txContrib]}
+        stats={STATS_NO_ADVANCES}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /Voir le reçu/i })).not.toBeInTheDocument();
   });
 });
