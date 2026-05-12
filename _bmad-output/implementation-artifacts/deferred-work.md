@@ -111,3 +111,15 @@ Tracks issues raised in code reviews that were judged real but not actionable no
 <!-- [[closed]] .husky/commit-msg (conventional-commits validator) missing per architecture tree -->
 
 - **`public/favicon.ico` missing per architecture tree** — `favicon.svg` covers most browsers. Add `.ico` only if a deployment target without SVG support emerges.
+
+## Deferred from: code review of story-6.6-resend-cycle-history (2026-05-12)
+
+- **Concurrent double-submit may duplicate SMS rows** [`supabase/migrations/20260512000004_enqueue_resend_history.sql`] — accepted per AC #9 (no server-side rate limit at MVP; audit log is the abuse surface). Re-evaluate if a real abuse pattern surfaces post-launch.
+- **`subsequent_receipt` template used for `advance` rows** [enqueue_resend_history + format_sms_body] — inherited from Story 6.3 trigger pipeline. Fresh advances today send the same wording ("500 FCFA reçu") which is semantically wrong for money-out events. Pre-dates Story 6.6; needs a Story 6.X to introduce an `advance_receipt` template variant.
+- **Phone E.164 prepending bug in verify-password.ts** [`supabase/functions/_shared/verify-password.ts:48`] — `+${data.user.phone}` blindly prepends `+`. Phones stored as `00221770000111` would become `+00221770000111` and fail signInWithPassword. Inherited verbatim from Story 1.5b re-auth; now shared across multiple consumers. Validate phone is E.164-shaped before prepending.
+- **verify-password collapses "phone lookup failed" vs "no phone on record"** [`supabase/functions/_shared/verify-password.ts:74-85`] — `if (error || !data.user?.phone) return null` loses observability between Supabase Auth infra outage and a legitimate missing-phone case. Pre-existing in re-auth.
+- **`error.stack` logged on unexpected errors** [`supabase/functions/_shared/verify-password.ts:138-142`] — supabase-js stack traces can carry URL query strings / internal module paths / partial credentials. Inherited from re-auth.
+- **`enqueue_resend_history` P0002 error messages distinguish "doesn't exist" vs "not owned"** [`supabase/migrations/20260512000004_enqueue_resend_history.sql:39-50`] — minor existence-leak via direct PostgREST RPC call. Edge Function hardcodes the detail to `404 not_found` so the leak doesn't surface via the canonical Edge path. Defense-in-depth — uniformize messages or rely on RLS-uniformity.
+- **Advisory lock magic `0x5AFA` collision risk** [`supabase/migrations/20260512000002_audit_append_external_extend_resend.sql:62`] — established convention used by `audit_emit` for per-collector chain serialization. Document the magic value in one canonical place (architecture.md § Audit Events).
+- **`format_resend_sms_body` worst-case body ~164 chars → 2-segment SMS, not enforced at DB level** — accepted in spec Dev Notes line 200 ("acceptable for low-volume support flow"). Add a CHECK on `sms_queue.body` length if SMS cost becomes a concern.
+

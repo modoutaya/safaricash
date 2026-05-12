@@ -24,23 +24,26 @@
 //
 // Hard rules (do NOT relax without amending the spec):
 //   - NEVER store, log, or echo the raw password.
-//   - NEVER mint/refresh the caller's session JWT — the verify client is
-//     a fresh anon client whose session stays in-process and is signed
-//     out immediately; the caller's main session is untouched.
+//   - NEVER mint/refresh the caller's session JWT — verify-password.ts
+//     uses a fresh anon client per call; the caller's main session is
+//     untouched.
 //   - 4xx/5xx responses ALWAYS RFC 7807 (Content-Type: application/problem+json).
 //
-// See: _bmad-output/implementation-artifacts/1-5b-password-auth-switch.md
-// AC #7 + PRD v1.3 FR5 + architecture.md § Sensitive-op re-auth.
+// Story 6.6 — verify-password logic extracted to `_shared/verify-password.ts`
+// (no behaviour change; second consumer is sms-resend-history).
+//
+// See: _bmad-output/implementation-artifacts/1-5b-password-auth-switch.md AC #7
+//      + _bmad-output/implementation-artifacts/6-6-resend-cycle-history.md AC #6
+//      + PRD v1.3 FR5 + architecture.md § Sensitive-op re-auth.
 
-import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+import { type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 import { assertAuthenticated, buildAnonClient, buildServiceClient } from "../_shared/auth-check.ts";
 import { problem, problemResponse } from "../_shared/rfc7807.ts";
+import { verifyPassword } from "../_shared/verify-password.ts";
 
-// Module-scope lazy clients for the caller-JWT + service paths. The verify
-// client is NEVER a singleton — we create one per request so its in-memory
-// session state cannot leak across requests.
+// Module-scope lazy clients for the caller-JWT + service paths.
 let _anonClient: SupabaseClient | null = null;
 let _serviceClient: SupabaseClient | null = null;
 function getAnonClient(): SupabaseClient {
@@ -65,27 +68,6 @@ const RequestBodySchema = z.object({
   password: z.string().min(1, "password required"),
   operation_intent: OperationIntentSchema,
 });
-
-type LogEvent = "reauth.verified" | "reauth.failed" | "reauth.rate_limited" | "reauth.unexpected";
-
-function logJson(
-  level: "info" | "warn" | "error",
-  event: LogEvent,
-  fields: Record<string, unknown> = {},
-): void {
-  console.log(JSON.stringify({ level, event, ts: new Date().toISOString(), ...fields }));
-}
-
-async function resolveCollectorPhone(
-  service: SupabaseClient,
-  collectorId: string,
-): Promise<string | null> {
-  // auth.users is the source of truth for the phone Supabase Auth binds to
-  // for signInWithPassword. The service client bypasses RLS.
-  const { data, error } = await service.auth.admin.getUserById(collectorId);
-  if (error || !data.user?.phone) return null;
-  return data.user.phone.startsWith("+") ? data.user.phone : `+${data.user.phone}`;
-}
 
 export async function handler(req: Request): Promise<Response> {
   const reqUrl = req.url;
@@ -123,89 +105,22 @@ export async function handler(req: Request): Promise<Response> {
     return problemResponse(auth.problem, reqUrl);
   }
 
-  // 3. Resolve caller's phone — the identifier used by signInWithPassword.
-  const service = getServiceClient();
-  const phone = await resolveCollectorPhone(service, auth.collectorId);
-  if (!phone) {
-    logJson("error", "reauth.unexpected", {
-      collector_id: auth.collectorId,
-      reason: "phone_lookup",
-    });
-    return problemResponse(
-      problem("internal_unexpected", "Could not resolve collector phone"),
-      reqUrl,
-    );
+  // 3. Delegate to shared verify-password helper (Story 6.6 extraction).
+  const verifyResult = await verifyPassword({
+    serviceClient: getServiceClient(),
+    collectorId: auth.collectorId,
+    password: parsed.password,
+    logContext: { operation_intent: parsed.operation_intent },
+  });
+
+  if (!verifyResult.ok) {
+    return problemResponse(verifyResult.problem, reqUrl);
   }
 
-  // 4. Verify password on a FRESH anon client. Constructing a new client
-  //    per request guarantees the verify-session never bleeds across
-  //    requests, and the caller's main session (held in the browser) is
-  //    untouched by this call.
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-  const verifyClient = createClient(url, anonKey, { auth: { persistSession: false } });
-
-  try {
-    const { data, error } = await verifyClient.auth.signInWithPassword({
-      phone,
-      password: parsed.password,
-    });
-    if (error) {
-      const status = error.status ?? 0;
-      if (status === 429 || (error as { code?: string }).code === "over_request_rate_limit") {
-        logJson("warn", "reauth.rate_limited", {
-          collector_id: auth.collectorId,
-          operation_intent: parsed.operation_intent,
-        });
-        return problemResponse(
-          problem("rate_limited", "Too many attempts; please retry later."),
-          reqUrl,
-        );
-      }
-      logJson("warn", "reauth.failed", {
-        collector_id: auth.collectorId,
-        operation_intent: parsed.operation_intent,
-        status,
-      });
-      return problemResponse(problem("credentials_invalid", "Invalid password"), reqUrl);
-    }
-    if (!data.session) {
-      return problemResponse(problem("credentials_invalid", "Invalid password"), reqUrl);
-    }
-
-    // Defensive: explicitly sign out the verify client. persistSession=false
-    // means its tokens never reach storage, but calling signOut clears the
-    // in-memory session object too. Log on failure so a future Supabase-js
-    // change that makes signOut consequential (e.g., server-side token
-    // revocation) doesn't degrade silently.
-    await verifyClient.auth.signOut().catch((signOutErr: unknown) => {
-      const msg = signOutErr instanceof Error ? signOutErr.message : String(signOutErr);
-      logJson("warn", "reauth.unexpected", {
-        collector_id: auth.collectorId,
-        reason: "verify_client_signout_failed",
-        error: msg,
-      });
-    });
-
-    logJson("info", "reauth.verified", {
-      collector_id: auth.collectorId,
-      operation_intent: parsed.operation_intent,
-    });
-    return new Response(JSON.stringify({ ok: true, scope: parsed.operation_intent }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (err) {
-    logJson("error", "reauth.unexpected", {
-      collector_id: auth.collectorId,
-      error: (err as Error).message,
-      stack: (err as Error).stack,
-    });
-    return problemResponse(
-      problem("internal_unexpected", "Unexpected error in re-auth handler"),
-      reqUrl,
-    );
-  }
+  return new Response(JSON.stringify({ ok: true, scope: parsed.operation_intent }), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 // Supabase Edge Functions runtime entry point.

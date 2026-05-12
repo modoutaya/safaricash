@@ -17,7 +17,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { MemberProfile, useMemberProfile } from "@/features/member";
 import { DeleteMemberDialog } from "@/features/member/ui/DeleteMemberDialog";
+import { ResendHistoryDialog } from "@/features/member/ui/ResendHistoryDialog";
 import { RestartCycleDialog } from "@/features/member/ui/RestartCycleDialog";
+import type {
+  ResendHistoryError,
+  ResendHistoryResult,
+} from "@/features/member/api/useResendHistory";
 import { useT } from "@/i18n/useT";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -31,6 +36,7 @@ export default function MemberProfileRoute() {
   const goBack = () => navigate("/members");
   const [restartOpen, setRestartOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [resendOpen, setResendOpen] = useState(false);
 
   const query = useMemberProfile(isUuid ? id : undefined);
 
@@ -38,6 +44,11 @@ export default function MemberProfileRoute() {
   // completed/settled. Hidden (not disabled) per AC #1.
   const currentCycleStatus = query.data?.currentCycle?.status;
   const canRestart = currentCycleStatus === "completed" || currentCycleStatus === "settled";
+  // Story 6.6 — Renvoyer l'historique visible when current cycle is active
+  // AND member is active. Server enforces opt-out / no-phone / empty-cycle
+  // short-circuits.
+  const memberStatus = query.data?.member.status;
+  const canResendHistory = currentCycleStatus === "active" && memberStatus === "active";
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-col gap-4 py-6">
@@ -63,6 +74,11 @@ export default function MemberProfileRoute() {
           {canRestart ? (
             <Button type="button" variant="outline" size="sm" onClick={() => setRestartOpen(true)}>
               {t("members.profile.action_restart_cycle")}
+            </Button>
+          ) : null}
+          {canResendHistory ? (
+            <Button type="button" variant="outline" size="sm" onClick={() => setResendOpen(true)}>
+              {t("members.profile.resend_history.action_label")}
             </Button>
           ) : null}
           {isUuid ? (
@@ -115,6 +131,42 @@ export default function MemberProfileRoute() {
           memberId={id}
           memberName={query.data.member.name}
           onSuccess={() => toast.success(t("members.profile.restart.toast_success"))}
+        />
+      ) : null}
+
+      {query.data && canResendHistory && query.data.currentCycle ? (
+        <ResendHistoryDialog
+          open={resendOpen}
+          onOpenChange={setResendOpen}
+          memberId={id}
+          cycleId={query.data.currentCycle.id}
+          memberName={query.data.member.name}
+          onSuccess={(result: ResendHistoryResult) => {
+            if (result.enqueued > 0) {
+              const successKey =
+                result.enqueued === 1
+                  ? "members.profile.resend_history.toast_success_singular"
+                  : "members.profile.resend_history.toast_success_plural";
+              toast.success(t(successKey, { count: result.enqueued }));
+              return;
+            }
+            switch (result.reason) {
+              case "opt_out":
+                toast.info(t("members.profile.resend_history.toast_opt_out"));
+                return;
+              case "no_phone":
+                toast.info(t("members.profile.resend_history.toast_no_phone"));
+                return;
+              case "no_transactions":
+                toast.info(t("members.profile.resend_history.toast_no_transactions"));
+                return;
+              default:
+                toast.error(t("members.profile.resend_history.toast_error"));
+            }
+          }}
+          onError={(_err: ResendHistoryError) =>
+            toast.error(t("members.profile.resend_history.toast_error"))
+          }
         />
       ) : null}
 
