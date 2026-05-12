@@ -218,6 +218,24 @@
         "cancel": "Annuler",
         "toast_success": "{name} supprimé ✓",
         "toast_failure": "Échec de la suppression. Réessayez."
+      },
+      "resend_history": {
+        "action_label": "Renvoyer l'historique",
+        "dialog_title": "Renvoyer l'historique du cycle ?",
+        "dialog_body": "Le saver recevra un SMS de rappel pour chaque transaction du cycle en cours. L'opération nécessite votre mot de passe.",
+        "password_input_label": "Confirmez votre mot de passe",
+        "password_invalid": "Mot de passe invalide. Réessayez.",
+        "password_rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
+        "password_unexpected": "Erreur inattendue. Réessayez.",
+        "cta_confirm": "Confirmer",
+        "cta_submitting": "Envoi…",
+        "cancel": "Annuler",
+        "toast_success_singular": "1 rappel envoyé.",
+        "toast_success_plural": "{count} rappels envoyés.",
+        "toast_opt_out": "Le saver a refusé les SMS — aucun rappel envoyé.",
+        "toast_no_phone": "Aucun téléphone enregistré pour ce saver.",
+        "toast_no_transactions": "Aucune transaction à renvoyer pour ce cycle.",
+        "toast_error": "Échec de l'envoi des rappels."
       }
     },
     "action_sheet": {

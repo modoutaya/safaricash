@@ -51,4 +51,7 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/_shared/sms-templates-length.contract.test.ts \
   supabase/functions/_shared/set-member-sms-opt-out.contract.test.ts \
   supabase/functions/sms-inbound/index.test.ts \
+  supabase/functions/_shared/format-resend-sms-body.contract.test.ts \
+  supabase/functions/_shared/enqueue-resend-history.contract.test.ts \
+  supabase/functions/sms-resend-history/index.test.ts \
   "$@"

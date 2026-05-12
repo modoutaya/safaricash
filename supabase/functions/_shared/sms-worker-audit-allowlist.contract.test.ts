@@ -1,11 +1,13 @@
-// Story 6.2 — audit_append_external allowlist regression tests.
+// Story 6.2 / 6.5 / 6.6 — audit_append_external allowlist regression tests.
 //
 // Asserts:
-//   1. 'sms.sent'      — accepted (Story 6.2 NEW).
-//   2. 'sms.failed'    — accepted (Story 6.2 NEW).
-//   3. 'sms.abandoned' — accepted (Story 6.2 NEW).
-//   4. 'sms.delivered' — REJECTED with 22000 (delivery webhook is deferred).
-//   5. 'sms.queued'    — STILL accepted (Story 6.1 regression).
+//   1. 'sms.sent'             — accepted (Story 6.2 NEW).
+//   2. 'sms.failed'           — accepted (Story 6.2 NEW).
+//   3. 'sms.abandoned'        — accepted (Story 6.2 NEW).
+//   4. 'sms.opt_out'          — accepted (Story 6.5).
+//   5. 'sms.resend_initiated' — accepted (Story 6.6 NEW).
+//   6. 'sms.delivered'        — REJECTED with 22000 (delivery webhook deferred).
+//   7. 'sms.queued'           — STILL accepted (Story 6.1 regression).
 //
 // Each test seeds a collector, calls the 5-arg overload directly via the
 // service-role client (the worker's path), and asserts on either the
@@ -40,7 +42,13 @@ if (env) {
   });
   const denoOpts = { sanitizeResources: false, sanitizeOps: false };
 
-  for (const evt of ["sms.sent", "sms.failed", "sms.abandoned", "sms.opt_out"] as const) {
+  for (const evt of [
+    "sms.sent",
+    "sms.failed",
+    "sms.abandoned",
+    "sms.opt_out",
+    "sms.resend_initiated",
+  ] as const) {
     Deno.test({
       name: `audit_append_external('${evt}', ...) — accepted`,
       ...denoOpts,

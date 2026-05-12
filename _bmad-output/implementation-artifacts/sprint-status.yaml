@@ -1,6 +1,6 @@
 # generated: 2026-04-19
-# last_updated: 2026-04-28
-# touched: 6-6-resend-cycle-history → ready-for-dev (full-cycle resend RPC + Edge Function + member profile UI spec'd)
+# last_updated: 2026-05-12
+# touched: 6-6-resend-cycle-history → done (code review: 10 patches applied — AC #12 invalidation, ownership check on format_resend_sms_body, CTE staggered created_at, RPC error message redaction, URN-exact test assertions, form-submit Enter wiring, etc.; 8 inherited issues deferred to deferred-work.md)
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -36,7 +36,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-04-19
-last_updated: 2026-04-26
+last_updated: 2026-05-12
 project: SafariCash
 project_key: NOKEY
 tracking_system: file-system
@@ -104,9 +104,9 @@ development_status:
 
   6-5-first-sms-consent-optout: review  # implemented 2026-04-28 via bmad-dev-story; 6 migrations (sms_opt_out columns + partial idx / trigger replacement / audit allowlist 1-line ext / set_member_sms_opt_out RPC / get_member_id_from_token RPC / find_members_by_phone RPC) + sms-inbound Edge Function (Termii STOP webhook with ?secret= gate + multi-collector opt-out) + receipt-url Worker GET/POST /r/{token}/opt-out routes + render module additions; full gates green (584 vitest / 121 edge / build / typecheck / lint)
 
-  6-6-resend-cycle-history: ready-for-dev  # spec drafted 2026-04-28 via bmad-create-story; 4 migrations (template_key 'resend' / audit allowlist 'sms.resend_initiated' / format_resend_sms_body wrapper / enqueue_resend_history RPC with Story 4.5 undo + Story 6.5 opt-out handshakes) + sms-resend-history Edge Function (POST + JWT + password re-auth via shared verify-password helper) + member profile UI button + reuse PasswordReauthDialog + 8 i18n keys + 1 Playwright E2E + 4+7+8 contract cases; 21 ACs + 14 tasks
+  6-6-resend-cycle-history: done  # implemented 2026-05-12 via bmad-dev-story + code-review patches applied; 4 migrations (0050 template_key 'resend' / 0051 audit allowlist 'sms.resend_initiated' / 0052 format_resend_sms_body wrapper [+ auth.uid ownership check] / 0053 enqueue_resend_history RPC [+ staggered created_at via row_number()] with Story 4.5 undone-filter + Story 6.5 opt-out short-circuit) + _shared/verify-password.ts (extracted from Story 1.5b re-auth, second consumer landed) + sms-resend-history Edge Function (POST + JWT + RFC 7807 + structured logging, error.message redacted from 500 detail, password trim+min1, NaN guard) + ResendHistoryDialog (form-wrapped for Enter-to-submit) + useResendHistory hook (typed ResendHistoryError + MEMBER_PROFILE_QUERY_KEY invalidation [AC #12 fix] + TypeError class-identity for network detection) + member profile button + 16 i18n keys + 3 Deno contract tests (URN-exact assertions, not substring) + audit-allowlist regression + Playwright E2E; 21 ACs + 14 tasks; gates: typecheck/lint/598-vitest/build all green; 8 inherited issues deferred
 
-  6-7-per-transaction-receipt-share: backlog
+  6-7-per-transaction-receipt-share: ready-for-dev  # spec drafted 2026-05-12 via bmad-create-story; 2 migrations (transactions_decrypted exposes receipt_token / enqueue_resend_transaction RPC) + TransactionReceiptSheet (native <dialog>) + useResendTransaction hook + shareReceipt helper (Web Share API + clipboard fallback) + interactive transaction rows in MemberProfile; reuses Story 6.6 format_resend_sms_body / 'resend' template_key / 'sms.resend_initiated' allowlist 1:1; NO Edge Function (direct RPC; per-tx is NOT in FR5 re-auth list); 26 ACs + 15 tasks
   6-8-whatsapp-secondary-delivery: backlog
   epic-6-retrospective: optional
 
