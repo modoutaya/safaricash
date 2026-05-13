@@ -322,6 +322,21 @@
       "unknown": "Erreur inattendue — réessayez."
     }
   },
+  "settlement": {
+    "summary": {
+      "cycle_range": "Cycle du {start} au {end}",
+      "row_contributions": "Cotisations versées",
+      "row_commission": "Commission collecteur",
+      "row_advances_label": "Avances accordées",
+      "row_advances_none": "Aucune avance",
+      "advances_detail_item": "Avance {n} : {amount} FCFA",
+      "row_final_payout": "Solde à remettre",
+      "payout_subtitle": "à remettre à {memberFirstName}",
+      "cta_verify": "Vérifier les transactions",
+      "cta_confirm": "Confirmer et clôturer",
+      "cta_submitting": "Clôture en cours…"
+    }
+  },
   "transaction": {
     "error": {
       "rattrapage_invalid_days": "Nombre de jours invalide",
