@@ -52,14 +52,20 @@ export function useResendTransaction(): UseResendTransactionReturn {
       let error: { code?: string; message?: string } | null;
       try {
         // The generated database.types.ts in this checkout pre-dates the
-        // migration 0055 RPC; cast through `unknown` until `npm run db:types`
-        // regenerates it. Behaviour is unaffected — supabase-js dispatches
-        // the call based on the string name at runtime.
-        const rpc = supabase.rpc as unknown as (
-          fn: string,
-          args: Record<string, unknown>,
-        ) => Promise<{ data: unknown; error: { code?: string; message?: string } | null }>;
-        const res = await rpc("enqueue_resend_transaction", {
+        // migration 0055 RPC. Cast the CLIENT (not the method) — extracting
+        // `supabase.rpc` as a free reference loses `this`, and the internal
+        // `this.rest` access throws "Cannot read properties of undefined
+        // (reading 'rest')" at runtime (CI Playwright run 25784303955 caught
+        // this). Calling via `client.rpc(...)` keeps the binding intact.
+        // Behaviour is unaffected — supabase-js dispatches by string name
+        // at runtime regardless of TS typing.
+        const client = supabase as unknown as {
+          rpc: (
+            fn: string,
+            args: Record<string, unknown>,
+          ) => Promise<{ data: unknown; error: { code?: string; message?: string } | null }>;
+        };
+        const res = await client.rpc("enqueue_resend_transaction", {
           p_transaction_id: transactionId,
         });
         data = res.data;
