@@ -1,6 +1,6 @@
 # generated: 2026-04-19
 # last_updated: 2026-05-13
-# touched: 7-1-settlement-summary-card → review (implemented 2026-05-13 via bmad-dev-story + code-review patches; pure SettlementSummaryCard at src/components/domain — 4-row card driven by Story 3.2 settle()/commission() with NFR-R3 zero-tolerance compliance; 11 i18n keys under new settlement.* namespace; module-scope Intl.DateTimeFormat à la Story 2.4; aria-live="polite" on final-payout row only; 56×56 avatar via memberInitials; 2 CTAs emit callbacks for 7.3/7.4 wiring; isSubmitting state with Loader2 spinner; 13 vitest+RTL+jest-axe cases; cross-LLM code-review on sonnet-4-6 [Approve with suggestions, 0 H / 1 M / 3 L] — all 4 patches applied (last_updated YAML bump, formatFcfaAmount(0) consistency, beforeEach mock-clear, DOM row-order assertion); all gates green (typecheck / lint / 644 vitest / 75.45% branches global / build); kicks off Epic 7
+# touched: 7-1-settlement-summary-card → done (PR #61 merged 2026-05-13, commit e4f2713; pure SettlementSummaryCard at src/components/domain — 4-row card driven by Story 3.2 settle()/commission() with NFR-R3 zero-tolerance compliance; 11 i18n keys under new settlement.* namespace; module-scope Intl.DateTimeFormat à la Story 2.4; aria-live="polite" on final-payout row only; 56×56 avatar via memberInitials; 2 CTAs emit callbacks for 7.3/7.4 wiring; isSubmitting state with Loader2 spinner; 13 vitest+RTL+jest-axe cases; cross-LLM code-review on sonnet-4-6 [Approve with suggestions, 0 H / 1 M / 3 L] — all 4 patches applied (last_updated YAML bump, formatFcfaAmount(0) consistency, beforeEach mock-clear, DOM row-order assertion); full CI green; kicks off Epic 7
 # project: SafariCash
 # project_key: NOKEY
 # tracking_system: file-system
@@ -112,7 +112,7 @@ development_status:
 
   # Epic 7 — Cycle Settlement Ceremony
   epic-7: in-progress
-  7-1-settlement-summary-card: review
+  7-1-settlement-summary-card: done  # merged 2026-05-13 via PR #61 (commit e4f2713); full CI green incl. cross-LLM code-review patches; pure presentation atom for Epic 7 ceremony surface — math via Story 3.2 settle()/commission() (NFR-R3 compliance), aria-live on row 4 only, 11 i18n keys under new settlement.summary.* namespace, 13 vitest+RTL+jest-axe cases; unwired until Story 7.3 (route) and 7.4 (re-auth + commit RPC)
   7-2-envelope-handover-screen: backlog
   7-3-settlement-initiation-computation: backlog
   7-4-settlement-reauth-gate: backlog
