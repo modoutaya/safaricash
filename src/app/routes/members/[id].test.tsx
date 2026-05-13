@@ -1,6 +1,7 @@
 // Story 2.4 — /members/:id route smoke tests.
+// Story 6.7 — added tap-opens-receipt-sheet regression (AC #22).
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -29,6 +30,8 @@ const MEMBER = {
   status: "active" as const,
   created_at: "2026-04-12T08:00:00Z",
   updated_at: "2026-04-12T08:00:00Z",
+  // Story 6.7 — column exposed via members_decrypted.
+  sms_opt_out: false,
 };
 
 function renderRoute(path: string) {
@@ -183,5 +186,59 @@ describe("MemberProfileRoute", () => {
     });
     renderRoute(`/members/${VALID_ID}`);
     expect(screen.getByRole("button", { name: /redémarrer/i })).toBeInTheDocument();
+  });
+
+  // Story 6.7 AC #22 — tapping a transaction row opens the receipt sheet.
+  it("Story 6.7 — tapping a transaction opens the receipt sheet", () => {
+    useMemberProfileMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        member: MEMBER,
+        currentCycle: {
+          id: "22222222-2222-4222-8222-222222222222",
+          cycle_number: 1,
+          start_date: "2026-04-12",
+          end_date: "2026-05-11",
+          status: "active",
+        },
+        previousCycles: [],
+        transactions: [
+          {
+            id: "33333333-3333-4333-8333-333333333333",
+            member_id: VALID_ID,
+            cycle_id: "22222222-2222-4222-8222-222222222222",
+            kind: "contribution" as const,
+            amount: 500,
+            cycle_day: 1,
+            created_at: "2026-04-12T09:00:00Z",
+            receipt_token: "a".repeat(32),
+          },
+        ],
+        totalTransactionsCount: 1,
+        stats: {
+          cycleDay: 11,
+          daysRemaining: 19,
+          contributedTotal: 500,
+          outstandingAdvances: 0,
+          projectedFinalBalance: 14500,
+        },
+      },
+    });
+    // The native <dialog> jsdom polyfill is required for the sheet to mount.
+    HTMLDialogElement.prototype.showModal = function () {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close = function () {
+      this.removeAttribute("open");
+      this.dispatchEvent(new Event("close"));
+    };
+    renderRoute(`/members/${VALID_ID}`);
+
+    const row = screen.getByRole("button", { name: /Voir le reçu de Cotisation/i });
+    fireEvent.click(row);
+    expect(
+      screen.getByRole("heading", { level: 2, name: /reçu de la transaction/i }),
+    ).toBeInTheDocument();
   });
 });

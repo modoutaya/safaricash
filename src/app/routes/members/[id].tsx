@@ -23,6 +23,13 @@ import type {
   ResendHistoryError,
   ResendHistoryResult,
 } from "@/features/member/api/useResendHistory";
+import type { TransactionRow } from "@/features/member";
+import {
+  TransactionReceiptSheet,
+  shareReceipt,
+  useResendTransaction,
+  type ResendTransactionResult,
+} from "@/features/transaction";
 import { useT } from "@/i18n/useT";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,6 +44,9 @@ export default function MemberProfileRoute() {
   const [restartOpen, setRestartOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resendOpen, setResendOpen] = useState(false);
+  // Story 6.7 — selected transaction drives the per-receipt sheet.
+  const [selectedTx, setSelectedTx] = useState<TransactionRow | null>(null);
+  const resendTx = useResendTransaction();
 
   const query = useMemberProfile(isUuid ? id : undefined);
 
@@ -121,8 +131,107 @@ export default function MemberProfileRoute() {
           previousCycles={query.data.previousCycles}
           transactions={query.data.transactions}
           stats={query.data.stats}
+          onTransactionTap={setSelectedTx}
         />
       )}
+
+      {query.data && selectedTx && query.data.currentCycle ? (
+        <TransactionReceiptSheet
+          open={!!selectedTx}
+          onOpenChange={(next) => {
+            if (!next) setSelectedTx(null);
+          }}
+          transaction={selectedTx}
+          member={{
+            phone_number: query.data.member.phone_number,
+            sms_opt_out: query.data.member.sms_opt_out ?? false,
+          }}
+          cycle={{ cycle_number: query.data.currentCycle.cycle_number }}
+          onShare={async () => {
+            if (!selectedTx.receipt_token) {
+              toast.error(t("transaction.receipt_sheet.share_toast_error"));
+              return;
+            }
+            // Code-review patch (P7): `shareReceipt` can throw if
+            // VITE_RECEIPT_URL_BASE is unset in a production build (the
+            // helper throws by design — see shareReceipt.ts:34). Catch +
+            // surface a generic error toast rather than leaking an
+            // unhandled promise rejection to the React event loop.
+            try {
+              const result = await shareReceipt({
+                amount: selectedTx.amount,
+                cycleDay: selectedTx.cycle_day,
+                receiptToken: selectedTx.receipt_token,
+              });
+              if (result.ok) {
+                const key =
+                  result.via === "native"
+                    ? "transaction.receipt_sheet.share_toast_native_success"
+                    : "transaction.receipt_sheet.share_toast_clipboard_success";
+                toast.success(t(key));
+                return;
+              }
+              switch (result.reason) {
+                case "aborted":
+                  toast.info(t("transaction.receipt_sheet.share_toast_aborted"));
+                  return;
+                case "unsupported":
+                  toast.error(
+                    t("transaction.receipt_sheet.share_toast_unsupported", { url: result.url }),
+                  );
+                  return;
+                default:
+                  toast.error(t("transaction.receipt_sheet.share_toast_error"));
+              }
+            } catch {
+              toast.error(t("transaction.receipt_sheet.share_toast_error"));
+            }
+          }}
+          onResend={async () => {
+            // Capture the member name at handler-creation time so TS narrowing
+            // survives the async boundary.
+            const memberName = query.data?.member.name ?? "";
+            try {
+              const result: ResendTransactionResult = await resendTx.mutateAsync({
+                transactionId: selectedTx.id,
+                memberId: id,
+              });
+              if (result.enqueued > 0) {
+                toast.success(
+                  t("transaction.receipt_sheet.resend_toast_success", {
+                    memberFirstName: memberName.split(" ")[0] ?? memberName,
+                  }),
+                );
+                setSelectedTx(null);
+                return;
+              }
+              switch (result.reason) {
+                case "opt_out":
+                  toast.info(t("transaction.receipt_sheet.resend_toast_opt_out"));
+                  return;
+                case "no_phone":
+                  toast.info(t("transaction.receipt_sheet.resend_toast_no_phone"));
+                  return;
+                case "undone":
+                  toast.error(t("transaction.receipt_sheet.resend_toast_undone"));
+                  return;
+                case "unsupported_kind":
+                  toast.error(t("transaction.receipt_sheet.resend_toast_unsupported_kind"));
+                  return;
+                default:
+                  toast.error(t("transaction.receipt_sheet.resend_toast_error"));
+              }
+            } catch (err) {
+              const code = (err as { code?: string })?.code;
+              if (code === "not_found") {
+                toast.error(t("transaction.receipt_sheet.resend_toast_not_found"));
+              } else {
+                toast.error(t("transaction.receipt_sheet.resend_toast_error"));
+              }
+            }
+          }}
+        />
+      ) : null}
 
       {query.data && canRestart ? (
         <RestartCycleDialog

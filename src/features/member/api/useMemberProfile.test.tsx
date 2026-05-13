@@ -46,6 +46,8 @@ const MEMBER_ROW = {
   status: "active" as const,
   created_at: "2026-04-12T08:00:00Z",
   updated_at: "2026-04-12T08:00:00Z",
+  // Story 6.7 — column added to the members_decrypted SELECT.
+  sms_opt_out: false,
 };
 
 const CYCLE = {
@@ -77,6 +79,9 @@ describe("fetchProfile", () => {
           amount: 500,
           cycle_day: 1,
           created_at: "2026-04-12T09:00:00Z",
+          // Story 6.7 (AC #17) — receipt_token is now part of the
+          // transactions_decrypted projection.
+          receipt_token: "a".repeat(32),
         },
       ],
       error: null,
@@ -86,6 +91,11 @@ describe("fetchProfile", () => {
     expect(result?.member.name).toBe("Awa Diallo");
     expect(result?.currentCycle?.id).toBe("22222222-2222-4222-8222-222222222222");
     expect(result?.transactions).toHaveLength(1);
+    // Story 6.7 AC #17 — receipt_token round-trips through the view +
+    // Zod parse + member-profile assembly so the share button can read it.
+    expect(result?.transactions[0]?.receipt_token).toBe("a".repeat(32));
+    // Story 6.7 — sms_opt_out is exposed on the member shape.
+    expect(result?.member.sms_opt_out).toBe(false);
     expect(result?.stats.contributedTotal).toBe(500);
     expect(result?.stats.projectedFinalBalance).toBe(500 * 29);
   });

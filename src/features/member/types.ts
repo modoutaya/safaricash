@@ -33,6 +33,10 @@ export const memberRowSchema = z.object({
   status: memberStatusSchema,
   created_at: z.string(), // ISO-8601
   updated_at: z.string(),
+  // Story 6.7 — exposed so the per-transaction receipt sheet can disable
+  // the SMS button when the saver has opted out. The column is added by
+  // Story 6.5 migration 0044. Default false at the DB level → safe optional.
+  sms_opt_out: z.boolean().optional().default(false),
 });
 export type MemberRow = z.infer<typeof memberRowSchema>;
 
@@ -63,6 +67,14 @@ export const transactionRowSchema = z.object({
   amount: z.coerce.number().int().positive(), // decrypted from numeric(12,0)
   cycle_day: z.number().int().min(1).max(30),
   created_at: z.string(), // ISO-8601
+  // Story 6.7 — exposed via transactions_decrypted (migration 0054) for the
+  // share button to compose `${VITE_RECEIPT_URL_BASE}/{token}` client-side.
+  // 32-hex token (Story 6.3 contract). Optional in the schema so older
+  // PostgREST responses (pre-view-extension) still parse.
+  receipt_token: z
+    .string()
+    .regex(/^[0-9a-f]{32}$/, "receipt_token must be 32 hex chars")
+    .optional(),
 });
 export type TransactionRow = z.infer<typeof transactionRowSchema>;
 

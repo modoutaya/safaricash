@@ -333,6 +333,32 @@
       "window_expired": "Délai dépassé — la cotisation est conservée. Modifiez-la depuis le profil du membre.",
       "already_undone": "Cotisation déjà annulée.",
       "not_found": "Cotisation introuvable."
+    },
+    "receipt_sheet": {
+      "title": "Reçu de la transaction",
+      "close_label": "Fermer",
+      "kind_row_label": "Type",
+      "amount_row_label": "Montant",
+      "date_row_label": "Date",
+      "cycle_day_row_label": "Cycle",
+      "cycle_day_value": "Jour {n} sur 30 — Cycle {cycle_number}",
+      "share_label": "Partager le reçu",
+      "resend_sms_label": "Renvoyer par SMS",
+      "resend_disabled_no_phone": "Aucun téléphone enregistré pour ce saver.",
+      "resend_disabled_opt_out": "Le saver a refusé les SMS.",
+      "tx_button_label": "Voir le reçu de {kind} du {date} — {amount} FCFA",
+      "share_toast_native_success": "Reçu partagé.",
+      "share_toast_clipboard_success": "Lien copié dans le presse-papiers.",
+      "share_toast_aborted": "Partage annulé.",
+      "share_toast_unsupported": "Partage indisponible — copiez le lien manuellement : {url}",
+      "share_toast_error": "Échec du partage.",
+      "resend_toast_success": "Rappel envoyé à {memberFirstName}.",
+      "resend_toast_opt_out": "Le saver a refusé les SMS — aucun rappel envoyé.",
+      "resend_toast_no_phone": "Aucun téléphone enregistré pour ce saver.",
+      "resend_toast_undone": "Cette transaction a été annulée.",
+      "resend_toast_unsupported_kind": "Type de transaction non pris en charge.",
+      "resend_toast_not_found": "Transaction introuvable.",
+      "resend_toast_error": "Échec de l'envoi du rappel."
     }
   }
 }
