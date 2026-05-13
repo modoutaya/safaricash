@@ -196,6 +196,9 @@ export default function MemberProfileRoute() {
                 transactionId: selectedTx.id,
                 memberId: id,
               });
+              // [Debug] Logs what the RPC returned. Remove once the CI
+              // flow-6-resend-transaction failure is understood.
+              console.log("[resend-tx-debug] result", JSON.stringify(result));
               if (result.enqueued > 0) {
                 toast.success(
                   t("transaction.receipt_sheet.resend_toast_success", {
@@ -222,6 +225,16 @@ export default function MemberProfileRoute() {
                   toast.error(t("transaction.receipt_sheet.resend_toast_error"));
               }
             } catch (err) {
+              // [Debug] Logs the thrown error. Remove once the CI
+              // flow-6-resend-transaction failure is understood.
+              console.log(
+                "[resend-tx-debug] caught",
+                JSON.stringify({
+                  name: (err as { name?: string })?.name,
+                  code: (err as { code?: string })?.code,
+                  message: (err as { message?: string })?.message,
+                }),
+              );
               const code = (err as { code?: string })?.code;
               if (code === "not_found") {
                 toast.error(t("transaction.receipt_sheet.resend_toast_not_found"));

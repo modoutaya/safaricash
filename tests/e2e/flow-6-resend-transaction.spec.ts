@@ -27,6 +27,17 @@ test.describe("Flow — /members/:id per-transaction receipt (Story 6.7)", () =>
     page,
     seededCollector,
   }) => {
+    // [Debug] Forward browser console to CI stdout so the [resend-tx-debug]
+    // logs from [id].tsx are visible in the workflow output. Remove once the
+    // CI failure is understood.
+    page.on("console", (msg) => {
+      // eslint-disable-next-line no-console
+      console.log(`[browser:${msg.type()}]`, msg.text());
+    });
+    page.on("pageerror", (err) => {
+      // eslint-disable-next-line no-console
+      console.log("[browser:pageerror]", err.message);
+    });
     const service = buildServiceClient();
     const members = await seedMembersForCollector(service, seededCollector, 1, "RESEND-TX");
     const target = members[0]!;
