@@ -160,6 +160,7 @@
       "actions_label": "Actions",
       "action_edit": "Modifier",
       "action_restart_cycle": "Redémarrer le cycle",
+      "action_settle": "Clôturer le cycle",
       "action_delete": "Supprimer",
       "action_disabled_tooltip": "Disponible bientôt",
       "field": {
@@ -336,6 +337,11 @@
       "cta_verify": "Vérifier les transactions",
       "cta_confirm": "Confirmer et clôturer",
       "cta_submitting": "Clôture en cours…"
+    },
+    "flow": {
+      "title": "Clôture du cycle",
+      "back_label": "Retour au profil",
+      "confirm_pending_toast": "La confirmation sera disponible avec la prochaine mise à jour."
     }
   },
   "envelope_handover": {
