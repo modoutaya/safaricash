@@ -118,6 +118,98 @@ describe("renderReceiptHtml — rattrapage", () => {
   });
 });
 
+describe("renderReceiptHtml — settlement (Story 7.5)", () => {
+  const PAYLOAD_SETTLEMENT: ReceiptPayload = {
+    amount: 87_000,
+    kind: "settlement",
+    cycle_day: 30,
+    created_at: "2026-05-11T16:30:00Z",
+    member_first_name: "Awa",
+    projected_balance: 87_000,
+    daily_amount: 3_000,
+    cycle_start_date: "2026-04-12",
+    cycle_end_date: "2026-05-11",
+  };
+  const html = renderReceiptHtml(TOKEN, PAYLOAD_SETTLEMENT);
+
+  it("uses 'Cycle clôturé — SafariCash' page title (not 'Reçu SafariCash')", () => {
+    expect(html).toContain("<title>Cycle clôturé — SafariCash</title>");
+    expect(html).not.toContain("Reçu SafariCash — Awa");
+  });
+
+  it("uses 'Cycle clôturé' as the h1 headline (no 'Reçu pour {name}')", () => {
+    expect(html).toContain("<h1>Cycle clôturé</h1>");
+    expect(html).not.toContain("Reçu pour Awa");
+  });
+
+  it("renders the saver's first name as the header subtitle", () => {
+    // The subtitle is the only remaining mention — assert it's present
+    // exactly once as the <header><p>{first_name}</p></header>.
+    expect(html).toContain("<p>Awa</p>");
+  });
+
+  it("renders the payout amount with ASCII space grouping", () => {
+    expect(html).toContain("87 000 FCFA");
+  });
+
+  it("renders the cycle period range (DD/MM/YYYY au DD/MM/YYYY)", () => {
+    expect(html).toContain("Période du cycle");
+    expect(html).toContain("12/04/2026 au 11/05/2026");
+  });
+
+  it("hides the projected-balance row (moot post-settlement)", () => {
+    expect(html).not.toContain("Solde projeté en fin de cycle");
+    expect(html).not.toContain("Nouveau solde projeté");
+  });
+
+  it("hides the cycle-day row (constant day 30 + period row supersedes)", () => {
+    expect(html).not.toContain("Jour du cycle");
+    expect(html).not.toContain("30 / 30");
+  });
+
+  it("includes the closing statement", () => {
+    expect(html).toContain("Merci de votre confiance");
+    expect(html).toContain("Ce reçu finalise votre cycle d'épargne");
+  });
+
+  it("DOES NOT include the dispute CTA (settlement is irreversible)", () => {
+    expect(html).not.toContain(`href="/r/${TOKEN}/dispute"`);
+    expect(html).not.toContain("Cette transaction n'est pas moi");
+  });
+
+  it("KEEPS the opt-out CTA (saver may still want to opt out of future SMS)", () => {
+    expect(html).toContain(`href="/r/${TOKEN}/opt-out"`);
+    expect(html).toContain("Ne plus recevoir de SMS");
+  });
+
+  it("KEEPS the tracker-not-mover disclosure", () => {
+    expect(html).toContain("journal d'épargne et non une banque");
+  });
+
+  it("does NOT contain a <script> tag (UX-DR19 — no JS)", () => {
+    expect(html).not.toContain("<script");
+  });
+
+  it("hides the period row if cycle_start_date / cycle_end_date are missing (defensive)", () => {
+    const htmlNoPeriod = renderReceiptHtml(TOKEN, {
+      ...PAYLOAD_SETTLEMENT,
+      cycle_start_date: undefined,
+      cycle_end_date: undefined,
+    });
+    expect(htmlNoPeriod).not.toContain("Période du cycle");
+    // Other anatomy still renders.
+    expect(htmlNoPeriod).toContain("<h1>Cycle clôturé</h1>");
+    expect(htmlNoPeriod).toContain("87 000 FCFA");
+  });
+
+  it("passes axe accessibility (WCAG Level A)", async () => {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+});
+
 describe("renderReceiptHtml — XSS defence", () => {
   it("escapes HTML special characters in member_first_name", () => {
     const html = renderReceiptHtml(TOKEN, {
