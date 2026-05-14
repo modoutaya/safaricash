@@ -435,7 +435,9 @@ Two equivalent entry paths:
 - **Path A (preferred for known members, recency-sorted list):** From the dashboard or member list, Ibrahim scrolls (rarely needed — recency sort puts the likely next member near top). He taps a member's row.
 - **Path B (preferred for search-driven access):** Ibrahim taps the search box at the top of the list, types 2–3 characters of the member's name, taps the resulting row.
 
-Both paths open the same **member action sheet** (a bottom-sheet modal, not a new screen). The action sheet is partial-height — the list remains visible behind, so Ibrahim never loses context.
+Both paths open the same **member action sheet** (a centered modal, not a new screen). The modal is compact, width-constrained — the list remains visible behind via the semi-transparent backdrop, so Ibrahim never loses context.
+
+> **Divergence note (amendment 2026-05-14).** Flow 1's MemberActionSheet uses a **centered modal**, not the bottom-sheet pattern described in § Journey Pattern 1 (l. 918) and the Surface Catalog (l. 1363). Other action sheets in the spec (Flow 2 *Prêt* preamble, Flow 4 dispute confirmation) continue to use bottom-sheet. Rationale: a centered modal performs better on the dev/test viewport configurations encountered after Story 7.2; product accepted the divergence in exchange for not delaying the daily-contribution surface. Revisit if the bottom-sheet pattern is reinstated for Flow 1 in a future story.
 
 **2. Interaction — 1 tap in happy path.**
 
@@ -459,7 +461,7 @@ Edge paths:
 On tap:
 
 - **Haptic:** instant vibration (medium intensity, NFR-A2 parity with the design system).
-- **Visual (collector):** the action sheet dismisses with a 150 ms slide-out. A success toast slides in from the top of the home surface: *"✓ Cotisation enregistrée — reçu envoyé à Fatou"*.
+- **Visual (collector):** the action sheet dismisses with a 150 ms fade-out. A success toast slides in from the top of the home surface: *"✓ Cotisation enregistrée — reçu envoyé à Fatou"*.
 - **Progressive confirmation:** the toast subtly updates over the next 10–60 s as the SMS status progresses (*"envoi..."* → *"reçu délivré ✓"*). If offline, *"hors-ligne — envoi au prochain réseau"*.
 - **Social (saver):** within 60 s, Fatou's phone vibrates with the SMS. This is the interaction's true completion event.
 - **List state:** the member row in the underlying list reorders to the top (recency sort) and shows an updated cycle progress bar.
@@ -999,20 +1001,22 @@ Nine components are novel to SafariCash and require dedicated specification. Eac
 
 **Interaction:** tap opens a drawer listing pending operations by member with retry affordances.
 
-#### 2. Member Action Sheet (bottom-sheet modal)
+#### 2. Member Action Sheet (centered modal)
 
-**Purpose:** the entry point for the core daily-contribution interaction. Keeps the member list visible behind to preserve context (Journey Pattern 1 — *"Action sheet over new screen"*).
+> **Divergence note (amendment 2026-05-14).** Originally spec'd as a bottom-sheet to align with Journey Pattern 1. Flow 1 was converted to a centered modal — see the divergence note in § Flow 1 above. The "action sheet" name is retained for backwards-compat with other docs.
 
-**Usage:** slides up from bottom when a member row or search result is tapped.
+**Purpose:** the entry point for the core daily-contribution interaction. Keeps the member list visible behind (via semi-transparent backdrop) to preserve context.
+
+**Usage:** opens centered over the underlying surface when a member row or search result is tapped.
 
 **Anatomy:**
 
-- Sheet height: ~40–50 % of viewport (compact, not full-screen).
+- Width: full-width up to `max-w-md`, centered horizontally; height auto-sizes to content (compact, not full-screen).
 - Member avatar + name at top.
 - Pre-filled amount as part of primary CTA label.
-- Primary CTA: *"Enregistrer cotisation — {amount} FCFA"* (full-width, primary-green).
+- Primary CTA: *"Enregistrer cotisation — {amount} FCFA"* (full-width within the modal, primary-green).
 - Secondary row with three links: *"Rattrapage"* / *"Prêt"* / *"Montant personnalisé"*.
-- Close affordance: drag handle at top + tap-outside dismiss.
+- Close affordance: tap-outside (backdrop click) + ESC.
 
 **States:** default, pressed CTA, disabled CTA (network-impossible condition — rare).
 
