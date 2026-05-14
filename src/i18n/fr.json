@@ -342,6 +342,26 @@
       "title": "Clôture du cycle",
       "back_label": "Retour au profil",
       "confirm_pending_toast": "La confirmation sera disponible avec la prochaine mise à jour."
+    },
+    "reauth": {
+      "title": "Confirmation requise",
+      "body": "Pour clôturer le cycle de {memberFirstName} et débloquer {payout} FCFA, confirmez votre mot de passe.",
+      "password_label": "Mot de passe",
+      "cta_submit": "Valider la clôture",
+      "cta_submitting": "Vérification…",
+      "cta_cancel": "Annuler",
+      "error": {
+        "credentials_invalid": "Mot de passe incorrect — réessayez.",
+        "rate_limited": "Trop de tentatives — réessayez dans quelques minutes.",
+        "cycle_not_settleable": "Ce cycle n'est plus prêt à être clôturé.",
+        "payout_mismatch": "Le montant a changé — rechargez la page.",
+        "not_found": "Cycle ou membre introuvable.",
+        "network": "Pas de réseau — vérifiez votre connexion.",
+        "unknown": "Erreur inattendue — réessayez."
+      }
+    },
+    "toast": {
+      "success": "Cycle clôturé. SMS envoyé à {memberFirstName}."
     }
   },
   "envelope_handover": {
