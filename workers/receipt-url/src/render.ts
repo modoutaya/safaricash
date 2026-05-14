@@ -9,18 +9,23 @@
 
 export type ReceiptPayload = {
   amount: number;
-  kind: "contribution" | "rattrapage" | "advance" | string;
+  kind: "contribution" | "rattrapage" | "advance" | "settlement" | string;
   cycle_day: number;
   created_at: string; // ISO 8601
   member_first_name: string;
   projected_balance: number;
   daily_amount: number;
+  /** Story 7.5 — cycle period for the settlement receipt page.
+   *  ISO date strings YYYY-MM-DD. Optional for pre-Story-7.5 RPC versions. */
+  cycle_start_date?: string;
+  cycle_end_date?: string;
 };
 
 const KIND_LABELS: Record<string, string> = {
   contribution: "Contribution",
   rattrapage: "Rattrapage",
   advance: "Prêt express",
+  settlement: "Clôture du cycle",
 };
 
 const TRACKER_DISCLOSURE =
@@ -59,6 +64,21 @@ function formatDateTime(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+  });
+  return fmt.format(date);
+}
+
+/** Story 7.5 — cycle date formatter for the settlement receipt page.
+ *  Input is YYYY-MM-DD (date-only); output is DD/MM/YYYY (no time, no TZ). */
+function formatCycleDate(iso: string): string {
+  // Append `T00:00:00Z` so the Date constructor doesn't apply local-TZ drift.
+  const date = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return iso;
+  const fmt = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
   });
   return fmt.format(date);
 }
@@ -149,6 +169,15 @@ const STYLE_BLOCK = `
     color: #4b5563;
     font-size: 1rem;
   }
+  .settlement-closing {
+    margin: 0 0 1.5rem;
+    padding: 1rem;
+    background: #e1f5ee;
+    color: #085041;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.95rem;
+  }
   .opt-out {
     margin-top: 1rem;
     text-align: center;
@@ -204,6 +233,13 @@ ${bodyContent}
 }
 
 export function renderReceiptHtml(token: string, payload: ReceiptPayload): string {
+  // Story 7.5 — settlement receipt page is a separate visual surface
+  // (different title / header / rows / no dispute CTA). Branch early
+  // rather than weaving conditionals into the existing transaction layout.
+  if (payload.kind === "settlement") {
+    return renderSettlementReceiptHtml(token, payload);
+  }
+
   const kindLabel = KIND_LABELS[payload.kind] ?? "Opération";
   const projectedLabel =
     payload.kind === "advance" ? "Nouveau solde projeté" : "Solde projeté en fin de cycle";
@@ -253,6 +289,58 @@ export function renderReceiptHtml(token: string, payload: ReceiptPayload): strin
 `.trim();
 
   return htmlShell(`Reçu SafariCash — ${payload.member_first_name}`, body);
+}
+
+const SETTLEMENT_CLOSING_STATEMENT =
+  "Merci de votre confiance. Ce reçu finalise votre cycle d'épargne.";
+
+/** Story 7.5 — settlement receipt page.
+ *  Different from the contribution / advance / rattrapage receipt:
+ *  - "Cycle clôturé" headline (no "Reçu pour {name}").
+ *  - Shows the cycle period (start → end) if available.
+ *  - Skips the "projected balance" + "cycle day" rows (moot post-settlement).
+ *  - Hides the dispute CTA (settlement is structurally irreversible).
+ *  - Keeps the opt-out CTA + disclosure note. */
+function renderSettlementReceiptHtml(token: string, payload: ReceiptPayload): string {
+  const periodRow =
+    payload.cycle_start_date && payload.cycle_end_date
+      ? `
+    <div>
+      <dt>Période du cycle</dt>
+      <dd>${escapeHtml(formatCycleDate(payload.cycle_start_date))} au ${escapeHtml(formatCycleDate(payload.cycle_end_date))}</dd>
+    </div>`
+      : "";
+
+  const body = `
+<main>
+  <header>
+    <h1>Cycle clôturé</h1>
+    <p>${escapeHtml(payload.member_first_name)}</p>
+  </header>
+
+  <dl>
+    <div>
+      <dt>Montant reçu</dt>
+      <dd>${formatAmount(payload.amount)} FCFA</dd>
+    </div>
+    <div>
+      <dt>Cycle clôturé le</dt>
+      <dd>${escapeHtml(formatDateTime(payload.created_at))}</dd>
+    </div>${periodRow}
+  </dl>
+
+  <p class="settlement-closing">${SETTLEMENT_CLOSING_STATEMENT}</p>
+
+  <section class="opt-out" aria-label="Ne plus recevoir de SMS">
+    <a href="/r/${escapeHtml(token)}/opt-out">Ne plus recevoir de SMS</a>
+    <small>Votre opt-out est traçable et peut être annulé via votre collecteur.</small>
+  </section>
+
+  <aside class="disclosure">${TRACKER_DISCLOSURE}</aside>
+</main>
+`.trim();
+
+  return htmlShell("Cycle clôturé — SafariCash", body);
 }
 
 export function renderOptOutFormHtml(token: string): string {

@@ -130,7 +130,7 @@ if (env) {
   });
 
   Deno.test({
-    name: "3. settlement body shape — Cycle clos, totalSettled, no day, no projected",
+    name: "3. settlement body shape (Story 7.5) — firstName, cycle DD/MM range, amount, no day, no projected",
     ...denoOpts,
     fn: async () => {
       const anon = createClient(env.url, env.anonKey, {
@@ -143,9 +143,10 @@ if (env) {
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
-        // Use a normal contribution to get an existing tx_id; the helper
+        // Use a normal contribution to get an existing tx_id; format_sms_body
         // renders settlement-key based on template_key + transaction.amount,
-        // not on transaction.kind (Story 7.5 will create kind='settlement').
+        // not on transaction.kind. (Story 7.4 ships kind='settlement' but the
+        // template helper itself is kind-agnostic.)
         const txId = await recordContrib(userClient, memberId, cycleId, 1, 14500);
 
         const { data: body, error } = await service.rpc("format_sms_body", {
@@ -154,9 +155,145 @@ if (env) {
         });
         assertEquals(error, null);
         assert(typeof body === "string");
-        assertStringIncludes(body, "SafariCash. Cycle clos. Vous avez recu 14 500 FCFA. Merci.");
-        assertStringIncludes(body, "Detail: https://safaricash.app/r/");
+        // Story 7.5 new shape: SafariCash. {firstName}, votre cycle du {DD/MM}
+        // au {DD/MM} est clos. Vous avez recu {amount} FCFA. Merci. Detail: <url>.
+        // seedMemberWithCycle creates name="Test Member" → firstName="Test"
+        // and cycle dates 2026-04-19 → 2026-05-18.
+        assertStringIncludes(body, "SafariCash. Test, votre cycle du 19/04 au 18/05 est clos.");
+        // Code-review patch #1 — 'Merci.' suffix removed (saves 7 chars for
+        // single-SMS budget); the closing statement now lives on the Worker
+        // receipt page only.
+        assertStringIncludes(body, "Vous avez recu 14500 FCFA. Detail: https://safaricash.app/r/");
+        assert(
+          !body.includes("Merci."),
+          "settlement SMS no longer includes 'Merci.' (moved to receipt page)",
+        );
         assert(!body.includes("jour"), "settlement should NOT include cycle day");
+        assert(!body.includes("Solde projete"), "settlement should NOT include projected balance");
+        // GSM-7 single-SMS discipline: amount has no NBSP / no space separators.
+        assert(!body.includes("14 500"), "amount should be plain digits, not NBSP-grouped");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "3c. settlement body — accented name unaccented (Story 7.5 + Story 6.3 baseline)",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "fb3c");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        // Override the seed name with accented chars.
+        const { data: secret } = await service.rpc("vault_encrypt", {
+          plaintext: "Mariémé Diallo",
+        });
+        await service.from("members").update({ name_encrypted: secret }).eq("id", memberId);
+        const txId = await recordContrib(userClient, memberId, cycleId, 1, 500);
+
+        const { data: body, error } = await service.rpc("format_sms_body", {
+          p_template_key: "settlement",
+          p_transaction_id: txId,
+        });
+        assertEquals(error, null);
+        // unaccent strips the diacritics: "Mariémé" → "Marieme".
+        assertStringIncludes(body as string, "SafariCash. Marieme,");
+        // Defensive — the unaccented form must NOT carry the accented char.
+        assert(!(body as string).includes("é"), "settlement SMS must be ASCII-only (GSM-7)");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "3d. settlement body — single-token name uses the full name (no split fallback)",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "fb3d");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        // Override to a single-token name (no whitespace).
+        const { data: secret } = await service.rpc("vault_encrypt", {
+          plaintext: "Awa",
+        });
+        await service.from("members").update({ name_encrypted: secret }).eq("id", memberId);
+        const txId = await recordContrib(userClient, memberId, cycleId, 1, 500);
+
+        const { data: body, error } = await service.rpc("format_sms_body", {
+          p_template_key: "settlement",
+          p_transaction_id: txId,
+        });
+        assertEquals(error, null);
+        // split_part('Awa', ' ', 1) returns 'Awa' (the entire string when no
+        // delimiter is found) — so the full name is used.
+        assertStringIncludes(body as string, "SafariCash. Awa,");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "3b. settlement body — length stays ≤ 160 chars at worst case (Story 7.5 NFR-L1)",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "fb3b");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+
+        // Code-review patch #1 — worst-case probe: 9-char firstName +
+        // 9-digit amount + default URL prefix. Override the seed name to
+        // hit the firstName cap exactly (test-fixtures default is "Test
+        // Member" → firstName "Test", which is 5 chars short of the cap).
+        const { data: newNameSecret, error: vErr } = await service.rpc("vault_encrypt", {
+          plaintext: "Mahamadou Diallo",
+        });
+        if (vErr || !newNameSecret) throw new Error(`vault_encrypt: ${vErr?.message}`);
+        const { error: updErr } = await service
+          .from("members")
+          .update({ name_encrypted: newNameSecret })
+          .eq("id", memberId);
+        if (updErr) throw new Error(`member name update: ${updErr.message}`);
+
+        const txId = await recordContrib(userClient, memberId, cycleId, 1, 999_999_999);
+
+        const { data: body, error } = await service.rpc("format_sms_body", {
+          p_template_key: "settlement",
+          p_transaction_id: txId,
+        });
+        assertEquals(error, null);
+        assert(typeof body === "string");
+        // Sanity — body should mention "Mahamadou" (9-char firstName).
+        assertStringIncludes(body as string, "Mahamadou,");
+        // NFR-L1: single GSM-7 SMS ≤ 160 chars. Worst-case probe locks this
+        // down — future template tweaks that exceed the cap fail here.
+        assert(
+          (body as string).length <= 160,
+          `settlement SMS body must be ≤ 160 chars (got ${(body as string).length}): ${body}`,
+        );
       } finally {
         await cleanup(service, c);
       }

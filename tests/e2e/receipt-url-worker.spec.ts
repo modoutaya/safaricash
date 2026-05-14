@@ -199,6 +199,108 @@ test.describe("receipt-url worker (Story 6.4 — saver-facing receipt page)", ()
     }
   });
 
+  test("Story 7.5 — settlement token renders 'Cycle clôturé' page (no dispute CTA + closing statement)", async ({
+    request,
+  }) => {
+    const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const { userId, jwt, cleanup: cleanupCollector } = await seedCollector();
+    const userClient = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+    });
+
+    let memberId: string | null = null;
+    let cycleId: string | null = null;
+    let txId: string | null = null;
+    try {
+      // Seed a member + cycle then mark the cycle completed so the Story
+      // 7.4 trigger allow-path lets us INSERT a kind='settlement' row.
+      const { data: m } = await userClient.rpc("create_member_with_cycle", {
+        p_name: "Awa Diallo",
+        p_phone_number: "+221770000555",
+        p_daily_amount: 500,
+      });
+      memberId = m as string;
+      expect(memberId).toBeTruthy();
+
+      const { data: cycle } = await service
+        .from("cycles")
+        .select("id")
+        .eq("member_id", memberId)
+        .eq("collector_id", userId)
+        .single();
+      cycleId = cycle!.id as string;
+
+      await service.from("cycles").update({ status: "completed" }).eq("id", cycleId);
+
+      // Insert the synthetic settlement transaction directly via service-
+      // role. The Story 7.4 trigger allows kind='settlement' on completed
+      // cycles. The existing receipt_token trigger auto-generates the token.
+      const { data: amountSecret } = await service.rpc("vault_encrypt", {
+        plaintext: "14500",
+      });
+      const { data: tx, error: txErr } = await service
+        .from("transactions")
+        .insert({
+          collector_id: userId,
+          member_id: memberId,
+          cycle_id: cycleId,
+          kind: "settlement",
+          amount_encrypted: amountSecret,
+          cycle_day: 30,
+          source: "online",
+        })
+        .select("id, receipt_token")
+        .single();
+      expect(txErr, txErr?.message).toBeNull();
+      txId = tx!.id as string;
+      const token = tx!.receipt_token as string;
+      expect(token).toMatch(/^[0-9a-f]{32}$/);
+
+      // Flip cycle to settled to mirror production state.
+      await service
+        .from("cycles")
+        .update({ status: "settled", settled_at: new Date().toISOString() })
+        .eq("id", cycleId);
+
+      // GET the receipt URL → settlement render branch.
+      const res = await request.get(`${WORKER_BASE}/r/${token}`);
+      expect(res.status()).toBe(200);
+      const ct = res.headers()["content-type"] ?? "";
+      expect(ct).toContain("text/html");
+
+      const body = await res.text();
+      // Settlement-specific markers.
+      expect(body).toContain("<title>Cycle clôturé — SafariCash</title>");
+      expect(body).toContain("<h1>Cycle clôturé</h1>");
+      expect(body).toContain("Awa"); // first name in header subtitle
+      expect(body).toContain("Période du cycle");
+      expect(body).toContain("14 500 FCFA"); // formatted with NBSP/space on the page
+      expect(body).toContain("Merci de votre confiance");
+      // Dispute CTA must be absent (settlement is irreversible).
+      expect(body).not.toContain("Cette transaction n'est pas moi");
+      // Opt-out kept.
+      expect(body).toContain("Ne plus recevoir de SMS");
+      // No projected-balance / cycle-day rows.
+      expect(body).not.toContain("Solde projeté en fin de cycle");
+      expect(body).not.toContain("Jour du cycle");
+      // No JS.
+      expect(body).not.toContain("<script");
+
+      // Security headers preserved.
+      expect(res.headers()["cache-control"]).toBe("private, no-store");
+      expect(res.headers()["x-content-type-options"]).toBe("nosniff");
+    } finally {
+      // Cleanup in FK-safe order.
+      if (txId) await service.from("transactions").delete().eq("id", txId);
+      if (cycleId) await service.from("cycles").delete().eq("id", cycleId);
+      if (memberId) await service.from("members").delete().eq("id", memberId);
+      await cleanupCollector();
+    }
+  });
+
   test("Story 6.5 — POST /r/{token}/opt-out flips members.sms_opt_out + subsequent contribution skipped", async ({
     request,
   }) => {

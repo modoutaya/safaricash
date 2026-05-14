@@ -113,6 +113,26 @@ test.describe("Flow 3 — cycle settlement (Story 7.4)", () => {
       .eq("template_key", "settlement");
     expect(afterSettlementCount).toBe(1);
 
+    // Story 7.5 — SMS body matches the new template: firstName + cycle
+    // date range + receipt URL. Code-review patch #1 — closing statement
+    // ('Merci.') moved to the Worker receipt page to preserve the 160-
+    // char single-SMS cap. Patch #6 — firstName presence asserted.
+    const { data: settlementSmsRows } = await service
+      .from("sms_queue")
+      .select("body")
+      .eq("collector_id", seededCollector.userId)
+      .eq("template_key", "settlement");
+    expect(settlementSmsRows?.length).toBe(1);
+    const settlementBody = settlementSmsRows?.[0]?.body as string;
+    // The seeded member is "Member SETTLE-1" → firstName "Member" (6 chars).
+    expect(settlementBody).toMatch(/^SafariCash\. \w+, /);
+    expect(settlementBody).toMatch(/votre cycle du \d{2}\/\d{2} au \d{2}\/\d{2} est clos\./);
+    expect(settlementBody).toContain("Vous avez recu");
+    expect(settlementBody).toContain("FCFA");
+    expect(settlementBody).toMatch(/Detail: https?:\/\/.+\/r\/[0-9a-f]{32}\./);
+    // GSM-7 single-SMS discipline: ≤ 160 chars worst-case.
+    expect(settlementBody.length).toBeLessThanOrEqual(160);
+
     // transactions has one kind='settlement' row with cycle_day=30.
     const { data: settlementTxs } = await service
       .from("transactions")
