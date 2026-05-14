@@ -40,6 +40,7 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/_shared/record-rattrapage.contract.test.ts \
   supabase/functions/_shared/undo-transaction.contract.test.ts \
   supabase/functions/_shared/record-advance.contract.test.ts \
+  supabase/functions/_shared/record-rpcs-idempotent.contract.test.ts \
   supabase/functions/_shared/sms-dispatch-trigger.contract.test.ts \
   supabase/functions/sms-dispatch/index.test.ts \
   supabase/functions/sms-worker/backoff.test.ts \

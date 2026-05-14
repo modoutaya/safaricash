@@ -86,6 +86,7 @@ export type Database = {
           end_date: string;
           id: string;
           member_id: string;
+          settled_at: string | null;
           start_date: string;
           status: Database["public"]["Enums"]["cycles_status_enum"];
           updated_at: string;
@@ -97,6 +98,7 @@ export type Database = {
           end_date: string;
           id?: string;
           member_id: string;
+          settled_at?: string | null;
           start_date: string;
           status?: Database["public"]["Enums"]["cycles_status_enum"];
           updated_at?: string;
@@ -108,6 +110,7 @@ export type Database = {
           end_date?: string;
           id?: string;
           member_id?: string;
+          settled_at?: string | null;
           start_date?: string;
           status?: Database["public"]["Enums"]["cycles_status_enum"];
           updated_at?: string;
@@ -328,6 +331,7 @@ export type Database = {
           cycle_day: number;
           cycle_id: string;
           days_covered: number;
+          event_id: string | null;
           id: string;
           kind: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id: string;
@@ -345,6 +349,7 @@ export type Database = {
           cycle_day: number;
           cycle_id: string;
           days_covered?: number;
+          event_id?: string | null;
           id?: string;
           kind: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id: string;
@@ -362,6 +367,7 @@ export type Database = {
           cycle_day?: number;
           cycle_id?: string;
           days_covered?: number;
+          event_id?: string | null;
           id?: string;
           kind?: Database["public"]["Enums"]["transactions_kind_enum"];
           member_id?: string;
@@ -437,6 +443,7 @@ export type Database = {
           id: string | null;
           name: string | null;
           phone_number: string | null;
+          sms_opt_out: boolean | null;
           status: Database["public"]["Enums"]["members_status_enum"] | null;
           updated_at: string | null;
         };
@@ -447,6 +454,7 @@ export type Database = {
           id?: string | null;
           name?: never;
           phone_number?: never;
+          sms_opt_out?: boolean | null;
           status?: Database["public"]["Enums"]["members_status_enum"] | null;
           updated_at?: string | null;
         };
@@ -457,6 +465,7 @@ export type Database = {
           id?: string | null;
           name?: never;
           phone_number?: never;
+          sms_opt_out?: boolean | null;
           status?: Database["public"]["Enums"]["members_status_enum"] | null;
           updated_at?: string | null;
         };
@@ -478,9 +487,11 @@ export type Database = {
           cycle_day: number | null;
           cycle_id: string | null;
           days_covered: number | null;
+          event_id: string | null;
           id: string | null;
           kind: Database["public"]["Enums"]["transactions_kind_enum"] | null;
           member_id: string | null;
+          receipt_token: string | null;
           source: Database["public"]["Enums"]["transactions_source_enum"] | null;
           updated_at: string | null;
         };
@@ -491,9 +502,11 @@ export type Database = {
           cycle_day?: number | null;
           cycle_id?: string | null;
           days_covered?: number | null;
+          event_id?: string | null;
           id?: string | null;
           kind?: Database["public"]["Enums"]["transactions_kind_enum"] | null;
           member_id?: string | null;
+          receipt_token?: string | null;
           source?: Database["public"]["Enums"]["transactions_source_enum"] | null;
           updated_at?: string | null;
         };
@@ -504,9 +517,11 @@ export type Database = {
           cycle_day?: number | null;
           cycle_id?: string | null;
           days_covered?: number | null;
+          event_id?: string | null;
           id?: string | null;
           kind?: Database["public"]["Enums"]["transactions_kind_enum"] | null;
           member_id?: string | null;
+          receipt_token?: string | null;
           source?: Database["public"]["Enums"]["transactions_source_enum"] | null;
           updated_at?: string | null;
         };
@@ -577,6 +592,18 @@ export type Database = {
           transaction_id: string;
         }[];
       };
+      commit_cycle_settlement: {
+        Args: {
+          p_cycle_id: string;
+          p_expected_payout: number;
+          p_member_id: string;
+        };
+        Returns: {
+          settled_at: string;
+          settled_payout: number;
+          settlement_transaction_id: string;
+        }[];
+      };
       create_member_with_cycle: {
         Args: {
           p_created_via?: Database["public"]["Enums"]["members_created_via_enum"];
@@ -588,11 +615,29 @@ export type Database = {
       };
       delete_member: { Args: { p_id: string }; Returns: undefined };
       emit_session_event: { Args: { p_reason: string }; Returns: undefined };
+      enqueue_resend_history: {
+        Args: { p_cycle_id: string; p_member_id: string };
+        Returns: {
+          enqueued: number;
+          reason: string;
+        }[];
+      };
+      enqueue_resend_transaction: {
+        Args: { p_transaction_id: string };
+        Returns: {
+          enqueued: number;
+          reason: string;
+        }[];
+      };
       find_members_by_phone: {
         Args: { p_phone: string };
         Returns: {
           id: string;
         }[];
+      };
+      format_resend_sms_body: {
+        Args: { p_transaction_id: string };
+        Returns: string;
       };
       format_sms_body: {
         Args: { p_template_key: string; p_transaction_id: string };
@@ -605,6 +650,8 @@ export type Database = {
           amount: number;
           created_at: string;
           cycle_day: number;
+          cycle_end_date: string;
+          cycle_start_date: string;
           daily_amount: number;
           kind: string;
           member_first_name: string;
@@ -616,6 +663,7 @@ export type Database = {
           p_amount: number;
           p_cycle_day: number;
           p_cycle_id: string;
+          p_event_id?: string;
           p_member_id: string;
           p_motive: string;
           p_saver_acknowledged: boolean;
@@ -627,6 +675,7 @@ export type Database = {
           p_amount: number;
           p_cycle_day: number;
           p_cycle_id: string;
+          p_event_id?: string;
           p_member_id: string;
         };
         Returns: string;
@@ -637,6 +686,7 @@ export type Database = {
           p_cycle_id: string;
           p_daily_amount: number;
           p_days_covered: number;
+          p_event_id?: string;
           p_member_id: string;
         };
         Returns: string;
@@ -672,7 +722,7 @@ export type Database = {
       members_created_via_enum: "manual" | "contacts_import";
       members_status_enum: "active" | "paused" | "completed" | "deleted";
       sms_queue_status_enum: "queued" | "sent" | "delivered" | "failed" | "abandoned";
-      transactions_kind_enum: "contribution" | "rattrapage" | "advance";
+      transactions_kind_enum: "contribution" | "rattrapage" | "advance" | "settlement";
       transactions_source_enum: "online" | "offline_reconciled";
       users_role_enum: "collector" | "super_admin";
     };
@@ -809,7 +859,7 @@ export const Constants = {
       members_created_via_enum: ["manual", "contacts_import"],
       members_status_enum: ["active", "paused", "completed", "deleted"],
       sms_queue_status_enum: ["queued", "sent", "delivered", "failed", "abandoned"],
-      transactions_kind_enum: ["contribution", "rattrapage", "advance"],
+      transactions_kind_enum: ["contribution", "rattrapage", "advance", "settlement"],
       transactions_source_enum: ["online", "offline_reconciled"],
       users_role_enum: ["collector", "super_admin"],
     },
