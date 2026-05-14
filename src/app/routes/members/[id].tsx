@@ -54,6 +54,9 @@ export default function MemberProfileRoute() {
   // completed/settled. Hidden (not disabled) per AC #1.
   const currentCycleStatus = query.data?.currentCycle?.status;
   const canRestart = currentCycleStatus === "completed" || currentCycleStatus === "settled";
+  // Story 7.3 — "Clôturer le cycle" is visible iff the current cycle is
+  // completed (not yet settled). Tap navigates to /members/:id/settlement.
+  const canSettle = currentCycleStatus === "completed";
   // Story 6.6 — Renvoyer l'historique visible when current cycle is active
   // AND member is active. Server enforces opt-out / no-phone / empty-cycle
   // short-circuits.
@@ -84,6 +87,11 @@ export default function MemberProfileRoute() {
           {canRestart ? (
             <Button type="button" variant="outline" size="sm" onClick={() => setRestartOpen(true)}>
               {t("members.profile.action_restart_cycle")}
+            </Button>
+          ) : null}
+          {canSettle ? (
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/members/${id}/settlement`}>{t("members.profile.action_settle")}</Link>
             </Button>
           ) : null}
           {canResendHistory ? (

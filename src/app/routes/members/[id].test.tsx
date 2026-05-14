@@ -241,4 +241,93 @@ describe("MemberProfileRoute", () => {
       screen.getByRole("heading", { level: 2, name: /reçu de la transaction/i }),
     ).toBeInTheDocument();
   });
+
+  it("Story 7.3 — 'Clôturer le cycle' link is present when cycle.status === 'completed'", () => {
+    useMemberProfileMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        member: MEMBER,
+        currentCycle: {
+          id: "22222222-2222-4222-8222-222222222222",
+          cycle_number: 1,
+          start_date: "2026-04-12",
+          end_date: "2026-05-11",
+          status: "completed",
+        },
+        previousCycles: [],
+        transactions: [],
+        totalTransactionsCount: 0,
+        stats: {
+          cycleDay: 30,
+          daysRemaining: 0,
+          contributedTotal: 0,
+          outstandingAdvances: 0,
+          projectedFinalBalance: 14500,
+        },
+      },
+    });
+    renderRoute(`/members/${VALID_ID}`);
+    const link = screen.getByRole("link", { name: /Clôturer le cycle/ });
+    expect(link).toBeInTheDocument();
+    expect(link.getAttribute("href")).toBe(`/members/${VALID_ID}/settlement`);
+  });
+
+  it("Story 7.3 — 'Clôturer le cycle' link is NOT rendered when cycle.status === 'active'", () => {
+    useMemberProfileMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        member: MEMBER,
+        currentCycle: {
+          id: "22222222-2222-4222-8222-222222222222",
+          cycle_number: 1,
+          start_date: "2026-04-12",
+          end_date: "2026-05-11",
+          status: "active",
+        },
+        previousCycles: [],
+        transactions: [],
+        totalTransactionsCount: 0,
+        stats: {
+          cycleDay: 11,
+          daysRemaining: 19,
+          contributedTotal: 0,
+          outstandingAdvances: 0,
+          projectedFinalBalance: 14500,
+        },
+      },
+    });
+    renderRoute(`/members/${VALID_ID}`);
+    expect(screen.queryByRole("link", { name: /Clôturer le cycle/ })).not.toBeInTheDocument();
+  });
+
+  it("Story 7.3 — 'Clôturer le cycle' link is NOT rendered when cycle.status === 'settled'", () => {
+    useMemberProfileMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: {
+        member: MEMBER,
+        currentCycle: {
+          id: "22222222-2222-4222-8222-222222222222",
+          cycle_number: 1,
+          start_date: "2026-04-12",
+          end_date: "2026-05-11",
+          status: "settled",
+        },
+        previousCycles: [],
+        transactions: [],
+        totalTransactionsCount: 0,
+        stats: {
+          cycleDay: 30,
+          daysRemaining: 0,
+          contributedTotal: 0,
+          outstandingAdvances: 0,
+          projectedFinalBalance: 14500,
+        },
+      },
+    });
+    renderRoute(`/members/${VALID_ID}`);
+    expect(screen.queryByRole("link", { name: /Clôturer le cycle/ })).not.toBeInTheDocument();
+  });
 });
