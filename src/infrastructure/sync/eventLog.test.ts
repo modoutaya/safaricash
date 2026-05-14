@@ -481,18 +481,27 @@ describe("eventLog — BroadcastChannel emission (Story 8.3)", () => {
     };
   }
 
-  // BroadcastChannel messages are dispatched on a microtask; flush twice
-  // for safety (post → microtask → handler).
-  async function flushChannel(): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await Promise.resolve();
+  // BroadcastChannel dispatch latency varies between local jsdom and
+  // CI runners under load. Instead of a fixed sleep (was 0ms — flaky
+  // in CI per PR #69 first push), poll until either the expected
+  // count is reached or a generous deadline expires. The poll is
+  // deterministic locally + robust on slow runners.
+  async function waitForMessages(
+    spy: { messages: Array<{ type: string; ts: number }> },
+    expected: number,
+    deadlineMs = 500,
+  ): Promise<void> {
+    const start = Date.now();
+    while (spy.messages.length < expected && Date.now() - start < deadlineMs) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
   }
 
   it("appendEvent posts { type: 'append' } on success", async () => {
     const spy = attachChannelSpy();
     try {
       await appendEvent(makeEvent());
-      await flushChannel();
+      await waitForMessages(spy, 1);
       expect(spy.messages).toHaveLength(1);
       expect(spy.messages[0]?.type).toBe("append");
       expect(typeof spy.messages[0]?.ts).toBe("number");
@@ -507,7 +516,7 @@ describe("eventLog — BroadcastChannel emission (Story 8.3)", () => {
     const spy = attachChannelSpy();
     try {
       await deleteEvent(event.eventId);
-      await flushChannel();
+      await waitForMessages(spy, 1);
       expect(spy.messages).toHaveLength(1);
       expect(spy.messages[0]?.type).toBe("delete");
     } finally {
@@ -519,7 +528,7 @@ describe("eventLog — BroadcastChannel emission (Story 8.3)", () => {
     const spy = attachChannelSpy();
     try {
       await _clearAllEvents();
-      await flushChannel();
+      await waitForMessages(spy, 1);
       expect(spy.messages).toHaveLength(1);
       expect(spy.messages[0]?.type).toBe("clear");
     } finally {
@@ -536,7 +545,10 @@ describe("eventLog — BroadcastChannel emission (Story 8.3)", () => {
       await expect(appendEvent({ ...event, payload: { changed: true } })).rejects.toMatchObject({
         code: "DUPLICATE_EVENT_ID",
       });
-      await flushChannel();
+      // For the "didn't post" assertion we need a stable upper bound —
+      // wait the full deadline once to give any spurious message a
+      // chance to arrive, then assert nothing was received.
+      await new Promise((resolve) => setTimeout(resolve, 100));
       expect(spy.messages).toHaveLength(0);
     } finally {
       spy.close();
