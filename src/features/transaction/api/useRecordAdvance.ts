@@ -1,32 +1,24 @@
 // Story 5.4 / FR24 + FR25 — useRecordAdvance hook.
-//
-// TanStack mutation wrapping the SECURITY DEFINER record_advance RPC
-// (migration 0033). Mirrors useRecordContribution / useRecordRattrapage:
-// in-flight ref guard + classifyError + onSuccess invalidates
-// MEMBERS_QUERY_KEY (recency sort) AND MEMBER_PROFILE_QUERY_KEY (cycle
-// status flips active → with_advance).
-//
-// Pre-call Zod validation via RecordAdvanceInputSchema — defence-in-depth
-// on top of the client gate (Story 5.3) and the RPC + DB CHECK.
-//
-// Error codes mirror the RPC's sqlstates + a couple of client-side cases:
-//   - unauthorized        ← 28000, 42501
-//   - cycle_closed        ← 23514 from Story 3.4 BEFORE INSERT trigger
-//   - over_limit          ← 22023 from RPC capacity check
-//   - invalid_motive      ← 22000 + message contains "motive"
-//   - missing_acknowledgment ← 22000 + message contains "acknowledgment"
-//   - validation          ← 22000 (other) OR Zod rejection
-//   - not_found           ← P0002, PGRST116
-//   - network             ← message contains fetch/network
-//   - unknown             ← fallback
+// Story 8.3 — offline-fallback branch + optimistic cache update.
+// Story 8.3 code-review patches — shared syntheticTxId + typed offline
+// storage error + cancelQueries on both affected keys.
 
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { useRef } from "react";
 import type { PostgrestError } from "@supabase/supabase-js";
 
-import { supabase } from "@/infrastructure/supabase/client";
 import { MEMBERS_QUERY_KEY, MEMBER_PROFILE_QUERY_KEY } from "@/features/member";
+import { supabase } from "@/infrastructure/supabase/client";
+import { appendEvent, OfflineEventLogError } from "@/infrastructure/sync";
 
+import { buildOfflineEvent } from "./buildOfflineEvent";
+import { getCurrentCollectorId, isOfflineAtEntry } from "./offlineGuards";
+import {
+  applyOptimisticTransactionUpdate,
+  cancelOptimisticQueries,
+  rollbackOptimisticTransactionUpdate,
+  type OptimisticSnapshots,
+} from "./optimisticCache";
 import { RecordAdvanceInputSchema, type RecordAdvanceInput } from "./RecordAdvanceInputSchema";
 
 export type RecordAdvanceErrorCode =
@@ -38,6 +30,7 @@ export type RecordAdvanceErrorCode =
   | "validation"
   | "not_found"
   | "network"
+  | "offline_storage"
   | "unknown";
 
 export class RecordAdvanceError extends Error {
@@ -47,6 +40,11 @@ export class RecordAdvanceError extends Error {
     this.code = code;
     this.name = "RecordAdvanceError";
   }
+}
+
+export interface RecordAdvanceResult {
+  txId: string;
+  wasOffline: boolean;
 }
 
 function classifyError(
@@ -72,51 +70,130 @@ function classifyError(
 }
 
 export type UseRecordAdvanceReturn = UseMutationResult<
-  string,
+  RecordAdvanceResult,
   RecordAdvanceError,
-  RecordAdvanceInput
+  RecordAdvanceInput,
+  OptimisticSnapshots
 >;
 
 export function useRecordAdvance(): UseRecordAdvanceReturn {
   const queryClient = useQueryClient();
   const inFlightRef = useRef(false);
+  const syntheticTxIdRef = useRef<string>("");
 
-  return useMutation<string, RecordAdvanceError, RecordAdvanceInput>({
-    mutationFn: async (input): Promise<string> => {
+  return useMutation<
+    RecordAdvanceResult,
+    RecordAdvanceError,
+    RecordAdvanceInput,
+    OptimisticSnapshots
+  >({
+    mutationFn: async (input): Promise<RecordAdvanceResult> => {
       if (inFlightRef.current) {
         throw new RecordAdvanceError("unknown", "record already in flight");
       }
       inFlightRef.current = true;
       try {
-        // Zod boundary validation.
+        // Zod boundary validation — runs even on the offline branch so
+        // bad input never reaches the IDB log.
         const parsed = RecordAdvanceInputSchema.safeParse(input);
         if (!parsed.success) {
           throw new RecordAdvanceError("validation", parsed.error.message);
         }
         const safeInput = parsed.data;
+        const syntheticTxId = syntheticTxIdRef.current || crypto.randomUUID();
 
-        const { data, error } = await supabase.rpc("record_advance", {
-          p_member_id: safeInput.memberId,
-          p_cycle_id: safeInput.cycleId,
-          p_amount: safeInput.amount,
-          p_cycle_day: safeInput.cycleDay,
-          p_motive: safeInput.motive,
-          p_saver_acknowledged: safeInput.saverAcknowledged,
-        });
-        if (error) {
-          throw new RecordAdvanceError(classifyError(error), error.message);
+        if (isOfflineAtEntry()) {
+          await persistOfflineEvent(syntheticTxId, safeInput);
+          return { txId: syntheticTxId, wasOffline: true };
         }
-        if (typeof data !== "string") {
-          throw new RecordAdvanceError("unknown", "RPC returned no transaction id");
+
+        try {
+          const { data, error } = await supabase.rpc("record_advance", {
+            p_member_id: safeInput.memberId,
+            p_cycle_id: safeInput.cycleId,
+            p_amount: safeInput.amount,
+            p_cycle_day: safeInput.cycleDay,
+            p_motive: safeInput.motive,
+            p_saver_acknowledged: safeInput.saverAcknowledged,
+          });
+          if (error) {
+            const code = classifyError(error);
+            if (code === "network") {
+              await persistOfflineEvent(syntheticTxId, safeInput);
+              return { txId: syntheticTxId, wasOffline: true };
+            }
+            throw new RecordAdvanceError(code, error.message);
+          }
+          if (typeof data !== "string") {
+            throw new RecordAdvanceError("unknown", "RPC returned no transaction id");
+          }
+          return { txId: data, wasOffline: false };
+        } catch (err) {
+          if (err instanceof RecordAdvanceError) throw err;
+          if (err instanceof TypeError) {
+            await persistOfflineEvent(syntheticTxId, safeInput);
+            return { txId: syntheticTxId, wasOffline: true };
+          }
+          throw err;
         }
-        return data;
       } finally {
         inFlightRef.current = false;
       }
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: MEMBERS_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: MEMBER_PROFILE_QUERY_KEY });
+
+    onMutate: async (input): Promise<OptimisticSnapshots> => {
+      const syntheticTxId = crypto.randomUUID();
+      syntheticTxIdRef.current = syntheticTxId;
+      await cancelOptimisticQueries(queryClient, input.memberId);
+      return applyOptimisticTransactionUpdate(queryClient, {
+        memberId: input.memberId,
+        cycleId: input.cycleId,
+        syntheticTxId,
+        kind: "advance",
+        amount: input.amount,
+        cycleDay: input.cycleDay,
+      });
+    },
+
+    onError: (_err, input, context) => {
+      if (context) {
+        rollbackOptimisticTransactionUpdate(queryClient, input.memberId, context);
+      }
+    },
+
+    onSuccess: (result, input) => {
+      if (!result.wasOffline) {
+        void queryClient.invalidateQueries({ queryKey: MEMBERS_QUERY_KEY });
+        void queryClient.invalidateQueries({
+          queryKey: [...MEMBER_PROFILE_QUERY_KEY, input.memberId],
+        });
+      }
     },
   });
+}
+
+async function persistOfflineEvent(
+  syntheticTxId: string,
+  input: RecordAdvanceInput,
+): Promise<void> {
+  const collectorId = await getCurrentCollectorId();
+  if (!collectorId) {
+    throw new RecordAdvanceError("unauthorized", "no active session — cannot queue offline event");
+  }
+  const event = buildOfflineEvent({
+    syntheticTxId,
+    collectorId,
+    mutation: { kind: "advance", input },
+  });
+  try {
+    await appendEvent(event);
+  } catch (err) {
+    if (err instanceof OfflineEventLogError) {
+      throw new RecordAdvanceError(
+        "offline_storage",
+        `failed to queue offline event (${err.code}): ${err.message}`,
+      );
+    }
+    throw err;
+  }
 }

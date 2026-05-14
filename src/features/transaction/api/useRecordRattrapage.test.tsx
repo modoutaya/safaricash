@@ -1,15 +1,23 @@
 // Story 4.4 — useRecordRattrapage tests covering each error code.
+// Story 8.3 — offline-fallback + optimistic UI tests.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const rpcMock = vi.fn();
+const getSessionMock = vi.fn();
 
 vi.mock("@/infrastructure/supabase/client", () => ({
   supabase: {
     rpc: (...args: unknown[]) => rpcMock(...args),
+    auth: { getSession: () => getSessionMock() },
   },
+}));
+
+const appendEventMock = vi.fn();
+vi.mock("@/infrastructure/sync", () => ({
+  appendEvent: (event: unknown) => appendEventMock(event),
 }));
 
 import { useRecordRattrapage, RecordRattrapageError } from "./useRecordRattrapage";
@@ -31,9 +39,16 @@ function makeWrapper() {
   };
 }
 
+const COLLECTOR_ID = "44444444-4444-4444-8444-444444444444";
+
 describe("useRecordRattrapage", () => {
   beforeEach(() => {
     rpcMock.mockReset();
+    appendEventMock.mockReset();
+    appendEventMock.mockResolvedValue(undefined);
+    getSessionMock.mockReset();
+    getSessionMock.mockResolvedValue({ data: { session: { user: { id: COLLECTOR_ID } } } });
+    Object.defineProperty(navigator, "onLine", { value: true, configurable: true });
   });
 
   afterEach(() => {
@@ -44,7 +59,7 @@ describe("useRecordRattrapage", () => {
     rpcMock.mockResolvedValue({ data: "33333333-3333-4333-8333-333333333333", error: null });
     const { result } = renderHook(() => useRecordRattrapage(), { wrapper: makeWrapper() });
 
-    let returned: string | undefined;
+    let returned: { txId: string; wasOffline: boolean } | undefined;
     await act(async () => {
       returned = await result.current.mutateAsync(INPUT);
     });
@@ -56,11 +71,46 @@ describe("useRecordRattrapage", () => {
       p_cycle_day: INPUT.cycleDay,
       p_days_covered: INPUT.daysCovered,
     });
-    expect(returned).toBe("33333333-3333-4333-8333-333333333333");
+    expect(returned).toEqual({
+      txId: "33333333-3333-4333-8333-333333333333",
+      wasOffline: false,
+    });
+    expect(appendEventMock).not.toHaveBeenCalled();
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
 
-  it("classifies sqlstate 23514 with cycle context → cycle_closed", async () => {
+  it("Story 8.3 — navigator.onLine === false skips RPC + appends to event log", async () => {
+    Object.defineProperty(navigator, "onLine", { value: false, configurable: true });
+    const { result } = renderHook(() => useRecordRattrapage(), { wrapper: makeWrapper() });
+
+    let returned: { txId: string; wasOffline: boolean } | undefined;
+    await act(async () => {
+      returned = await result.current.mutateAsync(INPUT);
+    });
+
+    expect(rpcMock).not.toHaveBeenCalled();
+    expect(appendEventMock).toHaveBeenCalledTimes(1);
+    expect(appendEventMock.mock.calls[0]?.[0]).toMatchObject({
+      eventType: "transaction.rattrapage_recorded",
+      collectorId: COLLECTOR_ID,
+    });
+    expect(returned?.wasOffline).toBe(true);
+  });
+
+  it("Story 8.3 — TypeError fetch failure falls back to offline branch", async () => {
+    rpcMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    const { result } = renderHook(() => useRecordRattrapage(), { wrapper: makeWrapper() });
+
+    let returned: { txId: string; wasOffline: boolean } | undefined;
+    await act(async () => {
+      returned = await result.current.mutateAsync(INPUT);
+    });
+
+    expect(appendEventMock).toHaveBeenCalledTimes(1);
+    expect(returned?.wasOffline).toBe(true);
+  });
+
+  it("classifies sqlstate 23514 with cycle context → cycle_closed (and does NOT append)", async () => {
     rpcMock.mockResolvedValue({
       data: null,
       error: {
@@ -74,6 +124,8 @@ describe("useRecordRattrapage", () => {
       await expect(result.current.mutateAsync(INPUT)).rejects.toBeInstanceOf(RecordRattrapageError);
     });
     await waitFor(() => expect(result.current.error?.code).toBe("cycle_closed"));
+    // Story 8.3 patch — non-network errors must NOT fall back to the offline log.
+    expect(appendEventMock).not.toHaveBeenCalled();
   });
 
   it("classifies sqlstate 23514 with days_covered context → invalid_days", async () => {

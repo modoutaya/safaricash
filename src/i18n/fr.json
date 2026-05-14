@@ -321,6 +321,7 @@
       "validation": "Données invalides — vérifiez les champs.",
       "not_found": "Membre ou cycle introuvable.",
       "network": "Pas de réseau — vérifiez votre connexion.",
+      "offline_storage": "Stockage local saturé — libérez de l'espace puis réessayez.",
       "unknown": "Erreur inattendue — réessayez."
     }
   },
@@ -397,6 +398,7 @@
       "unauthorized": "Vous devez être reconnecté pour enregistrer cette transaction",
       "validation": "Données invalides — vérifiez le montant",
       "network": "Pas de réseau — vérifiez votre connexion",
+      "offline_storage": "Stockage local saturé — libérez de l'espace puis réessayez",
       "unknown": "Erreur inattendue — réessayez",
       "window_expired": "Délai dépassé — la cotisation est conservée. Modifiez-la depuis le profil du membre.",
       "already_undone": "Cotisation déjà annulée.",

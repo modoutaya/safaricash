@@ -23,10 +23,17 @@ import {
   showContributionToast,
   showRattrapageToast,
 } from "@/features/transaction/api/showContributionToast";
+import { showOfflineToast } from "@/features/transaction/api/showOfflineToast";
 import { undoTransaction } from "@/features/transaction/api/undoTransaction";
 import { UndoTransactionError } from "@/features/transaction/api/undoTransactionError";
-import { useRecordContribution } from "@/features/transaction/api/useRecordContribution";
-import { useRecordRattrapage } from "@/features/transaction/api/useRecordRattrapage";
+import {
+  RecordContributionError,
+  useRecordContribution,
+} from "@/features/transaction/api/useRecordContribution";
+import {
+  RecordRattrapageError,
+  useRecordRattrapage,
+} from "@/features/transaction/api/useRecordRattrapage";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
 
@@ -279,12 +286,18 @@ export function MemberList(): JSX.Element {
                   setActiveMemberId(null);
                   const cycle = activeMember.currentCycle!;
                   try {
-                    const txId = await recordContribution.mutateAsync({
+                    const result = await recordContribution.mutateAsync({
                       memberId,
                       cycleId: cycle.id,
                       amount: activeMember.dailyAmount,
                       cycleDay: cycle.dayNumber,
                     });
+                    // Story 8.3 — when offline, fire the informational
+                    // toast (no undo dance — Story 8.5 owns the retry CTA).
+                    if (result.wasOffline) {
+                      showOfflineToast({ memberName: activeMember.name });
+                      return;
+                    }
                     showContributionToast({
                       memberName: activeMember.name,
                       onUndo: async () => {
@@ -292,7 +305,7 @@ export function MemberList(): JSX.Element {
                         // path. Most failures (window expired, already
                         // undone) deserve user feedback via toast.error.
                         try {
-                          await undoTransaction(txId, queryClient);
+                          await undoTransaction(result.txId, queryClient);
                         } catch (err) {
                           if (err instanceof UndoTransactionError) {
                             toast.error(t(`transaction.error.${err.code}`));
@@ -302,28 +315,42 @@ export function MemberList(): JSX.Element {
                         }
                       },
                     });
-                  } catch {
-                    // RecordContributionError is surfaced by the hook;
-                    // a future PR can wire toast.error() with mapped copy.
+                  } catch (err) {
+                    // Story 8.3 patch — surface offline-storage failures
+                    // explicitly (quota exhausted / IDB error). Without
+                    // this the user sees nothing on failure.
+                    if (err instanceof RecordContributionError) {
+                      if (err.code === "offline_storage") {
+                        toast.error(t("transaction.error.offline_storage"));
+                      }
+                      // Other codes (cycle_closed / validation / …) keep
+                      // the existing silent-then-future-PR behaviour.
+                    }
                   }
                 },
                 onRattrapage: async (memberId: string, daysCovered: number) => {
                   setActiveMemberId(null);
                   const cycle = activeMember.currentCycle!;
                   try {
-                    const txId = await recordRattrapage.mutateAsync({
+                    const result = await recordRattrapage.mutateAsync({
                       memberId,
                       cycleId: cycle.id,
                       dailyAmount: activeMember.dailyAmount,
                       cycleDay: cycle.dayNumber,
                       daysCovered,
                     });
+                    // Story 8.3 — when offline, fire the informational
+                    // toast (no undo dance — Story 8.5 owns the retry CTA).
+                    if (result.wasOffline) {
+                      showOfflineToast({ memberName: activeMember.name });
+                      return;
+                    }
                     showRattrapageToast({
                       memberName: activeMember.name,
                       daysCovered,
                       onUndo: async () => {
                         try {
-                          await undoTransaction(txId, queryClient);
+                          await undoTransaction(result.txId, queryClient);
                         } catch (err) {
                           if (err instanceof UndoTransactionError) {
                             toast.error(t(`transaction.error.${err.code}`));
@@ -333,9 +360,13 @@ export function MemberList(): JSX.Element {
                         }
                       },
                     });
-                  } catch {
-                    // RecordRattrapageError surfaced by the hook;
-                    // future PR will wire toast.error() with mapped copy.
+                  } catch (err) {
+                    // Story 8.3 patch — surface offline-storage failures.
+                    if (err instanceof RecordRattrapageError) {
+                      if (err.code === "offline_storage") {
+                        toast.error(t("transaction.error.offline_storage"));
+                      }
+                    }
                   }
                 },
               }

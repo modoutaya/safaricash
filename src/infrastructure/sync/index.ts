@@ -13,11 +13,12 @@ export {
   appendEvent,
   countEvents,
   deleteEvent,
+  EVENT_LOG_CHANNEL_NAME,
   getEvent,
   listEvents,
   OfflineEventLogError,
   openEventLogDb,
 } from "./eventLog";
-export type { OfflineEventLogErrorCode } from "./eventLog";
+export type { EventLogChangeMessage, OfflineEventLogErrorCode } from "./eventLog";
 export { offlineEventSchema } from "./types";
 export type { OfflineEvent, OfflineEventType } from "./types";

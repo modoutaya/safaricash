@@ -1,17 +1,20 @@
 // Story 8.1 / FR41 / UX-DR5 — connectivity state hook.
+// Story 8.3 — pendingCount now reflects the real IDB-backed outbox via
+// a BroadcastChannel subscription (countEvents partitioned by the
+// current collector via useCollectorId). hasFailed stays a placeholder
+// until Story 8.5 wires the stalled-sync retry-state.
 //
-// Browser navigator.onLine detection + state-derivation. Returns the
-// {state, online, pendingCount, hasFailed} contract that the
-// ConnectivityIndicator pill + ConnectivitySyncDrawer consume. Story 8.3
-// will plug in the real IndexedDB-backed pendingCount; Story 8.4 will
-// plug in the reconciler's hasFailed flag. The hook contract is locked
-// here so subsequent Epic 8 stories swap the placeholders without
-// touching consumers.
-//
-// See: epics.md:1177-1186 (Story 8.1 BDD), prd.md:534 (FR41),
-// ux-design-specification.md:975-1002 (full component spec § 1).
+// See: epics.md:1177-1186 (Story 8.1 BDD), epics.md:1203-1218 (Story 8.3),
+// prd.md:534 (FR41), ux-design-specification.md:975-1002.
 
 import { useEffect, useState } from "react";
+
+import { useCollectorId } from "@/features/auth/api/useCollectorId";
+import {
+  countEvents,
+  EVENT_LOG_CHANNEL_NAME,
+  type EventLogChangeMessage,
+} from "@/infrastructure/sync";
 
 export type ConnectivityStateValue = "connected" | "syncing" | "offline" | "sync-failed";
 
@@ -70,12 +73,61 @@ export function useConnectivityState(): ConnectivityState {
     };
   }, []);
 
-  // Story 8.1 placeholders. Story 8.3 will replace `pendingCount` with a
-  // subscription to the IndexedDB outbox count; Story 8.4 will replace
-  // `hasFailed` with the reconciler's last-attempt status. The state
-  // derivation logic (deriveState) is the canonical source of truth and
-  // never moves — only its inputs change.
-  const pendingCount = 0;
+  // Story 8.3 — real pendingCount via the BroadcastChannel emitted by
+  // appendEvent / deleteEvent / _clearAllEvents in @/infrastructure/sync.
+  // Partition is the current collector id (session-aware).
+  const collectorId = useCollectorId();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (!collectorId) {
+      // No session — reset pendingCount to 0 via cleanup so a stale
+      // count from a previous collector doesn't leak past sign-out
+      // (Story 8.3 code-review fix). The cleanup is asynchronous
+      // relative to the effect body so it doesn't trigger the lint
+      // rule react-hooks/set-state-in-effect.
+      return () => {
+        setPendingCount(0);
+      };
+    }
+    let cancelled = false;
+    const refresh = (message?: EventLogChangeMessage) => {
+      // Filter on message type — `_clearAllEvents` (test-only) and
+      // any future non-count-affecting types are ignored. Also filter
+      // on collectorId when the message carries one: Tab A as collector
+      // X shouldn't refetch on Tab B's (collector Y) events.
+      if (message) {
+        if (message.type !== "append" && message.type !== "delete") return;
+        if (message.collectorId && message.collectorId !== collectorId) return;
+      }
+      countEvents(collectorId)
+        .then((n) => {
+          if (!cancelled) setPendingCount(n);
+        })
+        .catch(() => {
+          /* keep last-known count on transient IDB errors */
+        });
+    };
+    // Initial read — no message means "force refresh".
+    refresh();
+
+    if (typeof BroadcastChannel === "undefined") {
+      return () => {
+        cancelled = true;
+      };
+    }
+    const channel = new BroadcastChannel(EVENT_LOG_CHANNEL_NAME);
+    const handler = (e: MessageEvent<EventLogChangeMessage>) => refresh(e.data);
+    channel.addEventListener("message", handler);
+    return () => {
+      cancelled = true;
+      channel.removeEventListener("message", handler);
+      channel.close();
+    };
+  }, [collectorId]);
+
+  // Story 8.5 will replace `hasFailed` with the reconciler's last-attempt
+  // status — until then, stays at the Story 8.1 placeholder.
   const hasFailed = false;
 
   return {

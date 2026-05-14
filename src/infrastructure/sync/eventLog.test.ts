@@ -459,3 +459,99 @@ describe("eventLog — sort tiebreak", () => {
     ]);
   });
 });
+
+describe("eventLog — BroadcastChannel emission (Story 8.3)", () => {
+  // Capture messages posted to the channel from the eventLog mutators.
+  function attachChannelSpy(): {
+    messages: Array<{ type: string; ts: number }>;
+    close: () => void;
+  } {
+    const messages: Array<{ type: string; ts: number }> = [];
+    const channel = new BroadcastChannel("safaricash-event-log");
+    const handler = (e: MessageEvent) => {
+      messages.push(e.data);
+    };
+    channel.addEventListener("message", handler);
+    return {
+      messages,
+      close: () => {
+        channel.removeEventListener("message", handler);
+        channel.close();
+      },
+    };
+  }
+
+  // BroadcastChannel dispatch latency varies between local jsdom and
+  // CI runners under load. Instead of a fixed sleep (was 0ms — flaky
+  // in CI per PR #69 first push), poll until either the expected
+  // count is reached or a generous deadline expires. The poll is
+  // deterministic locally + robust on slow runners.
+  async function waitForMessages(
+    spy: { messages: Array<{ type: string; ts: number }> },
+    expected: number,
+    deadlineMs = 500,
+  ): Promise<void> {
+    const start = Date.now();
+    while (spy.messages.length < expected && Date.now() - start < deadlineMs) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  }
+
+  it("appendEvent posts { type: 'append' } on success", async () => {
+    const spy = attachChannelSpy();
+    try {
+      await appendEvent(makeEvent());
+      await waitForMessages(spy, 1);
+      expect(spy.messages).toHaveLength(1);
+      expect(spy.messages[0]?.type).toBe("append");
+      expect(typeof spy.messages[0]?.ts).toBe("number");
+    } finally {
+      spy.close();
+    }
+  });
+
+  it("deleteEvent posts { type: 'delete' } on success", async () => {
+    const event = makeEvent({ eventId: "dededede-dede-4ede-8ede-dededededede" });
+    await appendEvent(event);
+    const spy = attachChannelSpy();
+    try {
+      await deleteEvent(event.eventId);
+      await waitForMessages(spy, 1);
+      expect(spy.messages).toHaveLength(1);
+      expect(spy.messages[0]?.type).toBe("delete");
+    } finally {
+      spy.close();
+    }
+  });
+
+  it("_clearAllEvents posts { type: 'clear' } on success", async () => {
+    const spy = attachChannelSpy();
+    try {
+      await _clearAllEvents();
+      await waitForMessages(spy, 1);
+      expect(spy.messages).toHaveLength(1);
+      expect(spy.messages[0]?.type).toBe("clear");
+    } finally {
+      spy.close();
+    }
+  });
+
+  it("a failing appendEvent (DUPLICATE_EVENT_ID) does NOT post on the channel", async () => {
+    const event = makeEvent({ eventId: "f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1" });
+    await appendEvent(event);
+
+    const spy = attachChannelSpy();
+    try {
+      await expect(appendEvent({ ...event, payload: { changed: true } })).rejects.toMatchObject({
+        code: "DUPLICATE_EVENT_ID",
+      });
+      // For the "didn't post" assertion we need a stable upper bound —
+      // wait the full deadline once to give any spurious message a
+      // chance to arrive, then assert nothing was received.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(spy.messages).toHaveLength(0);
+    } finally {
+      spy.close();
+    }
+  });
+});
