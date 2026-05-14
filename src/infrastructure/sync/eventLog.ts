@@ -166,6 +166,7 @@ export async function appendEvent(event: OfflineEvent): Promise<void> {
   } catch (cause: unknown) {
     throw mapIdbError(cause, `appendEvent(eventId=${parsed.data.eventId})`);
   }
+  notifyEventLogChange("append", parsed.data.collectorId);
 }
 
 /**
@@ -222,13 +223,18 @@ export async function countEvents(collectorId: string): Promise<number> {
 /** Remove a single event after the reconciler confirms server-side commit.
  *  Idempotent — deleting a non-existent eventId is a no-op (matches the
  *  at-least-once semantics Story 8.4 relies on). */
-export async function deleteEvent(eventId: string): Promise<void> {
+export async function deleteEvent(eventId: string, collectorId?: string): Promise<void> {
   const db = await openEventLogDb();
   try {
     await db.delete(STORE_NAME, eventId);
   } catch (cause: unknown) {
     throw mapIdbError(cause, `deleteEvent(eventId=${eventId})`);
   }
+  // collectorId is optional — Story 8.4's reconciler will pass it
+  // (it already knows the partition it's draining). Subscribers
+  // refetch if collectorId is undefined (couldn't filter), preserving
+  // correctness at the cost of slightly more IDB reads.
+  notifyEventLogChange("delete", collectorId);
 }
 
 /** TEST HELPER — wipes the `events` store. Never call from production. */
@@ -239,6 +245,7 @@ export async function _clearAllEvents(): Promise<void> {
   } catch (cause: unknown) {
     throw mapIdbError(cause, "_clearAllEvents()");
   }
+  notifyEventLogChange("clear");
 }
 
 // ---------------------------------------------------------------------------
@@ -259,6 +266,39 @@ function requireCollectorId(collectorId: string, context: string): void {
       "VALIDATION_FAILED",
       `${context}: collectorId must be a non-empty UUID string (got ${JSON.stringify(collectorId)})`,
     );
+  }
+}
+
+/** Cross-tab + cross-component event-log change signal (Story 8.3). The
+ *  pendingCount subscription in `useConnectivityState` (Story 8.3) and
+ *  the reconciler trigger in `useConnectivityState`'s state transitions
+ *  (Story 8.4) listen on this channel. One channel per call (open + post
+ *  + close) — cheap in modern browsers and avoids leaking a persistent
+ *  channel per module load. */
+export const EVENT_LOG_CHANNEL_NAME = "safaricash-event-log";
+
+export type EventLogChangeMessage = {
+  type: "append" | "delete" | "clear";
+  ts: number;
+  /** Collector id of the partition that changed. Subscribers (Story 8.3
+   *  pendingCount) filter on this to skip cross-collector noise in
+   *  multi-tab scenarios (Tab A as collector X, Tab B as collector Y).
+   *  Undefined for the `clear` message (wipes all partitions). */
+  collectorId?: string;
+};
+
+function notifyEventLogChange(type: EventLogChangeMessage["type"], collectorId?: string): void {
+  // BroadcastChannel may be undefined in degraded test environments;
+  // be defensive and silent (subscriptions just stay at last-known).
+  if (typeof BroadcastChannel === "undefined") return;
+  try {
+    const channel = new BroadcastChannel(EVENT_LOG_CHANNEL_NAME);
+    const message: EventLogChangeMessage =
+      collectorId !== undefined ? { type, ts: Date.now(), collectorId } : { type, ts: Date.now() };
+    channel.postMessage(message);
+    channel.close();
+  } catch {
+    /* swallow — never throw from a notify-only path */
   }
 }
 

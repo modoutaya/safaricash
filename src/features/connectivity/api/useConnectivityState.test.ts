@@ -1,11 +1,25 @@
 // Story 8.1 — useConnectivityState hook tests.
+// Story 8.3 — pendingCount subscription tests.
 //
 // Covers initial-online detection, online/offline window events, cleanup
-// on unmount, and the state-derivation priority order (offline > failed >
-// syncing > connected).
+// on unmount, the state-derivation priority order (offline > failed >
+// syncing > connected), and the Story 8.3 real-pendingCount subscription
+// (BroadcastChannel + countEvents partitioned by useCollectorId).
 
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const countEventsMock = vi.fn();
+const useCollectorIdMock = vi.fn();
+
+vi.mock("@/infrastructure/sync", () => ({
+  countEvents: (id: string) => countEventsMock(id),
+  EVENT_LOG_CHANNEL_NAME: "safaricash-event-log",
+}));
+
+vi.mock("@/features/auth/api/useCollectorId", () => ({
+  useCollectorId: () => useCollectorIdMock(),
+}));
 
 import { deriveState, useConnectivityState } from "./useConnectivityState";
 
@@ -32,6 +46,12 @@ function restoreOnlineFlag(): void {
 describe("useConnectivityState", () => {
   beforeEach(() => {
     setOnlineFlag(true);
+    // Story 8.3 mocks: by default no session → pendingCount stays 0
+    // so the existing Story 8.1 tests don't see surprise async work.
+    useCollectorIdMock.mockReset();
+    useCollectorIdMock.mockReturnValue(null);
+    countEventsMock.mockReset();
+    countEventsMock.mockResolvedValue(0);
   });
 
   afterEach(() => {
@@ -124,5 +144,97 @@ describe("deriveState (pure-function contract — AC #3 priority)", () => {
   it("priority — sync-failed beats syncing when online + pending + failed", () => {
     // online=true, pendingCount>0, hasFailed=true → sync-failed wins.
     expect(deriveState(true, 7, true)).toBe("sync-failed");
+  });
+});
+
+describe("useConnectivityState — Story 8.3 pendingCount subscription", () => {
+  const COLLECTOR = "11111111-1111-4111-8111-111111111111";
+
+  beforeEach(() => {
+    setOnlineFlag(true);
+    useCollectorIdMock.mockReset();
+    countEventsMock.mockReset();
+    countEventsMock.mockResolvedValue(0);
+  });
+
+  afterEach(() => {
+    restoreOnlineFlag();
+  });
+
+  it("collectorId === null → pendingCount stays 0 (no countEvents call)", async () => {
+    useCollectorIdMock.mockReturnValue(null);
+    const { result } = renderHook(() => useConnectivityState());
+    // Let any microtask drain.
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.pendingCount).toBe(0);
+    expect(countEventsMock).not.toHaveBeenCalled();
+  });
+
+  it("collectorId present + 3 events → pendingCount === 3 after refresh", async () => {
+    useCollectorIdMock.mockReturnValue(COLLECTOR);
+    countEventsMock.mockResolvedValue(3);
+    const { result } = renderHook(() => useConnectivityState());
+    await waitFor(() => expect(result.current.pendingCount).toBe(3));
+    expect(countEventsMock).toHaveBeenCalledWith(COLLECTOR);
+  });
+
+  it("BroadcastChannel message triggers a refresh (count goes 0 → 1)", async () => {
+    useCollectorIdMock.mockReturnValue(COLLECTOR);
+    countEventsMock.mockResolvedValueOnce(0); // initial
+    const { result } = renderHook(() => useConnectivityState());
+    await waitFor(() => expect(result.current.pendingCount).toBe(0));
+
+    countEventsMock.mockResolvedValueOnce(1); // next call after broadcast
+    const channel = new BroadcastChannel("safaricash-event-log");
+    channel.postMessage({ type: "append", ts: Date.now() });
+    channel.close();
+
+    await waitFor(() => expect(result.current.pendingCount).toBe(1));
+  });
+
+  it("BroadcastChannel delete message refreshes downward (count goes 2 → 1)", async () => {
+    useCollectorIdMock.mockReturnValue(COLLECTOR);
+    countEventsMock.mockResolvedValueOnce(2); // initial
+    const { result } = renderHook(() => useConnectivityState());
+    await waitFor(() => expect(result.current.pendingCount).toBe(2));
+
+    countEventsMock.mockResolvedValueOnce(1);
+    const channel = new BroadcastChannel("safaricash-event-log");
+    channel.postMessage({ type: "delete", ts: Date.now() });
+    channel.close();
+
+    await waitFor(() => expect(result.current.pendingCount).toBe(1));
+  });
+
+  it("unmount removes the BroadcastChannel listener (no further refresh on post)", async () => {
+    useCollectorIdMock.mockReturnValue(COLLECTOR);
+    countEventsMock.mockResolvedValue(0);
+    const { result, unmount } = renderHook(() => useConnectivityState());
+    await waitFor(() => expect(result.current.pendingCount).toBe(0));
+    const callsBeforeUnmount = countEventsMock.mock.calls.length;
+
+    unmount();
+
+    // Post a CONTROL message first to a separately-attached channel —
+    // when we observe IT in our own listener we know any production
+    // listener would have also fired by now. This deterministic
+    // milestone replaces the previous setTimeout(30) sleep which could
+    // flake on a loaded CI runner.
+    const controlChannel = new BroadcastChannel("safaricash-event-log");
+    const controlSeen = new Promise<void>((resolve) => {
+      controlChannel.addEventListener("message", () => resolve(), { once: true });
+    });
+    const senderChannel = new BroadcastChannel("safaricash-event-log");
+    senderChannel.postMessage({ type: "append", ts: Date.now() });
+    senderChannel.close();
+    await controlSeen;
+    controlChannel.close();
+
+    // If the production listener were still attached, countEvents would
+    // have been called by now (the control message proves the channel
+    // dispatched). It wasn't → listener was properly removed.
+    expect(countEventsMock.mock.calls.length).toBe(callsBeforeUnmount);
   });
 });

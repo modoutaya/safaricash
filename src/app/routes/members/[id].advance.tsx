@@ -15,6 +15,7 @@ import { toast } from "sonner";
 
 import { useMemberProfile } from "@/features/member";
 import { showAdvanceToast } from "@/features/transaction/api/showAdvanceToast";
+import { showOfflineToast } from "@/features/transaction/api/showOfflineToast";
 import { undoTransaction } from "@/features/transaction/api/undoTransaction";
 import { UndoTransactionError } from "@/features/transaction/api/undoTransactionError";
 import { RecordAdvanceError, useRecordAdvance } from "@/features/transaction/api/useRecordAdvance";
@@ -45,7 +46,7 @@ function AdvanceRouteBody({ memberId }: { memberId: string }): JSX.Element {
   const handleConfirm = async (payload: AdvanceConfirmPayload) => {
     if (!data?.member || !data.currentCycle) return;
     try {
-      const txId = await recordAdvance.mutateAsync({
+      const result = await recordAdvance.mutateAsync({
         memberId,
         cycleId: data.currentCycle.id,
         amount: payload.amount,
@@ -56,11 +57,18 @@ function AdvanceRouteBody({ memberId }: { memberId: string }): JSX.Element {
         // Zod schema's z.literal(true).
         saverAcknowledged: true,
       });
+      // Story 8.3 — when offline, fire the informational toast and skip
+      // the undo dance (Story 8.5 owns the retry CTA).
+      if (result.wasOffline) {
+        showOfflineToast({ memberName: data.member.name });
+        navigate(`/members/${memberId}`);
+        return;
+      }
       showAdvanceToast({
         memberName: data.member.name,
         onUndo: async () => {
           try {
-            await undoTransaction(txId, queryClient);
+            await undoTransaction(result.txId, queryClient);
           } catch (err) {
             if (err instanceof UndoTransactionError) {
               toast.error(t(`transaction.error.${err.code}`));

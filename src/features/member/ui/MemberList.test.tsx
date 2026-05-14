@@ -456,3 +456,95 @@ describe("MemberList", () => {
     expect(results).toHaveNoViolations();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Story 8.3 — Offline-flow integration tests.
+//
+// Mocks the record-* hook to return wasOffline:true and verifies the
+// MemberList glue dispatches to showOfflineToast (instead of the regular
+// contribution toast). Addresses AC #26 / code-review HIGH #6 deferral.
+// ---------------------------------------------------------------------------
+
+const contributionMutateAsyncMock = vi.fn();
+const showOfflineToastMock = vi.fn();
+const showContributionToastMock = vi.fn();
+
+vi.mock("@/features/transaction/api/useRecordContribution", () => ({
+  useRecordContribution: () => ({
+    mutateAsync: contributionMutateAsyncMock,
+  }),
+  RecordContributionError: class RecordContributionError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.code = code;
+    }
+  },
+}));
+
+vi.mock("@/features/transaction/api/useRecordRattrapage", () => ({
+  useRecordRattrapage: () => ({
+    mutateAsync: vi.fn(),
+  }),
+  RecordRattrapageError: class RecordRattrapageError extends Error {
+    code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.code = code;
+    }
+  },
+}));
+
+vi.mock("@/features/transaction/api/showOfflineToast", () => ({
+  showOfflineToast: (args: { memberName: string }) => showOfflineToastMock(args),
+}));
+
+vi.mock("@/features/transaction/api/showContributionToast", () => ({
+  showContributionToast: (args: unknown) => showContributionToastMock(args),
+  showRattrapageToast: vi.fn(),
+}));
+
+describe("MemberList — Story 8.3 offline contribution flow", () => {
+  beforeEach(() => {
+    contributionMutateAsyncMock.mockReset();
+    showOfflineToastMock.mockReset();
+    showContributionToastMock.mockReset();
+    useMembersMock.mockReset();
+  });
+
+  it("dispatches to showOfflineToast (not showContributionToast) when wasOffline=true", async () => {
+    const memberId = "11111111-1111-4111-8111-111111111111";
+    useMembersMock.mockReturnValue({
+      data: [makeMember({ id: memberId, name: "Fatou", displayStatus: "actif" })],
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    contributionMutateAsyncMock.mockResolvedValue({
+      txId: "tx-syn",
+      wasOffline: true,
+    });
+
+    renderWithRouter();
+
+    // Tap the member card to open the action sheet. MemberCard renders
+    // the member's name as a clickable heading inside a button-shaped
+    // wrapper — fire the click on the heading's nearest interactive
+    // ancestor by name lookup.
+    const memberHeading = screen.getByRole("heading", { level: 2, name: /fatou/i });
+    fireEvent.click(memberHeading);
+
+    // Action sheet renders the "Enregistrer cotisation" CTA.
+    const contributeCta = await screen.findByRole("button", {
+      name: /enregistrer cotisation/i,
+    });
+    fireEvent.click(contributeCta);
+
+    // Mutation fires + on success → wasOffline=true → showOfflineToast
+    // (NOT showContributionToast).
+    await vi.waitFor(() => {
+      expect(showOfflineToastMock).toHaveBeenCalledWith({ memberName: "Fatou" });
+    });
+    expect(showContributionToastMock).not.toHaveBeenCalled();
+  });
+});

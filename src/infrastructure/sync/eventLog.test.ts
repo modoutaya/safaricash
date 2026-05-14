@@ -459,3 +459,87 @@ describe("eventLog — sort tiebreak", () => {
     ]);
   });
 });
+
+describe("eventLog — BroadcastChannel emission (Story 8.3)", () => {
+  // Capture messages posted to the channel from the eventLog mutators.
+  function attachChannelSpy(): {
+    messages: Array<{ type: string; ts: number }>;
+    close: () => void;
+  } {
+    const messages: Array<{ type: string; ts: number }> = [];
+    const channel = new BroadcastChannel("safaricash-event-log");
+    const handler = (e: MessageEvent) => {
+      messages.push(e.data);
+    };
+    channel.addEventListener("message", handler);
+    return {
+      messages,
+      close: () => {
+        channel.removeEventListener("message", handler);
+        channel.close();
+      },
+    };
+  }
+
+  // BroadcastChannel messages are dispatched on a microtask; flush twice
+  // for safety (post → microtask → handler).
+  async function flushChannel(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await Promise.resolve();
+  }
+
+  it("appendEvent posts { type: 'append' } on success", async () => {
+    const spy = attachChannelSpy();
+    try {
+      await appendEvent(makeEvent());
+      await flushChannel();
+      expect(spy.messages).toHaveLength(1);
+      expect(spy.messages[0]?.type).toBe("append");
+      expect(typeof spy.messages[0]?.ts).toBe("number");
+    } finally {
+      spy.close();
+    }
+  });
+
+  it("deleteEvent posts { type: 'delete' } on success", async () => {
+    const event = makeEvent({ eventId: "dededede-dede-4ede-8ede-dededededede" });
+    await appendEvent(event);
+    const spy = attachChannelSpy();
+    try {
+      await deleteEvent(event.eventId);
+      await flushChannel();
+      expect(spy.messages).toHaveLength(1);
+      expect(spy.messages[0]?.type).toBe("delete");
+    } finally {
+      spy.close();
+    }
+  });
+
+  it("_clearAllEvents posts { type: 'clear' } on success", async () => {
+    const spy = attachChannelSpy();
+    try {
+      await _clearAllEvents();
+      await flushChannel();
+      expect(spy.messages).toHaveLength(1);
+      expect(spy.messages[0]?.type).toBe("clear");
+    } finally {
+      spy.close();
+    }
+  });
+
+  it("a failing appendEvent (DUPLICATE_EVENT_ID) does NOT post on the channel", async () => {
+    const event = makeEvent({ eventId: "f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1" });
+    await appendEvent(event);
+
+    const spy = attachChannelSpy();
+    try {
+      await expect(appendEvent({ ...event, payload: { changed: true } })).rejects.toMatchObject({
+        code: "DUPLICATE_EVENT_ID",
+      });
+      await flushChannel();
+      expect(spy.messages).toHaveLength(0);
+    } finally {
+      spy.close();
+    }
+  });
+});
