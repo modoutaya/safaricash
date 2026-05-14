@@ -166,7 +166,18 @@ if (env) {
           .eq("collector_id", c.userId)
           .eq("template_key", "settlement");
         assertEquals(smsRows?.length, 1);
-        assert((smsRows![0].body as string).startsWith("SafariCash. Cycle clos."));
+        // Story 7.5 — template content updated. Match the new shape: firstName
+        // + DD/MM cycle range. (Pre-Story-7.5 body started with 'Cycle clos.';
+        // Story 7.5 moved that and added firstName + period.)
+        const body = smsRows![0].body as string;
+        assert(
+          body.startsWith("SafariCash. "),
+          `body must start with 'SafariCash. ', got: ${body}`,
+        );
+        assert(
+          /votre cycle du \d{2}\/\d{2} au \d{2}\/\d{2} est clos\./.test(body),
+          `body must contain the DD/MM cycle range, got: ${body}`,
+        );
         assertEquals(smsRows![0].status, "queued");
 
         // transactions has one row with kind='settlement' for this cycle.
@@ -406,7 +417,9 @@ if (env) {
           .eq("transaction_id", row!.settlement_transaction_id);
         assertEquals(smsRows?.length, 1);
         assertEquals(smsRows![0].template_key, "settlement");
-        // Template: 'SafariCash. Cycle clos. Vous avez recu X FCFA. Merci. Detail: <url>.'
+        // Story 7.5 template:
+        //   'SafariCash. {firstName}, votre cycle du {DD/MM} au {DD/MM} est
+        //    clos. Vous avez recu X FCFA. Detail: <url>.'
         assert((smsRows![0].body as string).includes("Vous avez recu"));
         assert((smsRows![0].body as string).includes("FCFA"));
       } finally {
