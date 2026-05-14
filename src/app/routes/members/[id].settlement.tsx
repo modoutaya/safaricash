@@ -1,23 +1,31 @@
 // Story 7.3 / FR21 — /members/:id/settlement route host.
+// Story 7.4 — replaces the Story 7.3 onConfirm stub with the real password
+// re-auth dialog + cycle-settlement Edge Function commit. On success the
+// route swaps in-place to Story 7.2's <EnvelopeHandoverScreen>.
 //
-// Loads member + current cycle + transactions, derives the advances
-// array, mounts Story 7.1's <SettlementSummaryCard>. Precondition gate:
+// Loads member + current cycle + transactions, derives the advances array,
+// mounts Story 7.1's <SettlementSummaryCard>. Precondition gate:
 // cycle.status === "completed" (otherwise redirect to the profile).
-// onConfirm is a Story 7.4 stub — see TODO below. NFR-R3 zero-tolerance
-// compliance: route NEVER recomputes the payout; the card calls settle()
-// from @/domain/cycle internally (Story 3.2 / 7.1).
+// NFR-R3 zero-tolerance: route NEVER recomputes the payout; the card calls
+// settle() from @/domain/cycle internally (Story 3.2 / 7.1), and that same
+// value is passed to the Edge Function for the server-side cross-check.
 //
-// See: epics.md:1121-1133 (Story 7.3 BDD), prd.md:501 (FR21), prd.md:565
-// (NFR-R3), ux-design-specification.md:793-823 (Flow 3 diagram + critical
-// UX detail "trust ceremony over speed").
+// See: epics.md:1121-1133 (Story 7.3 BDD), epics.md:1135-1151 (Story 7.4),
+// prd.md:501 (FR21), prd.md:565 (NFR-R3).
 
+import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
+import { EnvelopeHandoverScreen } from "@/components/domain/EnvelopeHandoverScreen";
 import { ProfileError, ProfileSkeleton } from "@/components/domain/MemberProfileStates";
 import { SettlementSummaryCard } from "@/components/domain/SettlementSummaryCard";
+import { settle } from "@/domain/cycle";
 import { useMemberProfile } from "@/features/member";
+import type { CommitSettlementError } from "@/features/settlement/api/commitSettlementError";
+import type { CommitSettlementResult } from "@/features/settlement/api/useCommitSettlement";
+import { SettlementReauthDialog } from "@/features/settlement/ui/SettlementReauthDialog";
 import { useT } from "@/i18n/useT";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,6 +45,17 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
   const navigate = useNavigate();
   const profileQuery = useMemberProfile(memberId);
   const goBackToProfile = () => navigate(`/members/${memberId}`);
+
+  // Story 7.4 — dialog open state + post-success view swap.
+  const [reauthOpen, setReauthOpen] = useState(false);
+  const [committedResult, setCommittedResult] = useState<CommitSettlementResult | null>(null);
+  // Story 7.4 code-review patch #1 — track the dialog's in-flight mutation
+  // state directly. Earlier code instantiated useCommitSettlement() here
+  // for `isPending` but that was a SECOND, independent mutation that
+  // never fired (the dialog has its own instance that does the actual
+  // mutateAsync). With this signal, the card's CTAs correctly disable
+  // during commit (Story 7.1 AC #4).
+  const [isCommitting, setIsCommitting] = useState(false);
 
   if (profileQuery.isLoading) {
     return (
@@ -60,7 +79,34 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
 
   const data = profileQuery.data;
   // Precondition guards — only `completed` cycles are settleable.
-  if (!data || !data.currentCycle || data.currentCycle.status !== "completed") {
+  // Once Story 7.4 fires the commit and the cache invalidates, the cycle
+  // flips to 'settled' and this guard would force a redirect. That's why
+  // we capture `committedResult` BEFORE the cache refresh and short-circuit
+  // the EnvelopeHandover view above any redirect.
+  if (
+    !committedResult &&
+    (!data || !data.currentCycle || data.currentCycle.status !== "completed")
+  ) {
+    return <Navigate to={`/members/${memberId}`} replace />;
+  }
+
+  // Story 7.4 — post-commit view: mount EnvelopeHandoverScreen.
+  if (committedResult && data) {
+    return (
+      <EnvelopeHandoverScreen
+        memberName={data.member.name}
+        payoutAmount={committedResult.settled_payout}
+        recipientPhone={data.member.phone_number}
+        smsState="sent"
+        onReturnToMembers={() => navigate("/members")}
+      />
+    );
+  }
+
+  // `data` and `data.currentCycle` are non-null here (preconditions passed).
+  // TS doesn't narrow through the `!committedResult` branch above, so assert.
+  if (!data || !data.currentCycle) {
+    // Defensive — should be unreachable given the guard above.
     return <Navigate to={`/members/${memberId}`} replace />;
   }
 
@@ -71,27 +117,48 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
     .map((tx) => tx.amount);
 
-  // The card calls onVerifyTransactions(memberId, cycleId) and
-  // onConfirm(memberId, cycleId), but the route already owns both values
-  // via closure — we intentionally drop them on the floor. Story 7.4's
-  // replacement handler may choose to use them if its mutation signature
-  // needs them.
-
-  // TODO Story 7.4: replace this stub with the password re-auth dialog +
-  // /functions/v1/cycle-settlement Edge Function commit RPC. Checklist:
-  //   1. Swap `handleConfirm` for the re-auth-trigger + commit mutation.
-  //   2. Drive `isSubmitting` prop on <SettlementSummaryCard> from the
-  //      mutation's `isPending` state — without it, both CTAs stay
-  //      clickable during the RPC and the user can double-fire commit.
-  //   3. After RPC success, route the user to the post-commit envelope
-  //      handover (Story 7.4 wires <EnvelopeHandoverScreen> from Story 7.2).
-  // DO NOT REMOVE THIS COMMENT UNTIL STORY 7.4 LANDS.
-  const handleConfirm = () => {
-    toast.info(t("settlement.flow.confirm_pending_toast"));
-  };
+  // NFR-R3 cross-check value — Story 7.1's card already calls settle()
+  // internally to render the final payout row. We re-call it here to pass
+  // the SAME value to the Edge Function (the server recomputes independently
+  // and rejects on mismatch).
+  const expectedPayout = settle(data.member.daily_amount, advances);
 
   const handleVerifyTransactions = () => {
     navigate(`/members/${memberId}`);
+  };
+
+  const handleConfirm = () => {
+    setReauthOpen(true);
+  };
+
+  const handleReauthSuccess = (result: CommitSettlementResult) => {
+    setCommittedResult(result);
+    const firstName = data.member.name.split(" ")[0] ?? data.member.name;
+    toast.success(t("settlement.toast.success", { memberFirstName: firstName }));
+  };
+
+  const handleReauthError = (err: CommitSettlementError) => {
+    const code = err.code;
+    if (code === "payout_mismatch") {
+      toast.error(t("settlement.reauth.error.payout_mismatch"));
+      navigate(`/members/${memberId}`);
+      return;
+    }
+    if (code === "cycle_not_settleable") {
+      toast.error(t("settlement.reauth.error.cycle_not_settleable"));
+      navigate(`/members/${memberId}`);
+      return;
+    }
+    if (code === "not_found") {
+      toast.error(t("settlement.reauth.error.not_found"));
+      navigate(`/members/${memberId}`);
+      return;
+    }
+    if (code === "network") {
+      toast.error(t("settlement.reauth.error.network"));
+      return;
+    }
+    toast.error(t("settlement.reauth.error.unknown"));
   };
 
   return (
@@ -117,8 +184,21 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
         cycleId={data.currentCycle.id}
         cycleStartDate={data.currentCycle.start_date}
         cycleEndDate={data.currentCycle.end_date}
+        isSubmitting={isCommitting}
         onVerifyTransactions={handleVerifyTransactions}
         onConfirm={handleConfirm}
+      />
+
+      <SettlementReauthDialog
+        open={reauthOpen}
+        onOpenChange={setReauthOpen}
+        memberId={memberId}
+        cycleId={data.currentCycle.id}
+        memberName={data.member.name}
+        expectedPayout={expectedPayout}
+        onSuccess={handleReauthSuccess}
+        onError={handleReauthError}
+        onMutatingChange={setIsCommitting}
       />
     </section>
   );

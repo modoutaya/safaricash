@@ -66,6 +66,23 @@ export const KNOWN_PROBLEMS = {
     type: `${PROBLEM_BASE}/rate/limited`,
     title: "Too many attempts",
   },
+  // Story 7.4 — cycle-settlement specific 409 problems.
+  // payout_mismatch: client-computed payout differs from server recomputation.
+  // The caller must reload (the client's view was stale — likely a transaction
+  // was undone or appended between the SettlementSummaryCard render and the commit).
+  payout_mismatch: {
+    status: 409,
+    type: `${PROBLEM_BASE}/settlement/payout_mismatch`,
+    title: "Payout mismatch",
+  },
+  // cycle_not_settleable: precondition fail (cycle status ≠ 'completed' OR
+  // member/cycle mismatch). 409 because the resource state forbids the
+  // operation; the caller should refresh and re-enter the flow.
+  cycle_not_settleable: {
+    status: 409,
+    type: `${PROBLEM_BASE}/settlement/cycle_not_settleable`,
+    title: "Cycle not settleable",
+  },
   internal_unexpected: {
     status: 500,
     type: `${PROBLEM_BASE}/internal/unexpected`,
