@@ -372,6 +372,24 @@
     "subtext_pending": "Envoi du récapitulatif…",
     "cta_return": "Retour aux membres"
   },
+  "connectivity": {
+    "state": {
+      "connected": "En ligne",
+      "syncing": "Synchronisation • {count}",
+      "syncing_idle": "Synchronisation",
+      "offline": "Hors-ligne • {count}",
+      "offline_idle": "Hors-ligne",
+      "sync_failed": "Erreur • {count}",
+      "sync_failed_idle": "Erreur"
+    },
+    "aria_label": "Statut de connexion : {label}",
+    "drawer": {
+      "title": "Synchronisation",
+      "empty": "Aucune opération en attente.",
+      "placeholder_pending": "{count} opérations en attente. Le détail arrivera bientôt.",
+      "close_label": "Fermer"
+    }
+  },
   "transaction": {
     "error": {
       "rattrapage_invalid_days": "Nombre de jours invalide",
