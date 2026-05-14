@@ -156,10 +156,16 @@ if (env) {
         assertEquals(error, null);
         assert(typeof body === "string");
         // Story 7.5 new shape: SafariCash. {firstName}, votre cycle du {DD/MM}
-        // au {DD/MM} est clos. Vous avez recu {amount} FCFA. Merci. Detail: <url>.
-        // seedMemberWithCycle creates name="Test Member" → firstName="Test"
-        // and cycle dates 2026-04-19 → 2026-05-18.
-        assertStringIncludes(body, "SafariCash. Test, votre cycle du 19/04 au 18/05 est clos.");
+        // au {DD/MM} est clos. Vous avez recu {amount} FCFA. Detail: <url>.
+        // seedMemberWithCycle creates name="Test Member" → firstName="Test".
+        // Cycle dates come from `create_member_with_cycle` RPC which uses
+        // now()::date — dynamic per CI run, so match the DD/MM shape via
+        // regex rather than hardcoding (CI bug fix from initial Story 7.5).
+        assertStringIncludes(body, "SafariCash. Test, votre cycle du ");
+        assert(
+          /votre cycle du \d{2}\/\d{2} au \d{2}\/\d{2} est clos\./.test(body as string),
+          `body must match the DD/MM range shape, got: ${body}`,
+        );
         // Code-review patch #1 — 'Merci.' suffix removed (saves 7 chars for
         // single-SMS budget); the closing statement now lives on the Worker
         // receipt page only.

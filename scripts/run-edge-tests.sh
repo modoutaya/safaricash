@@ -55,4 +55,6 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/_shared/enqueue-resend-history.contract.test.ts \
   supabase/functions/sms-resend-history/index.test.ts \
   supabase/functions/_shared/enqueue-resend-transaction.contract.test.ts \
+  supabase/functions/_shared/commit-cycle-settlement.contract.test.ts \
+  supabase/functions/_shared/get-receipt-payload-cycle-dates.contract.test.ts \
   "$@"

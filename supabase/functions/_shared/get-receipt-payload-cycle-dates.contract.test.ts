@@ -76,10 +76,21 @@ if (env) {
           cycle_end_date: string;
           member_first_name: string;
         };
-        // seedMemberWithCycle creates cycle with start_date='2026-04-19'
-        // and end_date='2026-05-18'.
-        assertEquals(row.cycle_start_date, "2026-04-19");
-        assertEquals(row.cycle_end_date, "2026-05-18");
+        // Dates come from `create_member_with_cycle` RPC which uses now()
+        // — dynamic per CI run. Assert the YYYY-MM-DD shape + 29-day span
+        // (the cycle length invariant) rather than literal dates.
+        assert(
+          /^\d{4}-\d{2}-\d{2}$/.test(row.cycle_start_date),
+          `cycle_start_date must be YYYY-MM-DD, got: ${row.cycle_start_date}`,
+        );
+        assert(
+          /^\d{4}-\d{2}-\d{2}$/.test(row.cycle_end_date),
+          `cycle_end_date must be YYYY-MM-DD, got: ${row.cycle_end_date}`,
+        );
+        const startMs = new Date(row.cycle_start_date + "T00:00:00Z").getTime();
+        const endMs = new Date(row.cycle_end_date + "T00:00:00Z").getTime();
+        const spanDays = Math.round((endMs - startMs) / 86_400_000);
+        assertEquals(spanDays, 29, "cycle span must be exactly 29 days (day 1 → day 30)");
         // Defensive cross-check that member_first_name still works (Story
         // 6.4 baseline preserved).
         assertEquals(row.member_first_name, "Test");
