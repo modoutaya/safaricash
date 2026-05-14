@@ -1,6 +1,6 @@
 // Story 4.1 — MemberActionSheet (Flow 1 entry surface).
 //
-// Bottom-anchored modal shell that hosts the daily-contribution interaction
+// Centered modal shell that hosts the daily-contribution interaction
 // (the product's defining gesture: 1 tap → toast → done). Implemented on
 // the native <dialog> element (zero dep, same pattern as Stories 2.6 + 2.7).
 //
@@ -174,7 +174,7 @@ export function MemberActionSheet({
       onClick={handleBackdropClick}
       aria-labelledby="member-action-sheet-title"
       aria-label={t("members.action_sheet.aria_label", { name: member.name })}
-      className="m-auto mb-0 w-full max-w-md rounded-t-2xl rounded-b-none border-x border-t border-hairline bg-card p-0 shadow-xl backdrop:bg-neutral-900/50"
+      className="m-auto w-full max-w-md rounded-2xl border border-hairline bg-card p-0 shadow-xl backdrop:bg-neutral-900/50"
     >
       {/* Inner content stops propagation so taps inside the sheet don't
           trigger the backdrop dismissal above. */}
