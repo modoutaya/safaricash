@@ -387,8 +387,22 @@
     "drawer": {
       "title": "Synchronisation",
       "empty": "Aucune opération en attente.",
-      "placeholder_pending": "{count} opérations en attente. Le détail arrivera bientôt.",
-      "close_label": "Fermer"
+      "close_label": "Fermer",
+      "list_label": "Opérations en attente",
+      "stalled_banner": "La synchronisation est bloquée. Vos opérations sont conservées — touchez « Retenter » pour relancer l'envoi.",
+      "syncing_hint": "Synchronisation en cours…",
+      "retry_cta": "Retenter",
+      "retry_in_progress": "Synchronisation en cours…",
+      "retry_success": "Synchronisation réussie.",
+      "session_expired_hint": "Votre session a expiré. Reconnectez-vous, puis réessayez.",
+      "row_kind_contribution": "Cotisation",
+      "row_kind_advance": "Avance",
+      "row_kind_rattrapage": "Rattrapage",
+      "row_kind_other": "Opération",
+      "row_recorded_just_now": "à l'instant",
+      "row_recorded_minutes": "il y a {minutes} min",
+      "row_recorded_hours": "il y a {hours} h",
+      "member_fallback": "Membre"
     }
   },
   "transaction": {

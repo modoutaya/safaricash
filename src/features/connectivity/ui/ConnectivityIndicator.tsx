@@ -133,8 +133,10 @@ export function ConnectivityIndicator({
           aria-hidden
           className={cn(
             "h-4 w-4 shrink-0",
-            state === "syncing" ? "animate-spin" : null,
-            pulseIcon ? "animate-pulse" : null,
+            // motion-reduce: honour prefers-reduced-motion (accessibility —
+            // the connectivity surface is held axe-clean).
+            state === "syncing" ? "animate-spin motion-reduce:animate-none" : null,
+            pulseIcon ? "animate-pulse motion-reduce:animate-none" : null,
           )}
         />
         <span>{renderedLabel}</span>
