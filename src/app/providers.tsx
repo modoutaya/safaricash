@@ -53,18 +53,20 @@ export const queryPersister = createSyncStoragePersister({
   key: PERSIST_CACHE_KEY,
 });
 
-/** Persist ONLY successful member queries (`["members", …]`) that actually
- *  carry data — transaction / SMS / cycle queries are volatile and stay
- *  in-memory; a success-with-undefined-data query must not be persisted as
- *  authoritative. */
-export function shouldPersistMemberQuery(query: {
+/** Persist ONLY the successful offline-read queries that carry data —
+ *  the member queries (`["members", …]`, Story 8.6) and the dashboard
+ *  query (`["dashboard", …]`, Story 9.1). Transaction / SMS / cycle
+ *  queries are volatile and stay in-memory; a success-with-undefined-data
+ *  query must not be persisted as authoritative. */
+export function shouldPersistOfflineReadQuery(query: {
   state: { status: string; data?: unknown };
   queryKey: readonly unknown[];
 }): boolean {
+  const root = query.queryKey[0];
   return (
     query.state.status === "success" &&
     query.state.data !== undefined &&
-    query.queryKey[0] === "members"
+    (root === "members" || root === "dashboard")
   );
 }
 
@@ -77,7 +79,7 @@ export function RootProviders({ children }: { children: ReactNode }) {
         maxAge: PERSIST_MAX_AGE_MS,
         buster: PERSIST_BUSTER,
         dehydrateOptions: {
-          shouldDehydrateQuery: shouldPersistMemberQuery,
+          shouldDehydrateQuery: shouldPersistOfflineReadQuery,
         },
       }}
     >
