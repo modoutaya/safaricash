@@ -45,6 +45,7 @@ function restoreOnlineFlag(): void {
 
 describe("useConnectivityState", () => {
   beforeEach(() => {
+    localStorage.clear();
     setOnlineFlag(true);
     // Story 8.3 mocks: by default no session → pendingCount stays 0
     // so the existing Story 8.1 tests don't see surprise async work.
@@ -106,10 +107,9 @@ describe("useConnectivityState", () => {
     removeSpy.mockRestore();
   });
 
-  it("Story 8.1 placeholders — pendingCount === 0 and hasFailed === false always", () => {
+  it("no session → pendingCount 0 and hasFailed false", () => {
     const { result } = renderHook(() => useConnectivityState());
-    // Story 8.3 will replace pendingCount; Story 8.4 will replace
-    // hasFailed. Until then the contract holds these constants.
+    // collectorId is null (default mock) → no outbox to track, never stalled.
     expect(result.current.pendingCount).toBe(0);
     expect(result.current.hasFailed).toBe(false);
   });
@@ -151,6 +151,7 @@ describe("useConnectivityState — Story 8.3 pendingCount subscription", () => {
   const COLLECTOR = "11111111-1111-4111-8111-111111111111";
 
   beforeEach(() => {
+    localStorage.clear();
     setOnlineFlag(true);
     useCollectorIdMock.mockReset();
     countEventsMock.mockReset();
@@ -236,5 +237,53 @@ describe("useConnectivityState — Story 8.3 pendingCount subscription", () => {
     // have been called by now (the control message proves the channel
     // dispatched). It wasn't → listener was properly removed.
     expect(countEventsMock.mock.calls.length).toBe(callsBeforeUnmount);
+  });
+});
+
+describe("useConnectivityState — Story 8.5 stalled-sync wiring", () => {
+  const COLLECTOR = "33333333-3333-4333-8333-333333333333";
+  const MARKER_KEY = `safaricash:sync:stalled-since:${COLLECTOR}`;
+
+  beforeEach(() => {
+    localStorage.clear();
+    setOnlineFlag(true);
+    useCollectorIdMock.mockReset();
+    useCollectorIdMock.mockReturnValue(COLLECTOR);
+    countEventsMock.mockReset();
+    countEventsMock.mockResolvedValue(0);
+  });
+
+  afterEach(() => {
+    restoreOnlineFlag();
+    localStorage.clear();
+  });
+
+  it("online + non-empty queue past the stalled threshold → hasFailed + state 'sync-failed'", async () => {
+    // Marker pre-seeded 20 min ago (simulates a queue that reconnected but
+    // never drained — survives the app reload).
+    localStorage.setItem(MARKER_KEY, String(Date.now() - 20 * 60 * 1000));
+    countEventsMock.mockResolvedValue(2);
+    const { result } = renderHook(() => useConnectivityState());
+    await waitFor(() => expect(result.current.pendingCount).toBe(2));
+    await waitFor(() => expect(result.current.hasFailed).toBe(true));
+    expect(result.current.state).toBe("sync-failed");
+  });
+
+  it("offline wins over a would-be-stalled queue → state 'offline', hasFailed false", async () => {
+    localStorage.setItem(MARKER_KEY, String(Date.now() - 20 * 60 * 1000));
+    setOnlineFlag(false);
+    countEventsMock.mockResolvedValue(2);
+    const { result } = renderHook(() => useConnectivityState());
+    await waitFor(() => expect(result.current.pendingCount).toBe(2));
+    expect(result.current.hasFailed).toBe(false);
+    expect(result.current.state).toBe("offline");
+  });
+
+  it("non-empty queue NOT yet past threshold → syncing, not sync-failed", async () => {
+    countEventsMock.mockResolvedValue(1);
+    const { result } = renderHook(() => useConnectivityState());
+    await waitFor(() => expect(result.current.pendingCount).toBe(1));
+    expect(result.current.hasFailed).toBe(false);
+    expect(result.current.state).toBe("syncing");
   });
 });

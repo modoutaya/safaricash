@@ -62,6 +62,8 @@ describe("ConnectivityIndicator", () => {
     expect(pulsingIcon).not.toBeNull();
     // The icon is an SVG, not the pill span.
     expect(pulsingIcon?.tagName.toLowerCase()).toBe("svg");
+    // Story 8.5 — the pulse is reduced-motion guarded (accessibility).
+    expect(pulsingIcon?.getAttribute("class")).toMatch(/motion-reduce:animate-none/);
     // Confirm the pill itself doesn't pulse (UX-DR5 — never red-alarm; the
     // pulse is restricted to the icon).
     expect(pill?.className).not.toMatch(/animate-pulse/);

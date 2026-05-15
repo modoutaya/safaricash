@@ -56,6 +56,7 @@ export default function AppLayout() {
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         pendingCount={connectivity.pendingCount}
+        state={connectivity.state}
       />
     </div>
   );

@@ -1,11 +1,13 @@
 // Story 8.1 / FR41 / UX-DR5 — connectivity state hook.
 // Story 8.3 — pendingCount now reflects the real IDB-backed outbox via
 // a BroadcastChannel subscription (countEvents partitioned by the
-// current collector via useCollectorId). hasFailed stays a placeholder
-// until Story 8.5 wires the stalled-sync retry-state.
+// current collector via useCollectorId).
+// Story 8.5 — hasFailed now reflects real stalled-sync state via
+// useStalledSync (NFR-P7 15-minute threshold).
 //
 // See: epics.md:1177-1186 (Story 8.1 BDD), epics.md:1203-1218 (Story 8.3),
-// prd.md:534 (FR41), ux-design-specification.md:975-1002.
+// epics.md:1244-1251 (Story 8.5), prd.md:534 (FR41),
+// ux-design-specification.md:975-1002.
 
 import { useEffect, useState } from "react";
 
@@ -16,6 +18,8 @@ import {
   type EventLogChangeMessage,
 } from "@/infrastructure/sync";
 
+import { useStalledSync } from "./useStalledSync";
+
 export type ConnectivityStateValue = "connected" | "syncing" | "offline" | "sync-failed";
 
 export interface ConnectivityState {
@@ -25,7 +29,8 @@ export interface ConnectivityState {
   online: boolean;
   /** Count of operations queued in the outbox. Story 8.1 placeholder = 0; Story 8.3 wires the real source. */
   pendingCount: number;
-  /** True when the reconciler's last sync attempt failed. Story 8.1 placeholder = false; Story 8.4 wires the real flag. */
+  /** True when the outbox has been stalled past the NFR-P7 threshold
+   *  (Story 8.5 — real value via useStalledSync). */
   hasFailed: boolean;
 }
 
@@ -126,9 +131,10 @@ export function useConnectivityState(): ConnectivityState {
     };
   }, [collectorId]);
 
-  // Story 8.5 will replace `hasFailed` with the reconciler's last-attempt
-  // status — until then, stays at the Story 8.1 placeholder.
-  const hasFailed = false;
+  // Story 8.5 — real stalled-sync flag. The outbox is "stalled" once it
+  // has been non-empty past the NFR-P7 threshold while online; deriveState
+  // then promotes the pill to the `sync-failed` state.
+  const hasFailed = useStalledSync({ online, pendingCount, collectorId });
 
   return {
     state: deriveState(online, pendingCount, hasFailed),
