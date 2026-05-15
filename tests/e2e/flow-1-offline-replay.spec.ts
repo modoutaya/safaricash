@@ -54,6 +54,15 @@ test.describe("Flow 1 — offline contribution replay (Story 8.4)", () => {
     // Go offline + record the contribution (offline branch).
     // -------------------------------------------------------------------
     await context.setOffline(true);
+    // Mirror the back-online dispatch below — Playwright's CDP setOffline
+    // doesn't reliably propagate `navigator.onLine === false` to the React
+    // execution context AND doesn't fire the `offline` window event.
+    // Without this, `useRecordContribution.isOfflineAtEntry()` still reads
+    // `navigator.onLine === true`, the RPC actually runs, the regular
+    // contribution toast renders (NOT the offline copy) and the assertion
+    // below times out at 5 s.
+    await page.waitForFunction(() => navigator.onLine === false);
+    await page.evaluate(() => window.dispatchEvent(new Event("offline")));
 
     await page.getByRole("button", { name: new RegExp(targetName, "i") }).click();
     const primaryCta = page.getByRole("button", {
