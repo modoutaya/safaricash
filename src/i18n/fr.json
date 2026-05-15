@@ -54,6 +54,8 @@
     "signed_out_success": "Vous êtes déconnecté"
   },
   "dashboard": {
+    "title": "Tableau de bord",
+    "stats_label": "Statistiques",
     "cycles_ending": {
       "title": "Cycles se terminant cette semaine",
       "body_zero": "Aucun cycle dans la fenêtre",
@@ -61,6 +63,24 @@
       "body_many": "{count} membres — clôture imminente",
       "cta": "Voir",
       "dismiss_aria": "Masquer cette alerte"
+    },
+    "stat": {
+      "active_members": "Membres actifs",
+      "today_collected": "Collecté aujourd'hui",
+      "commission": "Commission ce cycle"
+    },
+    "activity": {
+      "title": "Activité récente",
+      "empty": "Aucune activité récente",
+      "member_fallback": "Membre",
+      "kind_contribution": "Cotisation",
+      "kind_advance": "Avance",
+      "kind_rattrapage": "Rattrapage",
+      "kind_other": "Opération",
+      "time_just_now": "à l'instant",
+      "time_minutes": "il y a {minutes} min",
+      "time_hours": "il y a {hours} h",
+      "time_days": "il y a {days} j"
     }
   },
   "members": {
