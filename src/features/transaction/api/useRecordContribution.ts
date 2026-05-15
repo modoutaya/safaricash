@@ -90,6 +90,15 @@ export function useRecordContribution(): UseRecordContributionReturn {
     RecordContributionInput,
     OptimisticSnapshots
   >({
+    // Story 8.3/8.4 — the hook does its OWN offline detection
+    // (isOfflineAtEntry) and offline persistence (persistOfflineEvent →
+    // IndexedDB). TanStack Query's default networkMode 'online' PAUSES
+    // mutationFn while navigator.onLine === false — onMutate runs but
+    // mutationFn never does, so the offline branch is unreachable and
+    // mutateAsync hangs until connectivity returns. 'always' lets
+    // mutationFn run regardless of connectivity so the in-hook offline
+    // branch can take over.
+    networkMode: "always",
     mutationFn: async (input): Promise<RecordContributionResult> => {
       if (inFlightRef.current) {
         throw new RecordContributionError("unknown", "record already in flight");

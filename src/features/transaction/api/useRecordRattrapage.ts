@@ -93,6 +93,11 @@ export function useRecordRattrapage(): UseRecordRattrapageReturn {
     RecordRattrapageInput,
     OptimisticSnapshots
   >({
+    // Story 8.3/8.4 — see useRecordContribution: the hook owns offline
+    // detection + IndexedDB persistence. Default networkMode 'online'
+    // pauses mutationFn while offline, leaving the offline branch dead
+    // code. 'always' runs mutationFn regardless of connectivity.
+    networkMode: "always",
     mutationFn: async (input): Promise<RecordRattrapageResult> => {
       if (inFlightRef.current) {
         throw new RecordRattrapageError("unknown", "record already in flight");

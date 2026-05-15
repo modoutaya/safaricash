@@ -22,3 +22,8 @@ export {
 export type { EventLogChangeMessage, OfflineEventLogErrorCode } from "./eventLog";
 export { offlineEventSchema } from "./types";
 export type { OfflineEvent, OfflineEventType } from "./types";
+
+// Story 8.4 — reconciler + backoff helpers.
+export { computeBackoffMs } from "./backoff";
+export { classifyReplayError, replayPendingEvents, stopReplay } from "./reconciler";
+export type { ReplayErrorCode, ReplayResult } from "./reconciler";

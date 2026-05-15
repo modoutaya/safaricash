@@ -16,6 +16,7 @@ import { useState } from "react";
 import { Link, Outlet } from "react-router-dom";
 
 import { useConnectivityState } from "@/features/connectivity/api/useConnectivityState";
+import { useReconciler } from "@/features/connectivity/api/useReconciler";
 import { ConnectivityIndicator } from "@/features/connectivity/ui/ConnectivityIndicator";
 import { ConnectivitySyncDrawer } from "@/features/connectivity/ui/ConnectivitySyncDrawer";
 import { useT } from "@/i18n/useT";
@@ -23,6 +24,10 @@ import { useT } from "@/i18n/useT";
 export default function AppLayout() {
   const t = useT();
   const connectivity = useConnectivityState();
+  // Story 8.4 — drain offline events on mount + on every window `online`
+  // event. Hook is mount-only (no return value); cache invalidation on
+  // successful drain is handled internally.
+  useReconciler();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
