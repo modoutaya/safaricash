@@ -88,8 +88,14 @@ export default function MemberEditRoute() {
               isPending={updateMember.isPending}
               errorCode={updateMember.error?.code ?? null}
               onSubmit={async (values) => {
-                await updateMember.mutateAsync({ id, values });
-                toast.success(t("members.edit.toast_success"));
+                const result = await updateMember.mutateAsync({ id, values });
+                // Story 8.6 — offline edits are queued, not applied; the
+                // toast must tell the truth about the actual state.
+                if (result.wasOffline) {
+                  toast(t("members.edit.toast_offline"));
+                } else {
+                  toast.success(t("members.edit.toast_success"));
+                }
                 navigate(`/members/${id}`, { replace: true });
               }}
               onCancel={goBackToProfile}

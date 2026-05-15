@@ -65,6 +65,7 @@
   },
   "members": {
     "title": "Membres",
+    "local_data_note": "Données locales — synchronisation en attente",
     "search_placeholder": "Rechercher un membre…",
     "filter_actif": "Actif",
     "filter_avance": "Avance",
@@ -143,6 +144,7 @@
       "cta_submit": "Enregistrer",
       "cta_submitting": "Enregistrement…",
       "toast_success": "Modifications enregistrées ✓",
+      "toast_offline": "Modification enregistrée hors-ligne — synchronisation au prochain réseau",
       "impact_alert": {
         "daily_amount": "Cette modification affectera le cycle en cours. Les projections vont être recalculées."
       },
@@ -152,6 +154,7 @@
         "validation": "Données invalides — vérifiez les champs",
         "network": "Pas de réseau — vérifiez votre connexion",
         "not_found": "Membre introuvable. Il a peut-être été supprimé.",
+        "offline_storage": "Stockage local saturé — libérez de l'espace puis réessayez",
         "unknown": "Erreur inattendue — réessayez"
       }
     },

@@ -3,10 +3,13 @@
 // MemberList component test + the Playwright E2E; here we pin the
 // derivation contract on its own so failures localise immediately.
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { renderHook } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
-import type { CycleRow, MemberRow } from "../types";
-import { deriveMembersWithMeta, type RawMembersData } from "./useMembers";
+import { MEMBERS_QUERY_KEY, type CycleRow, type MemberRow, type MemberWithMeta } from "../types";
+import { deriveMembersWithMeta, useMembers, type RawMembersData } from "./useMembers";
 
 const NOW = new Date("2026-04-21T12:00:00Z");
 const TODAY_MINUS_10 = "2026-04-11"; // cycle day 11 at NOW
@@ -194,5 +197,42 @@ describe("deriveMembersWithMeta", () => {
     // Dev-warn is expected here; we don't assert on it since the pure
     // derivation test for deriveMemberStatus already covers that surface.
     expect(out[0]!.currentCycle).toBeNull();
+  });
+});
+
+// Story 8.6 — offline read path: with the member-list query already in the
+// cache (rehydrated by the TanStack persister), useMembers serves that data
+// while offline rather than erroring on the failed fetch.
+describe("useMembers — offline serves the cached/persisted data", () => {
+  it("offline + a pre-seeded cache → returns the data, isError stays false", () => {
+    const onlineDescriptor = Object.getOwnPropertyDescriptor(window.navigator, "onLine");
+    Object.defineProperty(window.navigator, "onLine", { configurable: true, get: () => false });
+    try {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const seeded: MemberWithMeta[] = [
+        {
+          id: "11111111-1111-4111-8111-111111111111",
+          name: "Cached Member",
+          phoneNumber: "+221770000000",
+          dailyAmount: 500,
+          displayStatus: "actif",
+          currentCycle: null,
+          latestInteractionAt: "2026-05-15T00:00:00.000Z",
+        },
+      ];
+      client.setQueryData(MEMBERS_QUERY_KEY, seeded);
+
+      const { result } = renderHook(() => useMembers(), {
+        wrapper: ({ children }: { children: ReactNode }) =>
+          createElement(QueryClientProvider, { client }, children),
+      });
+
+      expect(result.current.data).toEqual(seeded);
+      expect(result.current.isError).toBe(false);
+    } finally {
+      if (onlineDescriptor) {
+        Object.defineProperty(window.navigator, "onLine", onlineDescriptor);
+      }
+    }
   });
 });

@@ -201,6 +201,7 @@ export type Database = {
           created_via: Database["public"]["Enums"]["members_created_via_enum"];
           daily_amount: number;
           id: string;
+          last_event_id: string | null;
           name_encrypted: string;
           phone_number_encrypted: string;
           phone_number_hash: string | null;
@@ -216,6 +217,7 @@ export type Database = {
           created_via?: Database["public"]["Enums"]["members_created_via_enum"];
           daily_amount: number;
           id?: string;
+          last_event_id?: string | null;
           name_encrypted: string;
           phone_number_encrypted: string;
           phone_number_hash?: string | null;
@@ -231,6 +233,7 @@ export type Database = {
           created_via?: Database["public"]["Enums"]["members_created_via_enum"];
           daily_amount?: number;
           id?: string;
+          last_event_id?: string | null;
           name_encrypted?: string;
           phone_number_encrypted?: string;
           phone_number_hash?: string | null;
@@ -706,6 +709,7 @@ export type Database = {
       update_member: {
         Args: {
           p_daily_amount: number;
+          p_event_id?: string;
           p_id: string;
           p_name: string;
           p_phone_number: string;

@@ -11,6 +11,7 @@ import { memberInitials } from "../api/memberInitials";
 import { transactionIcon } from "../api/transactionIcon";
 import { deriveMemberStatus } from "../api/deriveMemberStatus";
 import type { CycleRow, MemberRow, MemberStats, TransactionKind, TransactionRow } from "../types";
+import { LocalDataNote } from "./LocalDataNote";
 
 export interface MemberProfileProps {
   member: MemberRow;
@@ -69,6 +70,7 @@ export function MemberProfile({
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">
+      <LocalDataNote />
       <section className="flex flex-col gap-4 rounded-lg border border-hairline bg-card p-4">
         <header className="flex items-center gap-3">
           <div
