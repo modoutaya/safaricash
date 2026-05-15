@@ -245,7 +245,7 @@ describe("reconciler — unsupported event types", () => {
     expect(await listEvents(COLLECTOR)).toHaveLength(1); // stays in queue
   });
 
-  it("member.created event → skipped (Story 8.6 will own)", async () => {
+  it("member.created event → still skipped (offline create is out of Epic 8 scope)", async () => {
     const event: OfflineEvent = {
       ...makeContribEvent({ idx: 0 }),
       eventType: "member.created",
@@ -257,6 +257,45 @@ describe("reconciler — unsupported event types", () => {
     expect(rpcMock).not.toHaveBeenCalled();
     expect(result.skipped).toBe(1);
     expect(await listEvents(COLLECTOR)).toHaveLength(1);
+  });
+
+  it("member.deleted event → still skipped (offline delete is out of Epic 8 scope)", async () => {
+    const event: OfflineEvent = {
+      ...makeContribEvent({ idx: 0 }),
+      eventType: "member.deleted",
+    };
+    await appendEvent(event);
+
+    const result = await replayPendingEvents(COLLECTOR);
+
+    expect(rpcMock).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(await listEvents(COLLECTOR)).toHaveLength(1);
+  });
+
+  it("member.updated event → drains via the update_member RPC (Story 8.6)", async () => {
+    const base = makeContribEvent({ idx: 0 });
+    const memberId = "44444444-4444-4444-8444-444444444444";
+    const event: OfflineEvent = {
+      ...base,
+      eventType: "member.updated",
+      entityId: memberId,
+      payload: {
+        p_event_id: base.eventId,
+        p_id: memberId,
+        p_name: "Renamed Offline",
+        p_phone_number: "+221770000000",
+        p_daily_amount: 600,
+      },
+    };
+    await appendEvent(event);
+
+    const result = await replayPendingEvents(COLLECTOR);
+
+    expect(rpcMock).toHaveBeenCalledWith("update_member", event.payload);
+    expect(result.succeeded).toBe(1);
+    expect(result.skipped).toBe(0);
+    expect(await listEvents(COLLECTOR)).toHaveLength(0); // drained + deleted
   });
 });
 

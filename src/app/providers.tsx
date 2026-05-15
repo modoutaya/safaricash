@@ -15,7 +15,9 @@
 
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { toast, Toaster } from "sonner";
 
@@ -34,12 +36,54 @@ export const queryClient = new QueryClient({
   },
 });
 
+// Story 8.6 — offline read path. The member list / search / profile must
+// survive a cold app reload while offline, so the member query cache is
+// persisted to localStorage and rehydrated on boot. Only `members` queries
+// are persisted (the dehydrate filter below) — transaction / SMS / cycle
+// queries are volatile and stay in-memory.
+const PERSIST_CACHE_KEY = "safaricash:query-cache";
+// NFR-R2 — 24 h offline tolerance; persisted data older than this is dropped.
+const PERSIST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+// Bump when the persisted member-query shape changes so stale structures
+// are discarded rather than mis-hydrated.
+const PERSIST_BUSTER = "8.6-members-v1";
+
+export const queryPersister = createSyncStoragePersister({
+  storage: typeof window !== "undefined" ? window.localStorage : undefined,
+  key: PERSIST_CACHE_KEY,
+});
+
+/** Persist ONLY successful member queries (`["members", …]`) that actually
+ *  carry data — transaction / SMS / cycle queries are volatile and stay
+ *  in-memory; a success-with-undefined-data query must not be persisted as
+ *  authoritative. */
+export function shouldPersistMemberQuery(query: {
+  state: { status: string; data?: unknown };
+  queryKey: readonly unknown[];
+}): boolean {
+  return (
+    query.state.status === "success" &&
+    query.state.data !== undefined &&
+    query.queryKey[0] === "members"
+  );
+}
+
 export function RootProviders({ children }: { children: ReactNode }) {
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister: queryPersister,
+        maxAge: PERSIST_MAX_AGE_MS,
+        buster: PERSIST_BUSTER,
+        dehydrateOptions: {
+          shouldDehydrateQuery: shouldPersistMemberQuery,
+        },
+      }}
+    >
       {children}
       <Toaster position="top-center" richColors />
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
 
@@ -93,6 +137,10 @@ export function AuthStateListener() {
         // (RLS guards server reads, but cached queries would still render
         // before the new fetch resolves).
         queryClient.clear();
+        // Story 8.6 — also drop the PERSISTED member cache, otherwise the
+        // next collector signing in on this device would rehydrate the
+        // previous collector's members from localStorage.
+        void queryPersister.removeClient();
         if (locationRef.current !== "/login") {
           const toastKey =
             reason === "explicit" ? "settings.signed_out_success" : "login.session_expired_toast";

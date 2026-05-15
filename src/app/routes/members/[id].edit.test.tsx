@@ -11,6 +11,7 @@ const useMemberProfileMock = vi.fn();
 const mutateAsyncMock = vi.fn();
 const useUpdateMemberMock = vi.fn();
 const toastSuccessMock = vi.fn();
+const toastMock = vi.fn();
 
 vi.mock("@/features/member", async () => {
   const actual = await vi.importActual<typeof MemberModule>("@/features/member");
@@ -22,9 +23,9 @@ vi.mock("@/features/member", async () => {
 });
 
 vi.mock("sonner", () => ({
-  toast: {
+  toast: Object.assign((...args: unknown[]) => toastMock(...args), {
     success: (...args: unknown[]) => toastSuccessMock(...args),
-  },
+  }),
 }));
 
 import MemberEditRoute from "./[id].edit";
@@ -81,6 +82,7 @@ describe("MemberEditRoute", () => {
     useMemberProfileMock.mockReset();
     mutateAsyncMock.mockReset();
     toastSuccessMock.mockReset();
+    toastMock.mockReset();
     useUpdateMemberMock.mockReturnValue({
       isPending: false,
       error: null,
@@ -162,7 +164,7 @@ describe("MemberEditRoute", () => {
   });
 
   it("submits to useUpdateMember + toasts + navigates back to /members/:id", async () => {
-    mutateAsyncMock.mockResolvedValue(undefined);
+    mutateAsyncMock.mockResolvedValue({ wasOffline: false });
     useMemberProfileMock.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -184,6 +186,31 @@ describe("MemberEditRoute", () => {
       }),
     );
     expect(toastSuccessMock).toHaveBeenCalledWith("Modifications enregistrées ✓");
+    expect(screen.getByTestId("profile-route")).toBeInTheDocument();
+  });
+
+  it("Story 8.6 — an offline edit shows the offline toast (not the success toast)", async () => {
+    mutateAsyncMock.mockResolvedValue({ wasOffline: true });
+    useMemberProfileMock.mockReturnValue({
+      isLoading: false,
+      isError: false,
+      data: MEMBER_DATA,
+    });
+    renderRoute(`/members/${VALID_ID}/edit`);
+
+    fireEvent.change(screen.getByLabelText("Cotisation quotidienne (FCFA)"), {
+      target: { value: "1000" },
+    });
+    const cta = screen.getByRole("button", { name: /^enregistrer$/i });
+    await waitFor(() => expect(cta).toBeEnabled());
+    fireEvent.click(cta);
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith(
+        "Modification enregistrée hors-ligne — synchronisation au prochain réseau",
+      ),
+    );
+    expect(toastSuccessMock).not.toHaveBeenCalled();
     expect(screen.getByTestId("profile-route")).toBeInTheDocument();
   });
 });

@@ -268,10 +268,12 @@ function resolveRpcName(eventType: OfflineEventType): string | null {
       return "record_advance";
     case "transaction.rattrapage_recorded":
       return "record_rattrapage";
+    // Story 8.6 — offline member edits replay through update_member.
+    case "member.updated":
+      return "update_member";
     // Future stories own these:
     case "transaction.undone":
     case "member.created":
-    case "member.updated":
     case "member.deleted":
       return null;
   }

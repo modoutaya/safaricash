@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import { normalizeForSearch } from "../api/normalizeForSearch";
 import { useMembers } from "../api/useMembers";
 import { MEMBER_HEADER_CTA_THRESHOLD, type DisplayStatus, type MemberWithMeta } from "../types";
+import { LocalDataNote } from "./LocalDataNote";
 import { MemberCard } from "./MemberCard";
 
 const CYCLES_ENDING_FILTER = "cycles-ending";
@@ -164,6 +165,7 @@ export function MemberList(): JSX.Element {
       aria-label={t("members.title")}
     >
       <h1 className="text-title-1 text-text-primary">{t("members.title")}</h1>
+      <LocalDataNote />
 
       {!useFab ? (
         <Button asChild size="lg" className="w-full">

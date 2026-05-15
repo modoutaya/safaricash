@@ -50,6 +50,8 @@ function errorCopyKey(mode: MemberFormMode, code: MemberFormErrorCode): Translat
         return "members.edit.error.not_found";
       case "network":
         return "members.edit.error.network";
+      case "offline_storage":
+        return "members.edit.error.offline_storage";
       case "validation":
       case "unknown":
       default:
