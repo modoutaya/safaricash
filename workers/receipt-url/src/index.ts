@@ -3,8 +3,8 @@
 // Routes:
 //   GET  /health                  → 200 "ok"  (CI readiness probe)
 //   GET  /r/{32-hex token}        → 200 HTML (receipt page) or 404 HTML
-//   GET  /r/{token}/dispute       → 501 placeholder (Story 10.2 owns)
-//   POST /r/{token}/dispute       → 501 placeholder (Story 10.2 owns)
+//   GET  /r/{token}/dispute       → 200 HTML (dispute confirmation form)
+//   POST /r/{token}/dispute       → records the dispute → 200 / 404 / 500
 //   anything else                 → 404 plain text  /  405 for wrong method
 //
 // Auth: service-role-only — the saver doesn't have a JWT. The Worker
@@ -141,7 +141,7 @@ export default {
       if (subroute === "dispute") {
         if (!tokenIsValid(rawToken)) return notFoundHtml();
         if (method === "GET") return disputeGet(rawToken);
-        if (method === "POST") return disputePost();
+        if (method === "POST") return disputePost(rawToken, req, env);
         return new Response("Method Not Allowed", { status: 405, headers: TEXT_HEADERS });
       }
 

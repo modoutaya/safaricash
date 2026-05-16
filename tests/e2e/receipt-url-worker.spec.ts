@@ -9,8 +9,8 @@
 //   3. GET /r/<malformed> → 404 plain text
 //   4. GET /r/<unknown-32-hex> → 404 HTML
 //   5. GET /r/<undone-tx-token> → 404 HTML (Story 4.5 handshake)
-//   6. GET /r/<token>/dispute → 501 + coming-soon HTML
-//   7. POST /r/<token>/dispute → 501 + plain text
+//   6. GET /r/<token>/dispute → 200 + confirmation form HTML
+//   7. POST /r/<token>/dispute → 200 + acknowledgment; disputes + audit rows
 //   8. GET /unknown-path → 404
 //   9. PUT /r/<token> → 405
 //
@@ -159,11 +159,14 @@ test.describe("receipt-url worker (Story 6.4 — saver-facing receipt page)", ()
     expect(res.status()).toBe(405);
   });
 
-  test("2 + 6 + 7. seeded token: receipt page renders + dispute routes 501", async ({
+  test("2 + 6 + 7. seeded token: receipt renders + dispute flow records + audits (Story 10.1)", async ({
     request,
   }) => {
+    const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
     const { userId, jwt, cleanup: cleanupCollector } = await seedCollector();
-    const { token, cleanup: cleanupTx } = await seedMemberWithTransaction(userId, jwt);
+    const { token, txId, cleanup: cleanupTx } = await seedMemberWithTransaction(userId, jwt);
     try {
       // 2. GET /r/<seeded-token> → 200 + Fatou + 500 FCFA
       const res = await request.get(`${WORKER_BASE}/r/${token}`);
@@ -182,18 +185,58 @@ test.describe("receipt-url worker (Story 6.4 — saver-facing receipt page)", ()
       expect(res.headers()["x-content-type-options"]).toBe("nosniff");
       expect(res.headers()["x-frame-options"]).toBe("DENY");
 
-      // 6. GET /r/<token>/dispute → 501 + coming-soon HTML
+      // 6. GET /r/<token>/dispute → 200 + the confirmation form
       const disputeGet = await request.get(`${WORKER_BASE}/r/${token}/dispute`);
-      expect(disputeGet.status()).toBe(501);
-      expect(await disputeGet.text()).toContain("Cette fonctionnalité arrive bientôt");
+      expect(disputeGet.status()).toBe(200);
+      const formBody = await disputeGet.text();
+      expect(formBody).toContain(`action="/r/${token}/dispute"`);
+      expect(formBody).toContain("Dites-nous ce qui s'est passé");
+      expect(formBody).toContain("Signaler");
+      expect(formBody).toContain("Annuler");
+      expect(formBody).not.toContain("<script");
 
-      // 7. POST /r/<token>/dispute → 501 plain text
+      // 7. POST /r/<token>/dispute → 200 + the compassionate acknowledgment
       const disputePost = await request.post(`${WORKER_BASE}/r/${token}/dispute`, {
-        data: "",
+        form: { notes: "Je n'ai jamais reçu cet argent" },
       });
-      expect(disputePost.status()).toBe(501);
-      expect(await disputePost.text()).toContain("Story 10.2");
+      expect(disputePost.status()).toBe(200);
+      expect(await disputePost.text()).toContain("Votre signalement a été transmis");
+
+      // A disputes row landed for the transaction.
+      const { data: disputes } = await service
+        .from("disputes")
+        .select("id, status, flagged_via, notes, collector_id")
+        .eq("transaction_id", txId);
+      expect(disputes ?? []).toHaveLength(1);
+      expect(disputes![0]!.status).toBe("open");
+      expect(disputes![0]!.flagged_via).toBe("receipt_url");
+      expect(disputes![0]!.notes).toBe("Je n'ai jamais reçu cet argent");
+      expect(disputes![0]!.collector_id).toBe(userId);
+
+      // A dispute.flagged audit_log row chained for that collector.
+      const { data: auditRows } = await service
+        .from("audit_log")
+        .select("event_type, entity_id")
+        .eq("collector_id", userId)
+        .eq("event_type", "dispute.flagged");
+      expect(auditRows ?? []).toHaveLength(1);
+      expect(auditRows![0]!.entity_id).toBe(disputes![0]!.id);
+
+      // Re-submit → idempotent: 200 + "déjà envoyé", still exactly one row.
+      const disputeAgain = await request.post(`${WORKER_BASE}/r/${token}/dispute`, {
+        form: { notes: "encore" },
+      });
+      expect(disputeAgain.status()).toBe(200);
+      expect(await disputeAgain.text()).toContain("Signalement déjà envoyé");
+
+      const { data: disputesAfter } = await service
+        .from("disputes")
+        .select("id")
+        .eq("transaction_id", txId);
+      expect(disputesAfter ?? []).toHaveLength(1);
     } finally {
+      // disputes FK to transactions is ON DELETE RESTRICT — drop it first.
+      await service.from("disputes").delete().eq("transaction_id", txId);
       await cleanupTx();
       await cleanupCollector();
     }

@@ -35,6 +35,17 @@ const REVERSIBILITY_NOTE = "Appuyé par erreur ? Vous pourrez annuler dans les 2
 
 const DISPUTE_CTA_LABEL = "Cette transaction n'est pas moi";
 
+// Story 10.1 — dispute confirmation + acknowledgment copy (UX-DR11 / FR33b).
+const DISPUTE_FORM_INTRO =
+  "Signaler un problème avec cette transaction. Votre collecteur et SafariCash en seront informés.";
+const DISPUTE_NOTES_LABEL = "Dites-nous ce qui s'est passé (optionnel)";
+const DISPUTE_CONFIRM_LABEL = "Signaler";
+const DISPUTE_CANCEL_LABEL = "Annuler";
+const DISPUTE_ACK =
+  "Merci. Votre signalement a été transmis au collecteur et à SafariCash. Nous vous recontacterons sous 48h via SMS.";
+const DISPUTE_ALREADY = "Signalement déjà envoyé. Réponse sous 48 h.";
+const DISPUTE_NOTES_MAXLENGTH = 500;
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -214,6 +225,67 @@ const STYLE_BLOCK = `
     color: #4b5563;
     font-size: 1rem;
   }
+  .dispute-form {
+    background: #faece7;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0 0;
+  }
+  .dispute-form p.intro {
+    margin: 0 0 1rem;
+    color: #712b13;
+    font-size: 0.95rem;
+  }
+  .dispute-form label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #4b5563;
+    font-size: 0.9rem;
+  }
+  .dispute-form textarea {
+    width: 100%;
+    min-height: 5rem;
+    padding: 0.5rem;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 1rem;
+    resize: vertical;
+  }
+  .dispute-actions {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .dispute-actions button {
+    background: #b91c1c;
+    color: #ffffff;
+    padding: 0.75rem 1rem;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .dispute-actions button:hover, .dispute-actions button:focus {
+    background: #991b1b;
+  }
+  .dispute-actions a.cancel {
+    text-align: center;
+    padding: 0.75rem 1rem;
+    color: #4b5563;
+    text-decoration: underline;
+    font-size: 0.95rem;
+  }
+  .dispute-ack {
+    margin: 1rem 0 0;
+    padding: 1rem;
+    background: #e1f5ee;
+    color: #085041;
+    border-radius: 8px;
+    font-size: 0.95rem;
+  }
 `.trim();
 
 function htmlShell(title: string, bodyContent: string, lang: string = "fr"): string {
@@ -386,16 +458,57 @@ export function renderNotFoundHtml(): string {
   return htmlShell("Reçu introuvable — SafariCash", body);
 }
 
-export function renderComingSoonDisputeHtml(token: string): string {
+/** Story 10.1 — GET /r/{token}/dispute. The dispute confirmation page:
+ *  a no-JS server-rendered form (the UX "bottom-sheet"). "Signaler" POSTs;
+ *  "Annuler" links back to the receipt. */
+export function renderDisputeFormHtml(token: string): string {
+  const body = `
+<main>
+  <header>
+    <h1>SafariCash</h1>
+    <p>Signaler une transaction</p>
+  </header>
+  <form class="dispute-form" method="post" action="/r/${escapeHtml(token)}/dispute">
+    <p class="intro">${DISPUTE_FORM_INTRO}</p>
+    <label for="dispute-notes">${DISPUTE_NOTES_LABEL}</label>
+    <textarea id="dispute-notes" name="notes" maxlength="${DISPUTE_NOTES_MAXLENGTH}"></textarea>
+    <div class="dispute-actions">
+      <button type="submit">${DISPUTE_CONFIRM_LABEL}</button>
+      <a class="cancel" href="/r/${escapeHtml(token)}">${DISPUTE_CANCEL_LABEL}</a>
+    </div>
+  </form>
+  <aside class="disclosure">${TRACKER_DISCLOSURE}</aside>
+</main>
+`.trim();
+  return htmlShell("Signaler une transaction — SafariCash", body);
+}
+
+/** Story 10.1 — the compassionate acknowledgment screen shown after a
+ *  dispute is recorded. Trust/green palette — NOT red. */
+export function renderDisputeAcknowledgedHtml(): string {
   const body = `
 <main>
   <header>
     <h1>SafariCash</h1>
   </header>
-  <p>Cette fonctionnalité arrive bientôt. Vous pourrez signaler une transaction ici dans une prochaine mise à jour.</p>
-  <p><a href="/r/${escapeHtml(token)}">Retour au reçu</a></p>
+  <p class="dispute-ack">${DISPUTE_ACK}</p>
   <aside class="disclosure">${TRACKER_DISCLOSURE}</aside>
 </main>
 `.trim();
-  return htmlShell("Bientôt disponible — SafariCash", body);
+  return htmlShell("Signalement reçu — SafariCash", body);
+}
+
+/** Story 10.1 — shown when an open dispute already exists for the
+ *  transaction (idempotent re-submit). */
+export function renderDisputeAlreadyFlaggedHtml(): string {
+  const body = `
+<main>
+  <header>
+    <h1>SafariCash</h1>
+  </header>
+  <p class="dispute-ack">${DISPUTE_ALREADY}</p>
+  <aside class="disclosure">${TRACKER_DISCLOSURE}</aside>
+</main>
+`.trim();
+  return htmlShell("Signalement déjà envoyé — SafariCash", body);
 }
