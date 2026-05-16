@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { requestSignOut } from "@/features/auth/api/signOut";
+import { CsvExportReauthDialog } from "@/features/export";
 import { hasContactsConsent, revokeContactsConsent } from "@/features/member";
 import { useT } from "@/i18n/useT";
 
@@ -21,6 +22,7 @@ export default function SettingsRoute() {
   // text flips immediately. localStorage doesn't fire 'storage' events for
   // the same window, so a state-based read is the simplest path.
   const [consent, setConsent] = useState<boolean>(() => hasContactsConsent());
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const pendingRef = useRef(false);
   const mountedRef = useRef(true);
   useEffect(
@@ -86,6 +88,24 @@ export default function SettingsRoute() {
           </Button>
         ) : null}
       </section>
+
+      <section className="flex flex-col gap-3 rounded-lg border border-hairline bg-card p-4">
+        <h2 className="text-title-2 text-text-primary">{t("settings.export.section_title")}</h2>
+        <p className="text-body-2 text-text-secondary">
+          {t("settings.export.section_description")}
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={() => setExportDialogOpen(true)}
+          className="w-full"
+        >
+          {t("settings.export.cta")}
+        </Button>
+      </section>
+
+      <CsvExportReauthDialog open={exportDialogOpen} onOpenChange={setExportDialogOpen} />
     </main>
   );
 }
