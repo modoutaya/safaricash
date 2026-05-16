@@ -51,7 +51,24 @@
     "title": "Plus",
     "signout_cta": "Se déconnecter",
     "signout_loading": "Déconnexion…",
-    "signed_out_success": "Vous êtes déconnecté"
+    "signed_out_success": "Vous êtes déconnecté",
+    "export": {
+      "section_title": "Exporter vos données",
+      "section_description": "Téléchargez vos résumés de cycles et votre historique de transactions au format CSV, à transmettre à votre comptable.",
+      "cta": "Exporter en CSV",
+      "dialog_title": "Exporter en CSV",
+      "dialog_summary": "Confirmez votre mot de passe pour télécharger vos données.",
+      "password_input_label": "Confirmez votre mot de passe",
+      "password_invalid": "Mot de passe invalide. Réessayez.",
+      "password_rate_limited": "Trop de tentatives. Réessayez dans quelques minutes.",
+      "password_unexpected": "Erreur inattendue. Réessayez.",
+      "submit_cta": "Exporter",
+      "submitting": "Export en cours…",
+      "cancel": "Annuler",
+      "toast_success": "Export terminé ✓",
+      "toast_audit_warning": "Export téléchargé, mais l'enregistrement de l'activité a échoué.",
+      "toast_failure": "Échec de l'export. Réessayez."
+    }
   },
   "dashboard": {
     "title": "Tableau de bord",
