@@ -129,6 +129,19 @@ export async function seedMembersForCollector(
   label = "M",
 ): Promise<MemberSeed[]> {
   const seeds: MemberSeed[] = [];
+
+  // Cycle dates are RELATIVE to "today", not hardcoded calendar dates.
+  // The cycle engine derives the cycle-day from start_date vs. now(), so a
+  // fixed end_date rots: once fewer than 3 days remain it disables the
+  // 3/4-day rattrapage grid options (MemberActionSheet — disabled = n >
+  // daysRemaining), breaking flow-1-record-rattrapage. Starting the cycle
+  // 1 day ago puts it on cycle-day 2 (daysRemaining ≈ 28) — fresh enough
+  // for every rattrapage option, still an active (non-closed) cycle.
+  const MS_PER_DAY = 86_400_000;
+  const cycleStart = new Date(Date.now() - MS_PER_DAY);
+  const cycleEnd = new Date(cycleStart.getTime() + 29 * MS_PER_DAY);
+  const startDate = cycleStart.toISOString().slice(0, 10);
+  const endDate = cycleEnd.toISOString().slice(0, 10);
   for (let i = 0; i < count; i++) {
     const { data: nameSecret, error: nameErr } = await service.rpc("vault_encrypt", {
       plaintext: `Member ${label}-${i + 1}`,
@@ -168,8 +181,8 @@ export async function seedMembersForCollector(
         collector_id: collector.userId,
         member_id: member.id,
         cycle_number: 1,
-        start_date: "2026-04-19",
-        end_date: "2026-05-18",
+        start_date: startDate,
+        end_date: endDate,
         status: "active",
       })
       .select("id")
