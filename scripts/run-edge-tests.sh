@@ -62,4 +62,5 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/_shared/audit-export-event.contract.test.ts \
   supabase/functions/_shared/enqueue-dispute-ack.contract.test.ts \
   supabase/functions/dispute-notify/index.test.ts \
+  supabase/functions/saver-delete/index.test.ts \
   "$@"
