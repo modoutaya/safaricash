@@ -416,6 +416,12 @@ deno_version = 2
 # `supabase start`; this block does the substitution at container-spawn time.
 [edge_runtime.secrets]
 TERMII_INBOUND_SECRET = "env(TERMII_INBOUND_SECRET)"
+# Story 10.2 — dispute-notify: founder email via Resend. RESEND_API_KEY +
+# RESEND_FROM (a verified sender) + FOUNDER_SUPPORT_EMAIL (the recipient).
+# Email is best-effort — an unset secret makes the email output `skipped`.
+RESEND_API_KEY = "env(RESEND_API_KEY)"
+RESEND_FROM = "env(RESEND_FROM)"
+FOUNDER_SUPPORT_EMAIL = "env(FOUNDER_SUPPORT_EMAIL)"
 
 [analytics]
 enabled = true
