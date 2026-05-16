@@ -226,4 +226,38 @@ describe("MemberProfile", () => {
     );
     expect(screen.queryByRole("button", { name: /Voir le reçu/i })).not.toBeInTheDocument();
   });
+
+  it("Story 10.3 — no dispute banner + no row dispute icon when there are no disputes", () => {
+    render(
+      <MemberProfile
+        member={MEMBER}
+        currentCycle={CYCLE}
+        transactions={[txContrib]}
+        stats={STATS_NO_ADVANCES}
+      />,
+    );
+    expect(screen.queryByText("Transaction contestée")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Cette transaction est contestée")).not.toBeInTheDocument();
+  });
+
+  it("Story 10.3 — shows the dispute banner + a per-row dispute icon for disputed transactions", () => {
+    const onDisputeBannerTap = vi.fn();
+    render(
+      <MemberProfile
+        member={MEMBER}
+        currentCycle={CYCLE}
+        transactions={[txContrib, txAdvance]}
+        stats={STATS_NO_ADVANCES}
+        openDisputeCount={1}
+        disputedTransactionIds={new Set([txContrib.id])}
+        onDisputeBannerTap={onDisputeBannerTap}
+      />,
+    );
+    // Banner.
+    expect(screen.getByText("Transaction contestée")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /voir le détail/i }));
+    expect(onDisputeBannerTap).toHaveBeenCalledTimes(1);
+    // Exactly the disputed transaction row carries the icon.
+    expect(screen.getByLabelText("Cette transaction est contestée")).toBeInTheDocument();
+  });
 });

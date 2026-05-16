@@ -30,6 +30,12 @@ import {
   useResendTransaction,
   type ResendTransactionResult,
 } from "@/features/transaction";
+import {
+  DisputeDetailSheet,
+  useDisputes,
+  useResolveDispute,
+  type DisputeRow,
+} from "@/features/dispute";
 import { useT } from "@/i18n/useT";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -46,9 +52,19 @@ export default function MemberProfileRoute() {
   const [resendOpen, setResendOpen] = useState(false);
   // Story 6.7 — selected transaction drives the per-receipt sheet.
   const [selectedTx, setSelectedTx] = useState<TransactionRow | null>(null);
+  // Story 10.3 — selected dispute drives the dispute detail sheet.
+  const [selectedDispute, setSelectedDispute] = useState<DisputeRow | null>(null);
   const resendTx = useResendTransaction();
 
   const query = useMemberProfile(isUuid ? id : undefined);
+  // Story 10.3 — the member's open disputes drive the banner + the
+  // per-transaction dispute icon.
+  const disputesQuery = useDisputes(isUuid ? id : undefined);
+  const resolveDispute = useResolveDispute(isUuid ? id : "");
+  const openDisputes = [...(disputesQuery.data ?? [])].sort((a, b) =>
+    a.flagged_at < b.flagged_at ? 1 : -1,
+  );
+  const disputedTransactionIds = new Set(openDisputes.map((d) => d.transaction_id));
 
   // Story 2.7 — restart action shows only when the current cycle is
   // completed/settled. Hidden (not disabled) per AC #1.
@@ -140,8 +156,33 @@ export default function MemberProfileRoute() {
           transactions={query.data.transactions}
           stats={query.data.stats}
           onTransactionTap={setSelectedTx}
+          openDisputeCount={openDisputes.length}
+          disputedTransactionIds={disputedTransactionIds}
+          onDisputeBannerTap={() => setSelectedDispute(openDisputes[0] ?? null)}
         />
       )}
+
+      {selectedDispute ? (
+        <DisputeDetailSheet
+          open={!!selectedDispute}
+          onOpenChange={(next) => {
+            if (!next) setSelectedDispute(null);
+          }}
+          dispute={selectedDispute}
+          isResolving={resolveDispute.isPending}
+          onResolve={async () => {
+            const disputeId = selectedDispute.id;
+            try {
+              await resolveDispute.mutateAsync(disputeId);
+              toast.success(t("dispute.detail.toast_resolved"));
+              setSelectedDispute(null);
+            } catch {
+              // Keep the sheet open so the collector can retry.
+              toast.error(t("dispute.detail.toast_error"));
+            }
+          }}
+        />
+      ) : null}
 
       {query.data && selectedTx && query.data.currentCycle ? (
         <TransactionReceiptSheet
