@@ -2,7 +2,10 @@
 //
 // Pure presentation: parent route owns data fetching + navigation.
 
+import { Flag } from "lucide-react";
+
 import { StatusBadge } from "@/components/domain/StatusBadge";
+import { DisputeInlineBanner } from "@/features/dispute";
 import { useT } from "@/i18n/useT";
 
 import { formatFcfaAmount } from "../api/formatAmount";
@@ -24,6 +27,14 @@ export interface MemberProfileProps {
    *  When undefined, rows render as non-interactive `<article>` (Story 2.4
    *  default, kept for tests that don't exercise the receipt flow). */
   onTransactionTap?: (tx: TransactionRow) => void;
+  /** Story 10.3 — number of OPEN disputes on this member's transactions.
+   *  Drives the dispute banner (0 → sr-only, no banner). */
+  openDisputeCount?: number;
+  /** Story 10.3 — transaction ids that have an open dispute; each such
+   *  history row shows a dispute icon. */
+  disputedTransactionIds?: ReadonlySet<string>;
+  /** Story 10.3 — opens the dispute detail view (banner CTA). */
+  onDisputeBannerTap?: () => void;
 }
 
 const PREVIOUS_CYCLE_DATE_FORMATTER = new Intl.DateTimeFormat("fr-FR", {
@@ -56,6 +67,9 @@ export function MemberProfile({
   transactions,
   stats,
   onTransactionTap,
+  openDisputeCount = 0,
+  disputedTransactionIds,
+  onDisputeBannerTap,
 }: MemberProfileProps) {
   const t = useT();
   const displayStatus = deriveMemberStatus({ status: member.status }, currentCycle);
@@ -71,6 +85,10 @@ export function MemberProfile({
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">
       <LocalDataNote />
+      <DisputeInlineBanner
+        count={openDisputeCount}
+        onViewDetail={onDisputeBannerTap ?? (() => {})}
+      />
       <section className="flex flex-col gap-4 rounded-lg border border-hairline bg-card p-4">
         <header className="flex items-center gap-3">
           <div
@@ -149,6 +167,7 @@ export function MemberProfile({
             {sortedTransactions.map((tx) => {
               const Icon = transactionIcon(tx.kind);
               const isAdvance = tx.kind === "advance";
+              const isDisputed = disputedTransactionIds?.has(tx.id) ?? false;
               const amountPrefix = isAdvance ? "−" : "";
               const rowAriaLabel = t("transaction.receipt_sheet.tx_button_label", {
                 kind: t(KIND_LABEL_KEY[tx.kind]),
@@ -167,8 +186,15 @@ export function MemberProfile({
                     <Icon size={20} />
                   </div>
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <p className="truncate text-body-1 font-medium text-text-primary">
-                      {t(KIND_LABEL_KEY[tx.kind])}
+                    <p className="flex items-center gap-1.5 text-body-1 font-medium text-text-primary">
+                      <span className="truncate">{t(KIND_LABEL_KEY[tx.kind])}</span>
+                      {isDisputed ? (
+                        <Flag
+                          size={14}
+                          className="shrink-0 text-destructive"
+                          aria-label={t("dispute.row.icon_label")}
+                        />
+                      ) : null}
                     </p>
                     <p className="truncate text-body-2 text-text-secondary">
                       {formatTransactionTime(tx.created_at)}

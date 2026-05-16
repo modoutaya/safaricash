@@ -310,6 +310,31 @@
     "revoke_cta": "Révoquer l'accès",
     "revoke_toast": "Accès révoqué. SafariCash ne lira plus vos contacts."
   },
+  "dispute": {
+    "banner": {
+      "title": "Transaction contestée",
+      "body_one": "Un saver a contesté une transaction de ce membre.",
+      "body_many": "Un saver a contesté {count} transactions de ce membre.",
+      "cta": "Voir le détail"
+    },
+    "row": {
+      "icon_label": "Cette transaction est contestée"
+    },
+    "detail": {
+      "title": "Détail de la contestation",
+      "close_label": "Fermer",
+      "message_label": "Message du saver",
+      "message_empty": "Aucun message",
+      "date_label": "Signalée le",
+      "resolve_cta": "Marquer comme résolue",
+      "resolving_cta": "Résolution…",
+      "toast_resolved": "Contestation résolue ✓",
+      "toast_error": "Échec de la résolution. Réessayez."
+    },
+    "realtime": {
+      "toast": "Une transaction vient d'être contestée par un saver."
+    }
+  },
   "advance": {
     "simulation": {
       "row_total": "Total cycle projeté",

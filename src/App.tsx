@@ -19,6 +19,7 @@ import { useConnectivityState } from "@/features/connectivity/api/useConnectivit
 import { useReconciler } from "@/features/connectivity/api/useReconciler";
 import { ConnectivityIndicator } from "@/features/connectivity/ui/ConnectivityIndicator";
 import { ConnectivitySyncDrawer } from "@/features/connectivity/ui/ConnectivitySyncDrawer";
+import { useDisputeRealtime } from "@/features/dispute";
 import { useT } from "@/i18n/useT";
 
 export default function AppLayout() {
@@ -28,6 +29,10 @@ export default function AppLayout() {
   // event. Hook is mount-only (no return value); cache invalidation on
   // successful drain is handled internally.
   useReconciler();
+  // Story 10.3 — subscribe to the collector's dispute Realtime channel
+  // (Story 10.2's dispute-notify broadcast). Mount-only; shows an in-app
+  // toast + invalidates the affected member profile on a live dispute.
+  useDisputeRealtime();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
