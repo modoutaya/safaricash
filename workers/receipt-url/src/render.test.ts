@@ -2,7 +2,9 @@ import { axe, toHaveNoViolations } from "jest-axe";
 import { describe, expect, it } from "vitest";
 
 import {
-  renderComingSoonDisputeHtml,
+  renderDisputeAcknowledgedHtml,
+  renderDisputeAlreadyFlaggedHtml,
+  renderDisputeFormHtml,
   renderNotFoundHtml,
   renderOptOutConfirmedHtml,
   renderOptOutFormHtml,
@@ -244,19 +246,78 @@ describe("renderNotFoundHtml", () => {
   });
 });
 
-describe("renderComingSoonDisputeHtml", () => {
-  const html = renderComingSoonDisputeHtml(TOKEN);
+describe("renderDisputeFormHtml — Story 10.1", () => {
+  const html = renderDisputeFormHtml(TOKEN);
 
-  it("contains the coming-soon message", () => {
-    expect(html).toContain("Cette fonctionnalité arrive bientôt");
+  it("renders a no-JS POST form to /r/{token}/dispute", () => {
+    expect(html).toContain('method="post"');
+    expect(html).toContain(`action="/r/${TOKEN}/dispute"`);
+    expect(html).toContain('<button type="submit">');
   });
 
-  it("includes a back-link to /r/{token}", () => {
+  it("includes the optional free-text textarea with its label", () => {
+    expect(html).toContain("Dites-nous ce qui s'est passé (optionnel)");
+    expect(html).toContain('name="notes"');
+    expect(html).toContain('<label for="dispute-notes">');
+    expect(html).toContain('<textarea id="dispute-notes"');
+    expect(html).toContain('maxlength="500"');
+  });
+
+  it("includes the Signaler and Annuler CTAs", () => {
+    expect(html).toContain("Signaler");
+    expect(html).toContain("Annuler");
     expect(html).toContain(`href="/r/${TOKEN}"`);
+  });
+
+  it("does NOT contain a <script> tag (UX-DR19 — no JS)", () => {
+    expect(html).not.toContain("<script");
+  });
+
+  it("passes axe accessibility (WCAG Level A)", async () => {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+});
+
+describe("renderDisputeAcknowledgedHtml — Story 10.1", () => {
+  const html = renderDisputeAcknowledgedHtml();
+
+  it("contains the compassionate acknowledgment copy", () => {
+    expect(html).toContain(
+      "Merci. Votre signalement a été transmis au collecteur et à SafariCash. Nous vous recontacterons sous 48h via SMS.",
+    );
   });
 
   it("does NOT contain a <script> tag", () => {
     expect(html).not.toContain("<script");
+  });
+
+  it("passes axe accessibility (WCAG Level A)", async () => {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+});
+
+describe("renderDisputeAlreadyFlaggedHtml — Story 10.1", () => {
+  const html = renderDisputeAlreadyFlaggedHtml();
+
+  it("contains the already-disputed copy", () => {
+    expect(html).toContain("Signalement déjà envoyé. Réponse sous 48 h.");
+  });
+
+  it("does NOT contain a <script> tag", () => {
+    expect(html).not.toContain("<script");
+  });
+
+  it("passes axe accessibility (WCAG Level A)", async () => {
+    const container = document.createElement("div");
+    container.innerHTML = html;
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 });
 
