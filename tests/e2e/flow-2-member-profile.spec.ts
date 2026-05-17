@@ -37,12 +37,14 @@ test.describe("Flow — /members/:id profile (Story 2.4)", () => {
     await page.goto("/members");
     await expect(page.getByRole("heading", { level: 1, name: /membres/i })).toBeVisible();
 
-    // Story 4.1 — tap card opens the action sheet (NOT direct navigate).
+    // Story 4.6 — tap card opens the Nouvelle Transaction page (NOT direct navigate).
     await page.getByRole("button", { name: new RegExp(targetName, "i") }).click();
 
-    // Action sheet visible — Voir profil is the new path to the profile.
-    await expect(page.getByRole("button", { name: /^voir profil$/i })).toBeVisible();
-    await page.getByRole("button", { name: /^voir profil$/i }).click();
+    // Transaction page visible — "Voir le profil" is the path to the profile.
+    await expect(
+      page.getByRole("heading", { level: 1, name: /nouvelle transaction/i }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /voir le profil/i }).click();
 
     // Profile page lands.
     await expect(page).toHaveURL(new RegExp(`/members/${target.memberId}$`));

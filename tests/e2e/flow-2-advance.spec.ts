@@ -39,9 +39,13 @@ test.describe("Flow 2 — record advance online (Story 5.4)", () => {
     await page.goto("/members");
     await expect(page.getByRole("heading", { level: 1, name: /membres/i })).toBeVisible();
 
-    // Open the action sheet → tap "Prêt".
+    // Tap card → transaction page → choose "Prêt" → continue to the advance flow.
     await page.getByRole("button", { name: new RegExp(targetName, "i") }).click();
+    await expect(
+      page.getByRole("heading", { level: 1, name: /nouvelle transaction/i }),
+    ).toBeVisible();
     await page.getByRole("button", { name: /^prêt$/i }).click();
+    await page.getByRole("button", { name: /continuer vers prêt express/i }).click();
 
     // Land on the advance flow.
     await expect(page).toHaveURL(/\/advance$/);
