@@ -110,7 +110,10 @@ const transactionsResponseSchema = z.array(
     member_id: z.string().uuid(),
     cycle_id: z.string().uuid(),
     kind: transactionKindSchema,
-    amount: z.coerce.number().int().positive(),
+    // transactions_decrypted.amount is vault-decrypted numeric(12,0);
+    // PostgREST may serialise it as a string — coerce (matches the
+    // dashboard's dashboardTxRowSchema).
+    amount: z.coerce.number(),
     created_at: z.string(),
   }),
 );
@@ -122,12 +125,10 @@ async function fetchRawMembersData(): Promise<RawMembersData> {
       .select("id, collector_id, name, phone_number, daily_amount, status, created_at, updated_at")
       .order("created_at", { ascending: false }),
     supabase.from("cycles").select("id, member_id, cycle_number, start_date, end_date, status"),
-    // Story 4.5 — exclude undone rows: an undone transaction must not bump
-    // recency, nor count toward the per-cycle advance total.
-    supabase
-      .from("transactions")
-      .select("member_id, cycle_id, kind, amount, created_at")
-      .is("undone_at", null),
+    // transactions_decrypted: `amount` is vault-decrypted here (the raw
+    // transactions table stores it encrypted), and the view already
+    // filters undone rows (Story 4.5) — so no .is("undone_at", null).
+    supabase.from("transactions_decrypted").select("member_id, cycle_id, kind, amount, created_at"),
   ]);
 
   if (membersResult.error) {

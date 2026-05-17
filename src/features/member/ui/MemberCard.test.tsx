@@ -53,6 +53,21 @@ describe("MemberCard", () => {
     expect(screen.getByText(/Avance : 50\s?000 F CFA/)).toBeInTheDocument();
   });
 
+  it("hides the projected balance when it is missing (null or a stale undefined)", () => {
+    const { rerender } = render(<MemberCard member={makeMember({ projectedBalance: null })} />);
+    expect(screen.queryByLabelText(/solde prévu/i)).not.toBeInTheDocument();
+    // The rest of the cycle block still renders.
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+
+    // A persisted cache from before the field existed surfaces `undefined`.
+    rerender(
+      <MemberCard
+        member={{ ...makeMember(), projectedBalance: undefined as unknown as number | null }}
+      />,
+    );
+    expect(screen.queryByLabelText(/solde prévu/i)).not.toBeInTheDocument();
+  });
+
   it("hides the cycle block when there is no current cycle", () => {
     render(
       <MemberCard

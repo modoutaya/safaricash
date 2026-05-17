@@ -35,6 +35,12 @@ export function MemberCard({ member, onSelect, className }: MemberCardProps): JS
   const interactive = typeof onSelect === "function";
   const cycle = member.currentCycle;
   const daysRemaining = cycle ? CYCLE_TOTAL_DAYS - cycle.dayNumber : 0;
+  // Defensive: a stale persisted cache from before this field existed can
+  // surface `undefined`; only render a real, finite number.
+  const projectedBalance =
+    typeof member.projectedBalance === "number" && Number.isFinite(member.projectedBalance)
+      ? member.projectedBalance
+      : null;
 
   const countdownLabel = (): string => {
     if (daysRemaining <= 0) return t("members.card.last_day");
@@ -79,16 +85,16 @@ export function MemberCard({ member, onSelect, className }: MemberCardProps): JS
               <span className="min-w-0 truncate text-caption font-medium text-primary-700">
                 {countdownLabel()}
               </span>
-              {member.projectedBalance !== null ? (
+              {projectedBalance !== null ? (
                 <span
                   className="flex-none text-body-2 font-semibold text-primary-700"
                   style={{ fontVariantNumeric: "tabular-nums" }}
                   aria-label={t("members.card.balance_aria", {
-                    amount: formatFcfaAmount(member.projectedBalance),
+                    amount: formatFcfaAmount(projectedBalance),
                   })}
                 >
                   {t("members.card.balance_value", {
-                    amount: formatFcfaAmount(member.projectedBalance),
+                    amount: formatFcfaAmount(projectedBalance),
                   })}
                 </span>
               ) : null}
