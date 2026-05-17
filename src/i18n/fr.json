@@ -524,6 +524,7 @@
     },
     "error": {
       "rattrapage_invalid_days": "Nombre de jours invalide",
+      "invalid_days": "Nombre de jours invalide",
       "cycle_closed": "Le cycle est clôturé. Redémarrez-en un nouveau pour reprendre les cotisations.",
       "unauthorized": "Vous devez être reconnecté pour enregistrer cette transaction",
       "validation": "Données invalides — vérifiez le montant",

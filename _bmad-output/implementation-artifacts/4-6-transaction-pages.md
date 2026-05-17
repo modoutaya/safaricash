@@ -1,6 +1,6 @@
 # Story 4.6: Replace the MemberActionSheet modal with full-page transaction flows
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -90,6 +90,14 @@ so that **each operation type (cotisation, rattrapage, prêt) gives me clear con
 - [x] **Task 8 — All gates (AC #16).** typecheck / lint / test --coverage / build / playwright. Fix any regression.
 
 - [x] **Task 9 — Hygiene + status flip.** Story file Completion Notes + File List + Change Log; `sprint-status.yaml`: `epic-4` stays `in-progress` until the epic retrospective, `4-6-transaction-pages: ready-for-dev → review`.
+
+### Review Findings
+
+> Cross-LLM-style adversarial review 2026-05-17 via `bmad-code-review` (3 layers: Blind Hunter / Edge Case Hunter / Acceptance Auditor on the PR #101 diff). 3 patch, 0 decision-needed, 0 defer, 5 dismissed as noise (blank `<></>` loading state — matches MemberList's pattern for the shared `useMembers` query; `useState(dailyAmount)` initializer not tracking a prop refetch — near-zero probability on a transient page; `selectedDays` persisting across type switches — harmless; scientific-notation in the number field — `1e4`=10000 is valid, `.5` rejected by `Number.isInteger`; double-tap submit between await-resolve and `navigate` — `isPending` gate + immediate post-await navigate make the window non-exploitable).
+
+- [x] [Review][Patch] Closed-cycle guard dropped `isCycleClosedForTransactions` — the route checks only `currentCycle === null`; a `termine` member who still has a non-null `active` cycle (the data-inconsistency case the deleted `MemberActionSheet` wiring defended via `displayStatus === "termine" → "completed"`) slips past and can record a transaction [src/app/routes/members/[id].transaction.tsx]
+- [x] [Review][Patch] Offline-toast / typed-error dispatch lost unit coverage — the deleted `MemberList` "Story 8.3 offline contribution flow" test (verified `wasOffline → showOfflineToast`) was not replaced by a `[id].transaction.test.tsx` route test [src/app/routes/members/[id].transaction.tsx]
+- [x] [Review][Patch] Non-`offline_storage` mutation errors are swallowed silently — the `catch` only surfaces `offline_storage`; `cycle_closed` / `validation` / `network` / `unknown` produce no toast and no navigation, leaving the collector on a dead-end full page with zero feedback [src/app/routes/members/[id].transaction.tsx]
 
 ## Dev Notes
 
@@ -196,4 +204,5 @@ claude-opus-4-7[1m] via `bmad-dev-story` skill (Claude Code).
 | Date       | Author                                  | Change |
 |------------|-----------------------------------------|--------|
 | 2026-05-17 | Claude (Opus 4.7) via `bmad-create-story` | Story 4.6 spec generated. QA-driven post-Epic-10 scope (Epic 4 reopened): replaces the `MemberActionSheet` bottom-sheet modal with a new full-page "Nouvelle Transaction" flow (`/members/:id/transaction` — type selector for Cotisation / Rattrapage / Prêt; Cotisation delivers the long-dormant editable "montant personnalisé"; Prêt links to the existing `/members/:id/advance`), rewires `MemberCard` tap → navigate, removes `MemberActionSheet` + its test, and restyles the `AdvanceFlow` ("Prêt Express") topbar to the green full-bleed pattern. Reuses all existing transaction hooks/toasts/undo — no DB/migration/dependency change. Status → ready-for-dev. |
+| 2026-05-17 | reviewer (Opus 4.7 via `bmad-code-review`) | Adversarial review (Blind Hunter / Edge Case Hunter / Acceptance Auditor) of the PR #101 diff — 3 patch, 5 dismissed. All 3 patches applied: (1) closed-cycle guard now also redirects when `displayStatus === "termine"` (a terminé member with a stale active cycle no longer slips past the `currentCycle === null`-only check); (2) added `[id].transaction.test.tsx` — 7 route tests covering the offline-toast / typed-error dispatch + the cycle guard (the coverage lost when the MemberList "Story 8.3 offline flow" test was deleted); (3) both mutation `catch` blocks now surface every typed error code via `toast.error` (+ a `transaction.error.invalid_days` i18n key) instead of swallowing all but `offline_storage`. Gates re-run: typecheck / lint / 1004 vitest (1 skipped) / build. 15/16 ACs were verified clean by the Acceptance Auditor; both forbidden anti-patterns cleared. Status → done. |
 | 2026-05-17 | dev agent (Opus 4.7 via `bmad-dev-story`) | Implementation complete. 3 new files + 10 modified + 2 deleted. New `/members/:id/transaction` page (`NewTransactionForm` + route) with the Cotisation / Rattrapage / Prêt type selector; `MemberActionSheet` deleted and `MemberList` rewired (card tap → navigate); `AdvanceFlow` topbar restyled to the green full-bleed pattern; the 3 `flow-1-*` E2E specs updated. **Deviation from AC #2:** the route reads the member from `useMembers()` (the persisted list query) instead of `useMemberProfile` — a cold per-member query would fail offline and break `flow-1-offline-replay`; `useMembers` is the same source the old `MemberActionSheet` consumed and is offline-rehydrated. Gates green: typecheck / lint / 997 vitest (1 skipped) / branches 76.33% / build. Status → review. |

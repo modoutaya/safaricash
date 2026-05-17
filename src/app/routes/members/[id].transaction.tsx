@@ -78,9 +78,11 @@ function TransactionRouteBody({ memberId }: { memberId: string }): JSX.Element {
   if (member === undefined) {
     return <Navigate to="/members" replace />;
   }
-  // No active/with_advance cycle → no transaction possible (a completed
-  // cycle yields currentCycle === null). The profile is the destination.
-  if (member.currentCycle === null) {
+  // No active cycle — OR a member flagged terminé even with a stale active
+  // cycle row (the data-inconsistency case the old MemberActionSheet wiring
+  // guarded via displayStatus → isCycleClosedForTransactions). Either way,
+  // no transaction is possible; the profile is the destination.
+  if (member.currentCycle === null || member.displayStatus === "termine") {
     return <Navigate to={`/members/${memberId}`} replace />;
   }
 
@@ -115,8 +117,12 @@ function TransactionRouteBody({ memberId }: { memberId: string }): JSX.Element {
       }
       navigate("/members");
     } catch (err) {
-      if (err instanceof RecordContributionError && err.code === "offline_storage") {
-        toast.error(t("transaction.error.offline_storage"));
+      // Surface every failure — a silent dead-end on a full page is worse
+      // than the old dismissable sheet.
+      if (err instanceof RecordContributionError) {
+        toast.error(t(`transaction.error.${err.code}`));
+      } else {
+        toast.error(t("transaction.error.unknown"));
       }
     }
   };
@@ -141,8 +147,10 @@ function TransactionRouteBody({ memberId }: { memberId: string }): JSX.Element {
       }
       navigate("/members");
     } catch (err) {
-      if (err instanceof RecordRattrapageError && err.code === "offline_storage") {
-        toast.error(t("transaction.error.offline_storage"));
+      if (err instanceof RecordRattrapageError) {
+        toast.error(t(`transaction.error.${err.code}`));
+      } else {
+        toast.error(t("transaction.error.unknown"));
       }
     }
   };
