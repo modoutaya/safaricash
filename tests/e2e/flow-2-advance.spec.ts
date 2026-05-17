@@ -41,10 +41,8 @@ test.describe("Flow 2 — record advance online (Story 5.4)", () => {
 
     // Tap card → transaction page → choose "Prêt" → continue to the advance flow.
     await page.getByRole("button", { name: new RegExp(targetName, "i") }).click();
-    await expect(
-      page.getByRole("heading", { level: 1, name: /nouvelle transaction/i }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: /^prêt$/i }).click();
+    await expect(page.getByRole("heading", { level: 1, name: /^transaction$/i })).toBeVisible();
+    await page.getByLabel(/type d'opération/i).selectOption("advance");
     await page.getByRole("button", { name: /continuer vers prêt express/i }).click();
 
     // Land on the advance flow.

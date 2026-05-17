@@ -41,9 +41,7 @@ test.describe("Flow — /members/:id profile (Story 2.4)", () => {
     await page.getByRole("button", { name: new RegExp(targetName, "i") }).click();
 
     // Transaction page visible — "Voir le profil" is the path to the profile.
-    await expect(
-      page.getByRole("heading", { level: 1, name: /nouvelle transaction/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /^transaction$/i })).toBeVisible();
     await page.getByRole("button", { name: /voir le profil/i }).click();
 
     // Profile page lands.
