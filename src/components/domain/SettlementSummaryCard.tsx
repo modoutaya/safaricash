@@ -168,11 +168,11 @@ export function SettlementSummaryCard({
           className="mt-1 flex flex-col gap-1 border-t border-primary-100 pt-2"
         >
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-body-1 font-semibold text-text-primary">
+            <span className="min-w-0 truncate text-body-1 font-semibold text-text-primary">
               {t("settlement.summary.row_final_payout")}
             </span>
             <span
-              className="text-amount-large font-semibold text-primary"
+              className="shrink-0 text-amount-large font-semibold text-primary"
               style={{ fontVariantNumeric: "tabular-nums" }}
             >
               {formatFcfaAmount(finalPayout)} FCFA

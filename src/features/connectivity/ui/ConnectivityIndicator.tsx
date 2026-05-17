@@ -125,7 +125,7 @@ export function ConnectivityIndicator({
       <span
         aria-live="polite"
         className={cn(
-          "inline-flex h-6 items-center gap-1.5 rounded-full px-3 text-body-2 font-medium",
+          "inline-flex h-6 max-w-[10rem] items-center gap-1.5 rounded-full px-3 text-body-2 font-medium",
           pillClass,
         )}
       >
@@ -139,7 +139,7 @@ export function ConnectivityIndicator({
             pulseIcon ? "animate-pulse motion-reduce:animate-none" : null,
           )}
         />
-        <span>{renderedLabel}</span>
+        <span className="min-w-0 truncate">{renderedLabel}</span>
       </span>
     </button>
   );

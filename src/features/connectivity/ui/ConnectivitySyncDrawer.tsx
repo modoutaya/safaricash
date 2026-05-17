@@ -237,7 +237,7 @@ export function ConnectivitySyncDrawer({
               >
                 {events.map((event) => (
                   <li key={event.eventId} className="flex flex-col gap-0.5 py-2">
-                    <span className="text-body-2 font-medium text-text-primary">
+                    <span className="break-words text-body-2 font-medium text-text-primary">
                       {t(kindKey(event.eventType) as Parameters<typeof t>[0])} — {memberName(event)}
                     </span>
                     <span className="text-caption text-text-secondary">{recordedLabel(event)}</span>
