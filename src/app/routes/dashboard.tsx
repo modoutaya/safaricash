@@ -1,16 +1,18 @@
 // Story 1.5 — /dashboard route.
-// Story 9.1 — the real morning-glance dashboard: four polled stats
-// (active members / collected today / commission this cycle / recent
-// activity), refreshed every 60 s, offline-functional from the cached
-// read-model.
+// Story 9.1 — the morning-glance dashboard: a green hero with the three
+// 60 s-polled stats (active members / collected today / commission this
+// cycle), quick-action shortcuts, and a recent-activity list. Offline-
+// functional from the cached read-model.
 //
-// Story 3.5 — `<CycleEndingAlert>` stays mounted above the heading
-// (Story 9.2 owns its refinements); renders nothing when no cycles are
-// in the upcoming-end window or when dismissed.
+// Story 3.5 — <CycleEndingAlert> renders nothing when no cycles are in
+// the upcoming-end window or when dismissed.
+//
+// Visual reference: 03-mockups.html (Dashboard Principal).
 
 import { CycleEndingAlert } from "@/features/cycle";
 import { useDashboardStats } from "@/features/dashboard/api/useDashboardStats";
-import { DashboardStatCards } from "@/features/dashboard/ui/DashboardStatCards";
+import { DashboardHero } from "@/features/dashboard/ui/DashboardHero";
+import { DashboardQuickActions } from "@/features/dashboard/ui/DashboardQuickActions";
 import { RecentActivity } from "@/features/dashboard/ui/RecentActivity";
 import { LocalDataNote } from "@/features/member/ui/LocalDataNote";
 import { useT } from "@/i18n/useT";
@@ -20,19 +22,18 @@ export default function DashboardRoute() {
   const { stats, members, lastUpdatedAt } = useDashboardStats();
 
   return (
-    <section
-      className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4"
-      aria-label={t("dashboard.title")}
-    >
-      <CycleEndingAlert />
-      <h1 className="text-title-1 text-text-primary">{t("dashboard.title")}</h1>
-      <LocalDataNote />
-      <DashboardStatCards
+    <section className="mx-auto flex w-full max-w-2xl flex-col" aria-label={t("dashboard.title")}>
+      <DashboardHero
         activeMembersCount={stats.activeMembersCount}
         todayCollected={stats.todayCollected}
         commissionThisCycle={stats.commissionThisCycle}
       />
-      <RecentActivity activity={stats.recentActivity} members={members} now={lastUpdatedAt} />
+      <div className="flex flex-col gap-4 p-4">
+        <CycleEndingAlert />
+        <DashboardQuickActions />
+        <LocalDataNote />
+        <RecentActivity activity={stats.recentActivity} members={members} now={lastUpdatedAt} />
+      </div>
     </section>
   );
 }

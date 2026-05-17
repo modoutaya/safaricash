@@ -19,11 +19,11 @@ describe("DashboardStatCards", () => {
     );
     expect(screen.getByText("Membres actifs")).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
-    expect(screen.getByText("Collecté aujourd'hui")).toBeInTheDocument();
-    expect(screen.getByText("Commission ce cycle")).toBeInTheDocument();
+    expect(screen.getByText("Collecté")).toBeInTheDocument();
+    expect(screen.getByText("Commission")).toBeInTheDocument();
     // The FCFA-formatted money figures (group separators may be NBSP).
-    expect(screen.getByText(/12[\s\u00a0]?500/)).toBeInTheDocument();
-    expect(screen.getByText(/3[\s\u00a0]?000/)).toBeInTheDocument();
+    expect(screen.getByText(/12\s?500/)).toBeInTheDocument();
+    expect(screen.getByText(/3\s?000/)).toBeInTheDocument();
   });
 
   it("axe-clean", async () => {
