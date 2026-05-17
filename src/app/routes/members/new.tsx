@@ -1,9 +1,9 @@
 // Story 2.2 — /members/new route host.
 //
-// Mounts <MemberForm> and owns post-submit navigation (mirror of
-// LoginRoute from Story 1.5b — the form itself is navigation-agnostic).
+// Mounts <MemberForm> and owns post-submit navigation. The form carries
+// its own full-bleed topbar (with the cancel/back action), so the route
+// is a thin wrapper — no separate header.
 
-import { ChevronLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -19,18 +19,7 @@ export default function MembersNewRoute() {
   const createMember = useCreateMember();
 
   return (
-    <section className="mx-auto flex w-full max-w-md flex-col gap-4 py-6">
-      <header className="flex items-center gap-2 px-4">
-        <button
-          type="button"
-          onClick={() => navigate("/members")}
-          aria-label={t("members.create.back_label")}
-          className="flex h-11 w-11 items-center justify-center rounded-md text-text-secondary hover:bg-neutral-100 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
-        >
-          <ChevronLeft size={24} aria-hidden />
-        </button>
-      </header>
-
+    <div className="flex flex-col">
       <MemberForm
         mode="create"
         isPending={createMember.isPending}
@@ -44,12 +33,12 @@ export default function MembersNewRoute() {
       />
 
       {canImport ? (
-        <div className="mx-auto w-full max-w-sm px-4">
+        <div className="mx-auto w-full max-w-2xl px-4 pb-4">
           <Button asChild variant="outline" size="lg" className="w-full">
             <Link to="/members/import">{t("members.import.import_cta")}</Link>
           </Button>
         </div>
       ) : null}
-    </section>
+    </div>
   );
 }

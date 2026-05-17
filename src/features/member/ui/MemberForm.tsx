@@ -12,6 +12,7 @@
 // the white text clears WCAG AA contrast (the axe E2E gates this page).
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { X } from "lucide-react";
 import { useEffect } from "react";
 import { useForm, useWatch, type SubmitHandler } from "react-hook-form";
 import type { z } from "zod";
@@ -206,124 +207,126 @@ export function MemberForm({
     <form
       onSubmit={form.handleSubmit(handleValid)}
       noValidate
-      className="mx-auto flex w-full max-w-sm flex-col gap-4 p-4"
+      className="mx-auto flex w-full max-w-2xl flex-col"
       aria-labelledby="member-form-title"
     >
-      {/* Green header — primary-700 keeps the white text WCAG AA on contrast. */}
-      <header className="rounded-lg bg-primary-700 px-5 py-5 text-primary-foreground">
+      {/* Full-bleed green topbar — primary-700 keeps the white text WCAG AA
+          on contrast (the mockup's lighter gradient would fail the axe E2E). */}
+      <header className="flex flex-col gap-1 bg-primary-700 px-4 pb-6 pt-4 text-primary-foreground">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isPending}
+          className="-ml-1 inline-flex w-fit items-center gap-1 rounded-md py-1 pl-1 pr-2 text-body-2 text-primary-foreground/90 hover:text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-foreground disabled:opacity-50"
+        >
+          <X aria-hidden className="h-4 w-4 shrink-0" />
+          {t("members.create.cta_cancel")}
+        </button>
         <h1 id="member-form-title" className="text-title-1">
           {t(titleKey)}
         </h1>
         {subtitleKey ? (
-          <p className="mt-1 text-body-2 text-primary-foreground/90">{t(subtitleKey)}</p>
+          <p className="text-body-2 text-primary-foreground/90">{t(subtitleKey)}</p>
         ) : null}
       </header>
 
-      {/* "Informations personnelles" section card. */}
-      <section className="flex flex-col gap-4 rounded-lg border border-hairline bg-card p-4">
-        <h2 className="text-title-2 text-text-primary">{t("members.create.section_title")}</h2>
+      <div className="flex flex-col gap-4 p-4">
+        {/* "Informations personnelles" section card. */}
+        <section className="flex flex-col gap-4 rounded-lg border border-hairline bg-card p-4">
+          <h2 className="text-title-2 text-text-primary">{t("members.create.section_title")}</h2>
 
-        {/* Name */}
-        <div className="flex flex-col gap-2">
-          <label htmlFor="member-name" className="text-caption font-medium text-text-primary">
-            {t("members.create.field.name_label")}
-          </label>
-          <Input
-            id="member-name"
-            type="text"
-            autoComplete="name"
-            placeholder={t("members.create.field.name_placeholder")}
-            disabled={isPending}
-            aria-invalid={form.formState.errors.name ? true : undefined}
-            aria-describedby={form.formState.errors.name ? "member-name-error" : undefined}
-            {...form.register("name")}
-          />
-          {form.formState.errors.name ? (
-            <p id="member-name-error" role="alert" className="text-body-2 text-destructive">
-              {form.formState.errors.name.message}
-            </p>
-          ) : null}
-        </div>
+          {/* Name */}
+          <div className="flex flex-col gap-2">
+            <label htmlFor="member-name" className="text-caption font-medium text-text-primary">
+              {t("members.create.field.name_label")}
+            </label>
+            <Input
+              id="member-name"
+              type="text"
+              autoComplete="name"
+              placeholder={t("members.create.field.name_placeholder")}
+              disabled={isPending}
+              aria-invalid={form.formState.errors.name ? true : undefined}
+              aria-describedby={form.formState.errors.name ? "member-name-error" : undefined}
+              {...form.register("name")}
+            />
+            {form.formState.errors.name ? (
+              <p id="member-name-error" role="alert" className="text-body-2 text-destructive">
+                {form.formState.errors.name.message}
+              </p>
+            ) : null}
+          </div>
 
-        {/* Phone (required) */}
-        <div className="flex flex-col gap-2">
-          <label htmlFor="member-phone" className="text-caption font-medium text-text-primary">
-            {t("members.create.field.phone_label")}
-          </label>
-          <Input
-            id="member-phone"
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder={t("members.create.field.phone_placeholder")}
-            disabled={isPending}
-            aria-invalid={form.formState.errors.phoneNumber ? true : undefined}
-            aria-describedby={form.formState.errors.phoneNumber ? "member-phone-error" : undefined}
-            {...form.register("phoneNumber")}
-          />
-          {form.formState.errors.phoneNumber ? (
-            <p id="member-phone-error" role="alert" className="text-body-2 text-destructive">
-              {form.formState.errors.phoneNumber.message}
-            </p>
-          ) : null}
-        </div>
+          {/* Phone (required) */}
+          <div className="flex flex-col gap-2">
+            <label htmlFor="member-phone" className="text-caption font-medium text-text-primary">
+              {t("members.create.field.phone_label")}
+            </label>
+            <Input
+              id="member-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder={t("members.create.field.phone_placeholder")}
+              disabled={isPending}
+              aria-invalid={form.formState.errors.phoneNumber ? true : undefined}
+              aria-describedby={
+                form.formState.errors.phoneNumber ? "member-phone-error" : undefined
+              }
+              {...form.register("phoneNumber")}
+            />
+            {form.formState.errors.phoneNumber ? (
+              <p id="member-phone-error" role="alert" className="text-body-2 text-destructive">
+                {form.formState.errors.phoneNumber.message}
+              </p>
+            ) : null}
+          </div>
 
-        {/* Daily amount */}
-        <div className="flex flex-col gap-2">
-          <label htmlFor="member-amount" className="text-caption font-medium text-text-primary">
-            {t("members.create.field.amount_label")}
-          </label>
-          <Input
-            id="member-amount"
-            type="number"
-            inputMode="numeric"
-            min={100}
-            max={100000}
-            step={1}
-            disabled={isPending}
-            aria-invalid={form.formState.errors.dailyAmount ? true : undefined}
-            aria-describedby={
-              form.formState.errors.dailyAmount ? "member-amount-error" : "member-amount-helper"
-            }
-            {...form.register("dailyAmount")}
-          />
-          {form.formState.errors.dailyAmount ? (
-            <p id="member-amount-error" role="alert" className="text-body-2 text-destructive">
-              {form.formState.errors.dailyAmount.message}
-            </p>
-          ) : (
-            <p id="member-amount-helper" className="text-body-2 text-text-secondary">
-              {t("members.create.field.amount_helper")}
-            </p>
-          )}
-        </div>
-      </section>
+          {/* Daily amount */}
+          <div className="flex flex-col gap-2">
+            <label htmlFor="member-amount" className="text-caption font-medium text-text-primary">
+              {t("members.create.field.amount_label")}
+            </label>
+            <Input
+              id="member-amount"
+              type="number"
+              inputMode="numeric"
+              min={100}
+              max={100000}
+              step={1}
+              disabled={isPending}
+              aria-invalid={form.formState.errors.dailyAmount ? true : undefined}
+              aria-describedby={
+                form.formState.errors.dailyAmount ? "member-amount-error" : "member-amount-helper"
+              }
+              {...form.register("dailyAmount")}
+            />
+            {form.formState.errors.dailyAmount ? (
+              <p id="member-amount-error" role="alert" className="text-body-2 text-destructive">
+                {form.formState.errors.dailyAmount.message}
+              </p>
+            ) : (
+              <p id="member-amount-helper" className="text-body-2 text-text-secondary">
+                {t("members.create.field.amount_helper")}
+              </p>
+            )}
+          </div>
+        </section>
 
-      {showRecap ? (
-        <CycleRecap name={slotValues.name} dailyAmount={slotValues.dailyAmount} />
-      ) : null}
+        {showRecap ? (
+          <CycleRecap name={slotValues.name} dailyAmount={slotValues.dailyAmount} />
+        ) : null}
 
-      {belowFields ? belowFields({ values: slotValues, isDirty: form.formState.isDirty }) : null}
+        {belowFields ? belowFields({ values: slotValues, isDirty: form.formState.isDirty }) : null}
 
-      {errorBannerKey !== null ? (
-        <p role="alert" className="text-body-2 text-destructive">
-          {t(errorBannerKey)}
-        </p>
-      ) : null}
+        {errorBannerKey !== null ? (
+          <p role="alert" className="text-body-2 text-destructive">
+            {t(errorBannerKey)}
+          </p>
+        ) : null}
 
-      <div className="flex flex-col gap-3">
         <Button type="submit" size="lg" disabled={!canSubmit} className="w-full">
           {t(submitKey)}
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          className="w-full"
-          onClick={onCancel}
-          disabled={isPending}
-        >
-          {t("members.create.cta_cancel")}
         </Button>
       </div>
     </form>
