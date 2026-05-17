@@ -36,7 +36,7 @@ describe("MemberForm — create mode", () => {
   it("renders the 3 labelled fields + submit CTA disabled by default", () => {
     renderForm();
     expect(screen.getByLabelText("Nom")).toBeInTheDocument();
-    expect(screen.getByLabelText("Numéro de téléphone (optionnel)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Numéro de téléphone")).toBeInTheDocument();
     expect(screen.getByLabelText("Cotisation quotidienne (FCFA)")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /ajouter ce membre/i })).toBeDisabled();
   });
@@ -51,22 +51,40 @@ describe("MemberForm — create mode", () => {
 
   it("shows inline error when phone is malformed (non-empty invalid)", async () => {
     renderForm();
-    const phone = screen.getByLabelText("Numéro de téléphone (optionnel)");
+    const phone = screen.getByLabelText("Numéro de téléphone");
     fireEvent.change(phone, { target: { value: "12345" } });
     fireEvent.blur(phone);
     await waitFor(() => expect(screen.getByText(/numéro invalide/i)).toBeInTheDocument());
   });
 
-  it("accepts empty phone as valid", async () => {
+  it("keeps the CTA disabled while the phone is empty (now required)", async () => {
     renderForm();
     fireEvent.change(screen.getByLabelText("Nom"), { target: { value: "Awa Diallo" } });
     fireEvent.change(screen.getByLabelText("Cotisation quotidienne (FCFA)"), {
       target: { value: "500" },
     });
-    fireEvent.blur(screen.getByLabelText("Numéro de téléphone (optionnel)"));
+    // Phone left empty → form invalid → CTA stays disabled.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /ajouter ce membre/i })).toBeDisabled(),
+    );
+    // A valid phone enables it.
+    fireEvent.change(screen.getByLabelText("Numéro de téléphone"), {
+      target: { value: "+221777915898" },
+    });
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /ajouter ce membre/i })).toBeEnabled(),
     );
+  });
+
+  it("shows the cycle recap once a valid daily amount is entered", async () => {
+    renderForm();
+    expect(screen.queryByText("Récapitulatif")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Cotisation quotidienne (FCFA)"), {
+      target: { value: "500" },
+    });
+    await waitFor(() => expect(screen.getByText("Récapitulatif")).toBeInTheDocument());
+    // Total du cycle = 500 × 30 = 15 000 F CFA.
+    expect(screen.getByText(/15\s?000 F CFA/)).toBeInTheDocument();
   });
 
   it("shows error when amount is below the 100 FCFA floor", async () => {
@@ -80,7 +98,7 @@ describe("MemberForm — create mode", () => {
   it("calls onSubmit with parsed values on valid submit", async () => {
     const { onSubmit } = renderForm();
     fireEvent.change(screen.getByLabelText("Nom"), { target: { value: "Awa Diallo" } });
-    fireEvent.change(screen.getByLabelText("Numéro de téléphone (optionnel)"), {
+    fireEvent.change(screen.getByLabelText("Numéro de téléphone"), {
       target: { value: "+221777915898" },
     });
     fireEvent.change(screen.getByLabelText("Cotisation quotidienne (FCFA)"), {
@@ -137,7 +155,7 @@ describe("MemberForm — edit mode", () => {
       screen.getByRole("heading", { level: 1, name: /modifier le membre/i }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Nom")).toHaveValue("Awa Diallo");
-    expect(screen.getByLabelText("Numéro de téléphone (optionnel)")).toHaveValue("+221777915898");
+    expect(screen.getByLabelText("Numéro de téléphone")).toHaveValue("+221777915898");
     expect(screen.getByLabelText("Cotisation quotidienne (FCFA)")).toHaveValue(500);
     // Pristine edit-mode → CTA disabled (no dirty fields).
     expect(screen.getByRole("button", { name: /^enregistrer$/i })).toBeDisabled();

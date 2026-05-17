@@ -106,7 +106,7 @@ export default function MemberEditRoute() {
                   <div
                     role="status"
                     aria-live="polite"
-                    className="rounded-md border border-warning-200 bg-warning-50 px-3 py-2 text-body-2 text-warning-800"
+                    className="rounded-md bg-warning-bg px-3 py-2 text-body-2 text-warning-text"
                   >
                     {t("members.edit.impact_alert.daily_amount")}
                   </div>

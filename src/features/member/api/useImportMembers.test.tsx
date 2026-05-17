@@ -31,7 +31,9 @@ function wrapper() {
 
 const ROW = (i: number): ImportRow => ({
   name: `Member ${i}`,
-  phoneNumber: "",
+  // Unique valid Senegal E.164 — phone is required since the create
+  // schema dropped the optional-phone allowance.
+  phoneNumber: `+22177${String(i).padStart(7, "0")}`,
   dailyAmount: 500,
 });
 

@@ -148,10 +148,20 @@
       "title": "Nouveau membre",
       "subtitle": "Saisissez les coordonnées du nouveau saver pour démarrer son cycle de 30 jours.",
       "back_label": "Retour aux membres",
+      "section_title": "Informations personnelles",
+      "recap": {
+        "title": "Récapitulatif",
+        "row_member": "Membre",
+        "row_contribution": "Cotisation quotidienne",
+        "row_total": "Total du cycle",
+        "row_commission": "Commission",
+        "row_repayment": "Remboursement au membre",
+        "amount": "{amount} F CFA"
+      },
       "field": {
         "name_label": "Nom",
         "name_placeholder": "Awa Diallo",
-        "phone_label": "Numéro de téléphone (optionnel)",
+        "phone_label": "Numéro de téléphone",
         "phone_placeholder": "+221 77 791 58 98",
         "amount_label": "Cotisation quotidienne (FCFA)",
         "amount_helper": "Entre 100 et 100 000 FCFA"
@@ -163,6 +173,7 @@
         "name_required": "Au moins 2 caractères",
         "name_too_long": "Maximum 80 caractères",
         "phone_invalid": "Numéro invalide (format +221XXXXXXXXX)",
+        "phone_required": "Numéro requis",
         "amount_required": "Montant requis",
         "amount_min": "Minimum 100 FCFA",
         "amount_max": "Maximum 100 000 FCFA",

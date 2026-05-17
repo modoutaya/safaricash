@@ -122,12 +122,12 @@ export const MEMBER_HEADER_CTA_THRESHOLD = 10;
  *  MemberForm (RHF resolver) and useCreateMember (defense-in-depth re-parse). */
 export const createMemberInputSchema = z.object({
   name: z.string().trim().min(2, "Au moins 2 caractères").max(80, "Maximum 80 caractères"),
-  // Empty string is valid (collector may not have the phone yet — common
-  // for cash-only savers). Non-empty must be a Senegal E.164 mobile.
-  phoneNumber: z.union([
-    z.literal(""),
-    z.string().refine(isValidSenegalPhone, "Numéro invalide (format +221XXXXXXXXX)"),
-  ]),
+  // Required — every member must have a phone (E.164 Senegal mobile).
+  phoneNumber: z
+    .string()
+    .trim()
+    .min(1, "Numéro requis")
+    .refine(isValidSenegalPhone, "Numéro invalide (format +221XXXXXXXXX)"),
   dailyAmount: z.coerce
     .number()
     .int("Montant entier requis")
