@@ -28,6 +28,7 @@ import MemberProfileRoute from "@/app/routes/members/[id]";
 import MemberAdvanceRoute from "@/app/routes/members/[id].advance";
 import MemberEditRoute from "@/app/routes/members/[id].edit";
 import MemberSettlementRoute from "@/app/routes/members/[id].settlement";
+import MemberTransactionRoute from "@/app/routes/members/[id].transaction";
 import MembersImportRoute from "@/app/routes/members/import";
 import MembersNewRoute from "@/app/routes/members/new";
 import SettingsRoute from "@/app/routes/settings";
@@ -58,6 +59,8 @@ export const router = createBrowserRouter([
               { path: "members/:id/advance", element: <MemberAdvanceRoute /> },
               // Story 7.3 — settlement preview lives at /members/:id/settlement.
               { path: "members/:id/settlement", element: <MemberSettlementRoute /> },
+              // Story 4.6 — full-page transaction flow (replaces MemberActionSheet).
+              { path: "members/:id/transaction", element: <MemberTransactionRoute /> },
               { path: "settings", element: <SettingsRoute /> },
             ],
           },

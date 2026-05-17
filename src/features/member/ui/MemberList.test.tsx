@@ -1,15 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { axe, toHaveNoViolations } from "jest-axe";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MemberWithMeta } from "../types";
 
 expect.extend(toHaveNoViolations);
 
-// Story 4.3 — MemberList now consumes useRecordContribution which needs a
-// QueryClientProvider. Wrap all renders in one.
 function makeClient() {
   return new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -91,8 +89,6 @@ describe("MemberList", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: /aucun membre pour l'instant/i }),
     ).toBeInTheDocument();
-    // Neither the header CTA nor the FAB should render on the empty branch —
-    // the EmptyState component owns the sole CTA there.
     expect(screen.queryByRole("link", { name: /ajouter un membre/i })).not.toBeInTheDocument();
   });
 
@@ -108,11 +104,7 @@ describe("MemberList", () => {
     });
     renderWithRouter();
     const ctas = screen.getAllByRole("link", { name: /ajouter un membre/i });
-    // Exactly one CTA link (header button) — no FAB.
     expect(ctas).toHaveLength(1);
-    // Header CTA is text-bearing; FAB has an aria-label-only icon. If this is
-    // a FAB, the rendered text would be empty. The header CTA exposes the
-    // label as accessible name via textContent.
     expect(ctas[0]).toHaveTextContent(/ajouter un membre/i);
     expect(ctas[0]).toHaveAttribute("href", "/members/new");
   });
@@ -129,9 +121,7 @@ describe("MemberList", () => {
     });
     renderWithRouter();
     const ctas = screen.getAllByRole("link", { name: /ajouter un membre/i });
-    // Exactly one CTA link (the FAB) — no header button.
     expect(ctas).toHaveLength(1);
-    // FAB: anchor with an icon child, accessible via aria-label only (no text).
     expect(ctas[0]).toHaveTextContent("");
     expect(ctas[0]).toHaveAttribute("href", "/members/new");
   });
@@ -254,14 +244,7 @@ describe("MemberList", () => {
     expect(screen.getByText(/vérifiez l'orthographe/i)).toBeInTheDocument();
   });
 
-  it("Story 5.2 — tap 'Prêt' link navigates to /members/:id/advance", () => {
-    HTMLDialogElement.prototype.showModal = function () {
-      this.setAttribute("open", "");
-    };
-    HTMLDialogElement.prototype.close = function () {
-      this.removeAttribute("open");
-      this.dispatchEvent(new Event("close"));
-    };
+  it("Story 4.6 — tapping a member card navigates to /members/:id/transaction", () => {
     useMembersMock.mockReturnValue({
       data: [makeMember({ id: "11111111-1111-4111-8111-111111111111", name: "Fatou" })],
       isLoading: false,
@@ -274,55 +257,16 @@ describe("MemberList", () => {
           <Routes>
             <Route path="/members" element={<MemberList />} />
             <Route
-              path="/members/:id/advance"
-              element={<div data-testid="advance-route">advance</div>}
+              path="/members/:id/transaction"
+              element={<div data-testid="transaction-route">transaction</div>}
             />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>,
     );
+    expect(screen.queryByTestId("transaction-route")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /fatou/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^prêt$/i }));
-    expect(screen.getByTestId("advance-route")).toBeInTheDocument();
-  });
-
-  it("Story 4.1 — card tap opens the action sheet (not direct navigate); Voir profil navigates", () => {
-    // jsdom doesn't implement <dialog>'s showModal/close — same shim used
-    // by RestartCycleDialog.test.tsx (Story 2.7).
-    HTMLDialogElement.prototype.showModal = function () {
-      this.setAttribute("open", "");
-    };
-    HTMLDialogElement.prototype.close = function () {
-      this.removeAttribute("open");
-      this.dispatchEvent(new Event("close"));
-    };
-    useMembersMock.mockReturnValue({
-      data: [makeMember({ id: "11111111-1111-4111-8111-111111111111", name: "Fatou" })],
-      isLoading: false,
-      isError: false,
-      error: null,
-    });
-    render(
-      <QueryClientProvider client={makeClient()}>
-        <MemoryRouter initialEntries={["/members"]}>
-          <Routes>
-            <Route path="/members" element={<MemberList />} />
-            <Route path="/members/:id" element={<div data-testid="profile-route">profile</div>} />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-
-    // Card tap opens the action sheet (no immediate navigate).
-    fireEvent.click(screen.getByRole("button", { name: /fatou/i }));
-    expect(screen.queryByTestId("profile-route")).not.toBeInTheDocument();
-    // Action sheet visible — Voir profil is dialog-only and unique.
-    const viewProfile = screen.getByRole("button", { name: /^voir profil$/i });
-    expect(viewProfile).toBeInTheDocument();
-
-    // Tap Voir profil → navigate to /members/:id.
-    fireEvent.click(viewProfile);
-    expect(screen.getByTestId("profile-route")).toBeInTheDocument();
+    expect(screen.getByTestId("transaction-route")).toBeInTheDocument();
   });
 
   // Story 3.5 — URL-driven cycles-ending filter.
@@ -396,7 +340,6 @@ describe("MemberList", () => {
     fireEvent.click(dismissChip);
 
     expect(screen.getByRole("heading", { level: 2, name: /OutOfWindow/ })).toBeInTheDocument();
-    // Chip is gone after dismissal.
     expect(screen.queryByRole("button", { name: /cycles à clôturer/i })).not.toBeInTheDocument();
   });
 
@@ -456,97 +399,5 @@ describe("MemberList", () => {
     const { container } = renderWithRouter();
     const results = await axe(container);
     expect(results).toHaveNoViolations();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Story 8.3 — Offline-flow integration tests.
-//
-// Mocks the record-* hook to return wasOffline:true and verifies the
-// MemberList glue dispatches to showOfflineToast (instead of the regular
-// contribution toast). Addresses AC #26 / code-review HIGH #6 deferral.
-// ---------------------------------------------------------------------------
-
-const contributionMutateAsyncMock = vi.fn();
-const showOfflineToastMock = vi.fn();
-const showContributionToastMock = vi.fn();
-
-vi.mock("@/features/transaction/api/useRecordContribution", () => ({
-  useRecordContribution: () => ({
-    mutateAsync: contributionMutateAsyncMock,
-  }),
-  RecordContributionError: class RecordContributionError extends Error {
-    code: string;
-    constructor(code: string, message: string) {
-      super(message);
-      this.code = code;
-    }
-  },
-}));
-
-vi.mock("@/features/transaction/api/useRecordRattrapage", () => ({
-  useRecordRattrapage: () => ({
-    mutateAsync: vi.fn(),
-  }),
-  RecordRattrapageError: class RecordRattrapageError extends Error {
-    code: string;
-    constructor(code: string, message: string) {
-      super(message);
-      this.code = code;
-    }
-  },
-}));
-
-vi.mock("@/features/transaction/api/showOfflineToast", () => ({
-  showOfflineToast: (args: { memberName: string }) => showOfflineToastMock(args),
-}));
-
-vi.mock("@/features/transaction/api/showContributionToast", () => ({
-  showContributionToast: (args: unknown) => showContributionToastMock(args),
-  showRattrapageToast: vi.fn(),
-}));
-
-describe("MemberList — Story 8.3 offline contribution flow", () => {
-  beforeEach(() => {
-    contributionMutateAsyncMock.mockReset();
-    showOfflineToastMock.mockReset();
-    showContributionToastMock.mockReset();
-    useMembersMock.mockReset();
-  });
-
-  it("dispatches to showOfflineToast (not showContributionToast) when wasOffline=true", async () => {
-    const memberId = "11111111-1111-4111-8111-111111111111";
-    useMembersMock.mockReturnValue({
-      data: [makeMember({ id: memberId, name: "Fatou", displayStatus: "actif" })],
-      isLoading: false,
-      isError: false,
-      error: null,
-    });
-    contributionMutateAsyncMock.mockResolvedValue({
-      txId: "tx-syn",
-      wasOffline: true,
-    });
-
-    renderWithRouter();
-
-    // Tap the member card to open the action sheet. MemberCard renders
-    // the member's name as a clickable heading inside a button-shaped
-    // wrapper — fire the click on the heading's nearest interactive
-    // ancestor by name lookup.
-    const memberHeading = screen.getByRole("heading", { level: 2, name: /fatou/i });
-    fireEvent.click(memberHeading);
-
-    // Action sheet renders the "Enregistrer cotisation" CTA.
-    const contributeCta = await screen.findByRole("button", {
-      name: /enregistrer cotisation/i,
-    });
-    fireEvent.click(contributeCta);
-
-    // Mutation fires + on success → wasOffline=true → showOfflineToast
-    // (NOT showContributionToast).
-    await vi.waitFor(() => {
-      expect(showOfflineToastMock).toHaveBeenCalledWith({ memberName: "Fatou" });
-    });
-    expect(showContributionToastMock).not.toHaveBeenCalled();
   });
 });
