@@ -49,16 +49,14 @@ describe("useCreateMember", () => {
     });
   });
 
-  it("empty phone is allowed and passed through as empty string", async () => {
-    rpcMock.mockResolvedValue({ data: "member-uuid", error: null });
+  it("rejects an empty phone — phone is required, RPC never called", async () => {
     const { result } = renderHook(() => useCreateMember(), { wrapper: wrapper() });
 
-    await act(() => result.current.mutateAsync({ ...VALID_INPUT, phoneNumber: "" }));
+    await expect(
+      result.current.mutateAsync({ ...VALID_INPUT, phoneNumber: "" }),
+    ).rejects.toBeDefined();
 
-    expect(rpcMock).toHaveBeenCalledWith(
-      "create_member_with_cycle",
-      expect.objectContaining({ p_phone_number: "" }),
-    );
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 
   it("maps auth_required RPC error to code 'unauthorized'", async () => {

@@ -195,7 +195,7 @@ export function MemberForm({
         ) : null}
       </div>
 
-      {/* Phone (optional) */}
+      {/* Phone (required) */}
       <div className="flex flex-col gap-2">
         <label htmlFor="member-phone" className="text-caption font-medium text-text-primary">
           {t("members.create.field.phone_label")}

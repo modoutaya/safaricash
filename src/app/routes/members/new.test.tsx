@@ -54,6 +54,9 @@ describe("MembersNewRoute", () => {
     renderRoute();
 
     fireEvent.change(screen.getByLabelText("Nom"), { target: { value: "Aminata Kane" } });
+    fireEvent.change(screen.getByLabelText("Numéro de téléphone"), {
+      target: { value: "+221777915898" },
+    });
     fireEvent.change(screen.getByLabelText("Cotisation quotidienne (FCFA)"), {
       target: { value: "300" },
     });

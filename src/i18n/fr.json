@@ -151,7 +151,7 @@
       "field": {
         "name_label": "Nom",
         "name_placeholder": "Awa Diallo",
-        "phone_label": "Numéro de téléphone (optionnel)",
+        "phone_label": "Numéro de téléphone",
         "phone_placeholder": "+221 77 791 58 98",
         "amount_label": "Cotisation quotidienne (FCFA)",
         "amount_helper": "Entre 100 et 100 000 FCFA"
@@ -163,6 +163,7 @@
         "name_required": "Au moins 2 caractères",
         "name_too_long": "Maximum 80 caractères",
         "phone_invalid": "Numéro invalide (format +221XXXXXXXXX)",
+        "phone_required": "Numéro requis",
         "amount_required": "Montant requis",
         "amount_min": "Minimum 100 FCFA",
         "amount_max": "Maximum 100 000 FCFA",
