@@ -142,7 +142,7 @@ export function AdvanceSimulationPanel({
         <div className="flex items-baseline justify-between gap-2">
           <span
             className={cn(
-              "text-body-1 font-semibold",
+              "min-w-0 truncate text-body-1 font-semibold",
               state === "empty" ? "text-text-secondary" : "text-text-primary",
             )}
           >
@@ -150,7 +150,7 @@ export function AdvanceSimulationPanel({
           </span>
           <span
             className={cn(
-              "text-amount-large",
+              "shrink-0 text-amount-large",
               state === "empty"
                 ? "text-text-secondary"
                 : state === "over-limit"
