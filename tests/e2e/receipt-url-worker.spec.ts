@@ -379,6 +379,17 @@ test.describe("receipt-url worker (Story 6.4 — saver-facing receipt page)", ()
         .single();
       expect(member?.sms_opt_out).toBe(true);
       expect(member?.sms_opt_out_via).toBe("receipt_url");
+
+      // Story 10.5 — exactly one opt_out_confirmation SMS was enqueued.
+      const { data: confirmRows } = await service
+        .from("sms_queue")
+        .select("status, template_key, recipient_phone")
+        .eq("collector_id", userId)
+        .eq("template_key", "opt_out_confirmation");
+      expect((confirmRows ?? []).length).toBe(1);
+      expect(confirmRows![0]!.status).toBe("queued");
+      // The row carries the saver's phone (seedMemberWithTransaction seeds it).
+      expect(confirmRows![0]!.recipient_phone).toBe("+221770000444");
     } finally {
       await cleanupTx();
       await cleanupCollector();
@@ -388,6 +399,48 @@ test.describe("receipt-url worker (Story 6.4 — saver-facing receipt page)", ()
   test("Story 6.5 — opt-out with malformed token → 404", async ({ request }) => {
     const res = await request.post(`${WORKER_BASE}/r/xyz/opt-out`, { data: "" });
     expect(res.status()).toBe(404);
+  });
+
+  test("Story 10.5 — anonymised saver: receipt page hides the opt-out link + the opt-out route 404s", async ({
+    request,
+  }) => {
+    const { userId, jwt, cleanup: cleanupCollector } = await seedCollector();
+    const { token, cleanup: cleanupTx } = await seedMemberWithTransaction(userId, jwt);
+    try {
+      const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data: tx } = await service
+        .from("transactions")
+        .select("member_id")
+        .eq("receipt_token", token)
+        .single();
+      // Anonymise the saver via the real Story 10.4 RPC (stamps
+      // anonymised_at, sets sms_opt_out, overwrites the PII Vault secrets) —
+      // a production-faithful fixture, not a raw column patch.
+      const { error: anonErr } = await service.rpc("anonymise_member", {
+        p_member_id: tx!.member_id,
+      });
+      expect(anonErr).toBeNull();
+
+      // The receipt page renders, but the opt-out link is gone.
+      const receiptRes = await request.get(`${WORKER_BASE}/r/${token}`);
+      expect(receiptRes.status()).toBe(200);
+      const receiptBody = await receiptRes.text();
+      expect(receiptBody).not.toContain("Ne plus recevoir de SMS");
+      expect(receiptBody).not.toContain(`/r/${token}/opt-out`);
+
+      // The opt-out form route 404s for an anonymised saver.
+      const formRes = await request.get(`${WORKER_BASE}/r/${token}/opt-out`);
+      expect(formRes.status()).toBe(404);
+
+      // The opt-out POST route 404s too.
+      const postRes = await request.post(`${WORKER_BASE}/r/${token}/opt-out`, { data: "" });
+      expect(postRes.status()).toBe(404);
+    } finally {
+      await cleanupTx();
+      await cleanupCollector();
+    }
   });
 
   test("5. undone transaction → 404 (Story 4.5 handshake)", async ({ request }) => {

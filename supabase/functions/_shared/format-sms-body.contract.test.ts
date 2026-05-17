@@ -489,4 +489,22 @@ if (env) {
       }
     },
   });
+
+  // Story 10.5 — the opt_out_confirmation template is member-scoped + static:
+  // it ignores p_transaction_id (callers pass NULL) and needs no seeding.
+  Deno.test({
+    name: "9. opt_out_confirmation — static body, p_transaction_id NULL, no transaction lookup",
+    ...denoOpts,
+    fn: async () => {
+      const { data: body, error } = await service.rpc("format_sms_body", {
+        p_template_key: "opt_out_confirmation",
+        p_transaction_id: null,
+      });
+      assertEquals(error, null);
+      assertEquals(
+        body,
+        "SafariCash. Vous ne recevrez plus de SMS. Pour les reactiver, contactez votre collecteur.",
+      );
+    },
+  });
 }
