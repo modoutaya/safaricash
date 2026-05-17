@@ -1,6 +1,6 @@
 // Story 6.7 — TransactionReceiptSheet.
 //
-// Bottom-anchored sheet showing one transaction's receipt detail with two
+// Centered modal showing one transaction's receipt detail with two
 // actions: share (OS share sheet via Web Share API, with clipboard fallback)
 // and resend SMS. Same native <dialog> pattern as MemberActionSheet (Story
 // 4.1) — no shadcn Sheet dep.
@@ -91,7 +91,7 @@ export function TransactionReceiptSheet({
       onClose={close}
       onClick={handleBackdropClick}
       aria-labelledby="transaction-receipt-sheet-title"
-      className="m-auto mb-0 w-full max-w-md rounded-t-2xl rounded-b-none border-x border-t border-hairline bg-card p-0 shadow-xl backdrop:bg-neutral-900/50"
+      className="m-auto w-full max-w-md rounded-2xl border border-hairline bg-card p-0 shadow-xl backdrop:bg-neutral-900/50"
     >
       <div className="flex flex-col gap-4 p-6" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between gap-3">
