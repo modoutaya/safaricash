@@ -269,6 +269,31 @@ describe("MemberList", () => {
     expect(screen.getByTestId("transaction-route")).toBeInTheDocument();
   });
 
+  it("Story 4.6 — with ?intent=advance, tapping a member card navigates to /members/:id/advance", () => {
+    useMembersMock.mockReturnValue({
+      data: [makeMember({ id: "11111111-1111-4111-8111-111111111111", name: "Fatou" })],
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <MemoryRouter initialEntries={["/members?intent=advance"]}>
+          <Routes>
+            <Route path="/members" element={<MemberList />} />
+            <Route
+              path="/members/:id/advance"
+              element={<div data-testid="advance-route">advance</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByTestId("advance-route")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /fatou/i }));
+    expect(screen.getByTestId("advance-route")).toBeInTheDocument();
+  });
+
   // Story 3.5 — URL-driven cycles-ending filter.
   it("Story 3.5 — ?filter=cycles-ending shows only members in the upcoming-end window", () => {
     useMembersMock.mockReturnValue({
