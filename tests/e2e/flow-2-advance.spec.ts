@@ -47,19 +47,18 @@ test.describe("Flow 2 — record advance online (Story 5.4)", () => {
 
     // Land on the advance flow.
     await expect(page).toHaveURL(/\/advance$/);
-    await expect(page.getByRole("heading", { level: 1, name: /accorder un prêt/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /prêt express/i })).toBeVisible();
 
     // The seed fixture uses dailyAmount=500 → capacity = 500 × 29 = 14 500.
     // Suggested chips (50k / 100k / 150k) all over-limit; type a small
     // valid amount directly into the input instead.
     await page.getByLabel(/montant du prêt/i).fill("10000");
 
-    // Type motive + check ack.
+    // Type the (optional) motive.
     await page.getByLabel(/motif du prêt/i).fill("urgence médicale");
-    await page.getByLabel(/j'ai compris que ce prêt/i).check();
 
     // CTA enables; tap it.
-    const cta = page.getByRole("button", { name: /^accorder le prêt$/i });
+    const cta = page.getByRole("button", { name: /accorder le prêt/i });
     await expect(cta).toBeEnabled();
     await cta.click();
 

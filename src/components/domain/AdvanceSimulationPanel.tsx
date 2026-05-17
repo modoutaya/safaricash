@@ -70,11 +70,13 @@ export function AdvanceSimulationPanel({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-md border border-primary-200 bg-card p-4",
+        "flex flex-col gap-2 rounded-lg border-2 border-primary-500 bg-gradient-to-br from-primary-100 to-primary-50 p-5",
         className,
       )}
       data-state={state}
     >
+      <p className="text-body-2 font-semibold text-primary-700">{t("advance.simulation.title")}</p>
+
       {/* Row 1 — Total cycle projected. */}
       <div className="flex items-baseline justify-between">
         <span className="text-body-2 text-text-secondary">{t("advance.simulation.row_total")}</span>
