@@ -209,7 +209,7 @@ if (env) {
   });
 
   Deno.test({
-    name: "motive too short → 22000",
+    name: "blank motive accepted — motive is optional since the Story 4.6 redesign",
     ...denoOpts,
     fn: async () => {
       const anon = createClient(env.url, env.anonKey, {
@@ -223,17 +223,25 @@ if (env) {
         });
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
 
-        const { error: rpcErr } = await userClient.rpc("record_advance", {
+        const { data: txId, error: rpcErr } = await userClient.rpc("record_advance", {
           p_member_id: memberId,
           p_cycle_id: cycleId,
           p_amount: 50_000,
           p_cycle_day: 10,
-          p_motive: "ok",
+          p_motive: "",
           p_saver_acknowledged: true,
         });
-        assert(rpcErr !== null);
-        assertEquals(rpcErr?.code, "22000");
-        assertStringIncludes(rpcErr?.message ?? "", "invalid_motive");
+        assertEquals(rpcErr, null);
+        assert(typeof txId === "string");
+
+        // The advance row lands with an empty-string motive (the CHECK
+        // constraint still forbids NULL motive on kind=advance).
+        const { data: tx } = await service
+          .from("transactions")
+          .select("motive")
+          .eq("id", txId)
+          .single();
+        assertEquals(tx?.motive, "");
       } finally {
         await cleanup(service, c);
       }

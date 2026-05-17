@@ -362,6 +362,7 @@
   },
   "advance": {
     "simulation": {
+      "title": "🔮 Impact sur le solde final",
       "row_total": "Total cycle projeté",
       "row_commission": "Commission",
       "row_advance": "Prêt",
@@ -371,33 +372,37 @@
       "over_limit_note": "Le prêt ne peut pas dépasser le solde projeté."
     },
     "flow": {
-      "title": "Accorder un prêt",
+      "title": "Prêt Express",
       "back_label": "Retour au profil",
       "subtitle": "Avance sur cycle",
+      "form_title": "Sélection du membre",
+      "member_label": "Membre bénéficiaire",
+      "member_option": "{name} ({amount} FCFA/j)",
       "situation": {
-        "title": "Situation actuelle",
-        "cycle_day": "Jour {day} sur 30",
-        "contributed": "Versé : {amount} FCFA",
-        "advances": "Avances en cours : {amount} FCFA"
+        "title": "📊 Situation actuelle",
+        "day_label": "Jour du cycle",
+        "day_value": "{day}/30",
+        "contributed_label": "Déjà cotisé",
+        "advances_label": "Avances existantes",
+        "amount_value": "{amount} FCFA"
+      },
+      "amount_input": {
+        "label": "Montant du prêt",
+        "currency": "FCFA"
       },
       "suggested_label": "Montants suggérés",
-      "amount_input": {
-        "label": "Montant du prêt (FCFA)",
-        "helper": "Ou choisissez un montant suggéré ci-dessus."
+      "suggested_chip": "{k}K",
+      "warning": {
+        "title": "⚠️ Vérification importante",
+        "body": "Ce prêt sera automatiquement déduit du solde final. Assurez-vous que le membre comprend les conditions."
       },
-      "cta_grant": "Accorder le prêt",
       "motive": {
-        "label": "Motif du prêt",
-        "helper": "Au moins 3 caractères. Sera consigné dans l'historique d'audit.",
-        "placeholder": "Ex. urgence médicale, frais de scolarité…"
+        "label": "Motif du prêt (optionnel)",
+        "placeholder": "Ex : urgence familiale, investissement…"
       },
-      "ack": {
-        "label": "J'ai compris que ce prêt réduit mon solde final"
-      },
+      "cta_grant": "🏪 Accorder le prêt",
       "cta_blocked": {
-        "amount": "Saisissez un montant valide.",
-        "motive": "Saisissez un motif d'au moins 3 caractères.",
-        "ack": "Cochez l'acquittement du saver."
+        "amount": "Saisissez un montant valide."
       },
       "error": {
         "load": "Impossible de charger ce membre. Réessayez."

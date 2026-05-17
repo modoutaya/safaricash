@@ -13,7 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
-import { useMemberProfile } from "@/features/member";
+import { useMemberProfile, useMembers } from "@/features/member";
 import { showAdvanceToast } from "@/features/transaction/api/showAdvanceToast";
 import { showOfflineToast } from "@/features/transaction/api/showOfflineToast";
 import { undoTransaction } from "@/features/transaction/api/undoTransaction";
@@ -39,9 +39,16 @@ function AdvanceRouteBody({ memberId }: { memberId: string }): JSX.Element {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const profileQuery = useMemberProfile(memberId);
+  const membersQuery = useMembers();
   const recordAdvance = useRecordAdvance();
 
   const data = profileQuery.data;
+
+  // The member <select> only offers members eligible for an advance —
+  // an active cycle, not flagged terminé.
+  const eligibleMembers = (membersQuery.data ?? [])
+    .filter((m) => m.currentCycle !== null && m.displayStatus !== "termine")
+    .map((m) => ({ id: m.id, name: m.name, dailyAmount: m.dailyAmount }));
 
   const handleConfirm = async (payload: AdvanceConfirmPayload) => {
     if (!data?.member || !data.currentCycle) return;
@@ -52,9 +59,9 @@ function AdvanceRouteBody({ memberId }: { memberId: string }): JSX.Element {
         amount: payload.amount,
         cycleDay: data.stats.cycleDay,
         motive: payload.motive,
-        // The Story 5.3 gate guarantees acknowledged === true at this
-        // point (CTA is disabled otherwise); the literal narrows the
-        // Zod schema's z.literal(true).
+        // The "⚠️ Vérification importante" notice is the saver-facing
+        // disclosure; the commit always records acknowledgment (the
+        // literal narrows the Zod schema's z.literal(true)).
         saverAcknowledged: true,
       });
       // Story 8.3 — when offline, fire the informational toast and skip
@@ -88,5 +95,13 @@ function AdvanceRouteBody({ memberId }: { memberId: string }): JSX.Element {
     }
   };
 
-  return <AdvanceFlow memberId={memberId} onConfirm={handleConfirm} />;
+  return (
+    <AdvanceFlow
+      key={memberId}
+      memberId={memberId}
+      members={eligibleMembers}
+      onSelectMember={(id) => navigate(`/members/${id}/advance`)}
+      onConfirm={handleConfirm}
+    />
+  );
 }
