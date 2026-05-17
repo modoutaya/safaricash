@@ -10,6 +10,8 @@
 //
 // Story 4.6 — tapping a member card navigates to the full-page
 // /members/:id/transaction flow (replaced the MemberActionSheet modal).
+// When the list is opened with `?intent=advance` (the dashboard's "Prêt
+// Express" shortcut), the tap lands on /members/:id/advance instead.
 
 import { Plus, X } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
@@ -80,6 +82,9 @@ export function MemberList(): JSX.Element {
   // default window. Composes with the chip filters via AND.
   const [searchParams, setSearchParams] = useSearchParams();
   const cyclesEndingFilterActive = searchParams.get("filter") === CYCLES_ENDING_FILTER;
+  // `?intent=advance` (dashboard "Prêt Express" shortcut) routes the
+  // member tap to the advance page; otherwise the transaction page.
+  const memberTapTarget = searchParams.get("intent") === "advance" ? "advance" : "transaction";
 
   const filtered = useFilteredMembers(
     members ?? [],
@@ -205,7 +210,7 @@ export function MemberList(): JSX.Element {
             <li key={member.id}>
               <MemberCard
                 member={member}
-                onSelect={(memberId) => navigate(`/members/${memberId}/transaction`)}
+                onSelect={(memberId) => navigate(`/members/${memberId}/${memberTapTarget}`)}
               />
             </li>
           ))}
