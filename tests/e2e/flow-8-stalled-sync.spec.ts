@@ -77,7 +77,10 @@ test.describe("Flow 8 — stalled-sync alert + manual retry (Story 8.5)", () => 
     await page.evaluate(() => window.dispatchEvent(new Event("offline")));
 
     await page.getByRole("button", { name: new RegExp(targetName, "i") }).click();
-    await page.getByRole("button", { name: /enregistrer cotisation/i }).click();
+    await expect(
+      page.getByRole("heading", { level: 1, name: /nouvelle transaction/i }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /confirmer la cotisation/i }).click();
 
     // Pill shows the offline pending count.
     await expect(page.getByText(/hors-ligne • 1/i)).toBeVisible();

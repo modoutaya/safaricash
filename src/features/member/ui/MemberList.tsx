@@ -7,37 +7,19 @@
 //   success + 0 members        → EmptyState ("ajouter mon premier membre").
 //   success + search no match  → no_search_match_headline / subtext.
 //   success + ≥1 member        → search box + filter chips + card list.
+//
+// Story 4.6 — tapping a member card navigates to the full-page
+// /members/:id/transaction flow (replaced the MemberActionSheet modal).
 
 import { Plus, X } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
-import { useQueryClient } from "@tanstack/react-query";
-
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/domain/EmptyState";
-import { MemberActionSheet } from "@/components/domain/MemberActionSheet";
+import { Button } from "@/components/ui/button";
 import { DEFAULT_CYCLE_ENDING_WINDOW_DAYS, isCycleInUpcomingEndWindow } from "@/domain/cycle";
-import { CYCLE_TOTAL_DAYS } from "@/domain/cycle";
-import {
-  showContributionToast,
-  showRattrapageToast,
-} from "@/features/transaction/api/showContributionToast";
-import { showOfflineToast } from "@/features/transaction/api/showOfflineToast";
-import { undoTransaction } from "@/features/transaction/api/undoTransaction";
-import { UndoTransactionError } from "@/features/transaction/api/undoTransactionError";
-import {
-  RecordContributionError,
-  useRecordContribution,
-} from "@/features/transaction/api/useRecordContribution";
-import {
-  RecordRattrapageError,
-  useRecordRattrapage,
-} from "@/features/transaction/api/useRecordRattrapage";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
-
-import { toast } from "sonner";
 
 import { normalizeForSearch } from "../api/normalizeForSearch";
 import { useMembers } from "../api/useMembers";
@@ -93,14 +75,6 @@ export function MemberList(): JSX.Element {
   const [selectedChips, setSelectedChips] = useState<ReadonlySet<DisplayStatus>>(
     () => new Set<DisplayStatus>(),
   );
-  // Story 4.1 — card tap opens the action sheet (was: navigate to profile).
-  // Profile access lives inside the sheet via "Voir profil".
-  const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
-  // Story 4.3 — Flow 1 online commit path.
-  const recordContribution = useRecordContribution();
-  // Story 4.4 — rattrapage commit path.
-  const recordRattrapage = useRecordRattrapage();
-  const queryClient = useQueryClient();
   // Story 3.5 — URL-driven cycles-ending filter (entry point: dashboard alert
   // CTA). When set, filters the list to members whose cycle ends within the
   // default window. Composes with the chip filters via AND.
@@ -113,9 +87,6 @@ export function MemberList(): JSX.Element {
     selectedChips,
     cyclesEndingFilterActive,
   );
-  const activeMember = activeMemberId
-    ? ((members ?? []).find((m) => m.id === activeMemberId) ?? null)
-    : null;
 
   if (isLoading) return <></>;
 
@@ -188,13 +159,12 @@ export function MemberList(): JSX.Element {
           type="button"
           onClick={() => {
             // Story 3.5 — preserve any other URL params; only strip `filter`.
-            // Future stories may add ?sort= / ?search= etc.
             const next = new URLSearchParams(searchParams);
             next.delete("filter");
             setSearchParams(next);
           }}
           aria-label={t("members.filter_cycles_ending_dismiss_aria")}
-          className="inline-flex items-center gap-1 self-start rounded-full border border-warning-200 bg-warning-50 px-3 py-2 text-body-2 font-medium text-warning-800 hover:bg-warning-bg/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex items-center gap-1 self-start rounded-full border border-warning bg-warning-bg px-3 py-2 text-body-2 font-medium text-warning-text hover:bg-warning/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span>{t("members.filter_cycles_ending_active")}</span>
           <X size={14} aria-hidden />
@@ -233,7 +203,10 @@ export function MemberList(): JSX.Element {
         <ul className="flex flex-col gap-2" aria-label={t("members.title")}>
           {filtered.map((member) => (
             <li key={member.id}>
-              <MemberCard member={member} onSelect={(memberId) => setActiveMemberId(memberId)} />
+              <MemberCard
+                member={member}
+                onSelect={(memberId) => navigate(`/members/${memberId}/transaction`)}
+              />
             </li>
           ))}
         </ul>
@@ -247,133 +220,6 @@ export function MemberList(): JSX.Element {
         >
           <Plus size={24} aria-hidden />
         </Link>
-      ) : null}
-
-      {activeMember ? (
-        <MemberActionSheet
-          open={true}
-          onOpenChange={(next) => {
-            if (!next) setActiveMemberId(null);
-          }}
-          member={{
-            id: activeMember.id,
-            name: activeMember.name,
-            dailyAmount: activeMember.dailyAmount,
-          }}
-          currentCycle={
-            activeMember.currentCycle
-              ? {
-                  status:
-                    activeMember.displayStatus === "avance"
-                      ? "with_advance"
-                      : activeMember.displayStatus === "termine"
-                        ? "completed"
-                        : "active",
-                }
-              : null
-          }
-          onViewProfile={(id) => {
-            setActiveMemberId(null);
-            navigate(`/members/${id}`);
-          }}
-          {...(activeMember.currentCycle
-            ? {
-                daysRemaining: Math.max(0, CYCLE_TOTAL_DAYS - activeMember.currentCycle.dayNumber),
-                // Story 5.2 — "Prêt" secondary link navigates to /members/:id/advance.
-                onAdvance: (id: string) => {
-                  setActiveMemberId(null);
-                  navigate(`/members/${id}/advance`);
-                },
-                onRecordContribution: async (memberId: string) => {
-                  setActiveMemberId(null);
-                  const cycle = activeMember.currentCycle!;
-                  try {
-                    const result = await recordContribution.mutateAsync({
-                      memberId,
-                      cycleId: cycle.id,
-                      amount: activeMember.dailyAmount,
-                      cycleDay: cycle.dayNumber,
-                    });
-                    // Story 8.3 — when offline, fire the informational
-                    // toast (no undo dance — Story 8.5 owns the retry CTA).
-                    if (result.wasOffline) {
-                      showOfflineToast({ memberName: activeMember.name });
-                      return;
-                    }
-                    showContributionToast({
-                      memberName: activeMember.name,
-                      onUndo: async () => {
-                        // Story 4.5 — typed-error handling for the undo
-                        // path. Most failures (window expired, already
-                        // undone) deserve user feedback via toast.error.
-                        try {
-                          await undoTransaction(result.txId, queryClient);
-                        } catch (err) {
-                          if (err instanceof UndoTransactionError) {
-                            toast.error(t(`transaction.error.${err.code}`));
-                          } else {
-                            toast.error(t("transaction.error.unknown"));
-                          }
-                        }
-                      },
-                    });
-                  } catch (err) {
-                    // Story 8.3 patch — surface offline-storage failures
-                    // explicitly (quota exhausted / IDB error). Without
-                    // this the user sees nothing on failure.
-                    if (err instanceof RecordContributionError) {
-                      if (err.code === "offline_storage") {
-                        toast.error(t("transaction.error.offline_storage"));
-                      }
-                      // Other codes (cycle_closed / validation / …) keep
-                      // the existing silent-then-future-PR behaviour.
-                    }
-                  }
-                },
-                onRattrapage: async (memberId: string, daysCovered: number) => {
-                  setActiveMemberId(null);
-                  const cycle = activeMember.currentCycle!;
-                  try {
-                    const result = await recordRattrapage.mutateAsync({
-                      memberId,
-                      cycleId: cycle.id,
-                      dailyAmount: activeMember.dailyAmount,
-                      cycleDay: cycle.dayNumber,
-                      daysCovered,
-                    });
-                    // Story 8.3 — when offline, fire the informational
-                    // toast (no undo dance — Story 8.5 owns the retry CTA).
-                    if (result.wasOffline) {
-                      showOfflineToast({ memberName: activeMember.name });
-                      return;
-                    }
-                    showRattrapageToast({
-                      memberName: activeMember.name,
-                      daysCovered,
-                      onUndo: async () => {
-                        try {
-                          await undoTransaction(result.txId, queryClient);
-                        } catch (err) {
-                          if (err instanceof UndoTransactionError) {
-                            toast.error(t(`transaction.error.${err.code}`));
-                          } else {
-                            toast.error(t("transaction.error.unknown"));
-                          }
-                        }
-                      },
-                    });
-                  } catch (err) {
-                    // Story 8.3 patch — surface offline-storage failures.
-                    if (err instanceof RecordRattrapageError) {
-                      if (err.code === "offline_storage") {
-                        toast.error(t("transaction.error.offline_storage"));
-                      }
-                    }
-                  }
-                },
-              }
-            : {})}
-        />
       ) : null}
     </section>
   );

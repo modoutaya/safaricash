@@ -33,12 +33,14 @@ test.describe("Flow 1 — record contribution online (Story 4.3)", () => {
     await page.goto("/members");
     await expect(page.getByRole("heading", { level: 1, name: /membres/i })).toBeVisible();
 
-    // Tap the seeded member's card → action sheet opens.
+    // Tap the seeded member's card → navigate to the transaction page.
     await page.getByRole("button", { name: new RegExp(targetName, "i") }).click();
-    const primaryCta = page.getByRole("button", {
-      name: /enregistrer cotisation — 500 FCFA/i,
-    });
-    await expect(primaryCta).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: /nouvelle transaction/i }),
+    ).toBeVisible();
+    // Cotisation is the default type; the amount field is pre-filled to 500.
+    const submitCta = page.getByRole("button", { name: /confirmer la cotisation/i });
+    await expect(submitCta).toBeVisible();
 
     // Capture the count of transactions for this member BEFORE the commit
     // (the seed inserts 1, so baseline = 1).
@@ -49,7 +51,7 @@ test.describe("Flow 1 — record contribution online (Story 4.3)", () => {
     expect(countBefore).toBe(1);
 
     // Commit the contribution.
-    await primaryCta.click();
+    await submitCta.click();
 
     // ProgressiveToast appears with the committed copy.
     await expect(

@@ -13,7 +13,7 @@
 // ux-design-specification.md:793-823 (Flow 2 mermaid),
 // ux-design-specification.md:511 (Informational palette).
 
-import { ChevronLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 
@@ -139,148 +139,154 @@ export function AdvanceFlow({ memberId, onConfirm }: AdvanceFlowProps): JSX.Elem
   };
 
   return (
-    <section className="mx-auto flex w-full max-w-md flex-col gap-4 p-4">
-      <header className="flex items-center gap-2">
+    <section className="mx-auto flex w-full max-w-2xl flex-col">
+      {/* Story 4.6 — full-bleed green topbar (primary-700 keeps white text AA-safe). */}
+      <header className="flex flex-col gap-1 bg-primary-700 px-4 pb-6 pt-4 text-primary-foreground">
         <button
           type="button"
           onClick={() => navigate(`/members/${memberId}`)}
-          aria-label={t("advance.flow.back_label")}
-          className="flex h-11 w-11 items-center justify-center rounded-md text-text-secondary hover:bg-neutral-100 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+          className="-ml-1 inline-flex w-fit items-center gap-1 rounded-md py-1 pl-1 pr-2 text-body-2 text-primary-foreground/90 hover:text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-foreground"
         >
-          <ChevronLeft size={24} aria-hidden />
+          <ArrowLeft aria-hidden className="h-4 w-4 shrink-0" />
+          {t("advance.flow.back_label")}
         </button>
-        <h1 className="text-title-1 text-text-primary">{t("advance.flow.title")}</h1>
+        <h1 className="text-title-1">{t("advance.flow.title")}</h1>
+        <p className="text-body-2 text-primary-foreground/90">{t("advance.flow.subtitle")}</p>
       </header>
 
-      {/* Situation-in-context — the present (cycle day / contributed / advances). */}
-      <div className="flex flex-col gap-2 rounded-md border border-info-accent/40 bg-info-bg p-3 text-info-text">
-        <p className="text-body-2 font-semibold">{t("advance.flow.situation.title")}</p>
-        <p className="text-body-2">
-          {t("advance.flow.situation.cycle_day", { day: data.stats.cycleDay })}
-        </p>
-        <p className="text-body-2">
-          {t("advance.flow.situation.contributed", {
-            amount: formatFcfaAmount(data.stats.contributedTotal),
-          })}
-        </p>
-        <p className="text-body-2">
-          {t("advance.flow.situation.advances", {
-            amount: formatFcfaAmount(data.stats.outstandingAdvances),
-          })}
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {/* Suggested-amount chips. */}
-        <fieldset className="flex flex-col gap-2">
-          <legend className="text-body-2 text-text-secondary">
-            {t("advance.flow.suggested_label")}
-          </legend>
-          <div role="group" className="flex flex-wrap gap-2">
-            {ADVANCE_SUGGESTED_AMOUNTS.map((n) => {
-              const active = candidateAmount === n;
-              const disabled = !canAcceptCheck(n);
-              return (
-                <button
-                  key={n}
-                  type="button"
-                  aria-pressed={active}
-                  disabled={disabled}
-                  onClick={() => handleChipTap(n)}
-                  className={cn(
-                    "min-h-[44px] rounded-full border px-4 text-body-2 font-medium transition-colors",
-                    disabled
-                      ? "border-hairline bg-card text-text-tertiary"
-                      : active
-                        ? "border-primary-500 bg-primary-500 text-primary-foreground"
-                        : "border-hairline bg-card text-text-primary hover:bg-primary-50",
-                  )}
-                >
-                  {formatFcfaAmount(n)} FCFA
-                </button>
-              );
+      <div className="flex flex-col gap-4 p-4">
+        {/* Situation-in-context — the present (cycle day / contributed / advances). */}
+        <div className="flex flex-col gap-2 rounded-md border border-info-accent/40 bg-info-bg p-3 text-info-text">
+          <p className="text-body-2 font-semibold">{t("advance.flow.situation.title")}</p>
+          <p className="text-body-2">
+            {t("advance.flow.situation.cycle_day", { day: data.stats.cycleDay })}
+          </p>
+          <p className="text-body-2">
+            {t("advance.flow.situation.contributed", {
+              amount: formatFcfaAmount(data.stats.contributedTotal),
             })}
+          </p>
+          <p className="text-body-2">
+            {t("advance.flow.situation.advances", {
+              amount: formatFcfaAmount(data.stats.outstandingAdvances),
+            })}
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Suggested-amount chips. */}
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-body-2 text-text-secondary">
+              {t("advance.flow.suggested_label")}
+            </legend>
+            <div role="group" className="flex flex-wrap gap-2">
+              {ADVANCE_SUGGESTED_AMOUNTS.map((n) => {
+                const active = candidateAmount === n;
+                const disabled = !canAcceptCheck(n);
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-pressed={active}
+                    disabled={disabled}
+                    onClick={() => handleChipTap(n)}
+                    className={cn(
+                      "min-h-[44px] rounded-full border px-4 text-body-2 font-medium transition-colors",
+                      disabled
+                        ? "border-hairline bg-card text-text-tertiary"
+                        : active
+                          ? "border-primary-500 bg-primary-500 text-primary-foreground"
+                          : "border-hairline bg-card text-text-primary hover:bg-primary-50",
+                    )}
+                  >
+                    {formatFcfaAmount(n)} FCFA
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+
+          {/* Free-form numeric input. */}
+          <div className="flex flex-col gap-1">
+            <label htmlFor="advance-amount" className="text-body-2 text-text-secondary">
+              {t("advance.flow.amount_input.label")}
+            </label>
+            <input
+              id="advance-amount"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={100}
+              value={rawAmount}
+              onChange={(e) => setRawAmount(e.target.value)}
+              className="w-full rounded-md border border-hairline bg-card px-4 py-3 text-body-1 text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <p className="text-body-2 text-text-secondary">
+              {t("advance.flow.amount_input.helper")}
+            </p>
           </div>
-        </fieldset>
 
-        {/* Free-form numeric input. */}
-        <div className="flex flex-col gap-1">
-          <label htmlFor="advance-amount" className="text-body-2 text-text-secondary">
-            {t("advance.flow.amount_input.label")}
-          </label>
-          <input
-            id="advance-amount"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            step={100}
-            value={rawAmount}
-            onChange={(e) => setRawAmount(e.target.value)}
-            className="w-full rounded-md border border-hairline bg-card px-4 py-3 text-body-1 text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          {/* Story 5.1 simulation panel — consumes the candidate amount. */}
+          <AdvanceSimulationPanel
+            dailyAmount={data.member.daily_amount}
+            existingAdvances={existingAdvanceAmounts}
+            candidateAmount={candidateAmount}
           />
-          <p className="text-body-2 text-text-secondary">{t("advance.flow.amount_input.helper")}</p>
-        </div>
 
-        {/* Story 5.1 simulation panel — consumes the candidate amount. */}
-        <AdvanceSimulationPanel
-          dailyAmount={data.member.daily_amount}
-          existingAdvances={existingAdvanceAmounts}
-          candidateAmount={candidateAmount}
-        />
+          {/* Story 5.3 — motive textarea (≥ 3 chars trimmed). */}
+          <div className="flex flex-col gap-1">
+            <label htmlFor="advance-motive" className="text-body-2 text-text-secondary">
+              {t("advance.flow.motive.label")}
+            </label>
+            <textarea
+              id="advance-motive"
+              aria-required
+              rows={3}
+              maxLength={280}
+              value={motive}
+              onChange={(e) => setMotive(e.target.value)}
+              placeholder={t("advance.flow.motive.placeholder")}
+              className="w-full rounded-md border border-hairline bg-card px-4 py-3 text-body-1 text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <p className="text-body-2 text-text-secondary">{t("advance.flow.motive.helper")}</p>
+          </div>
 
-        {/* Story 5.3 — motive textarea (≥ 3 chars trimmed). */}
-        <div className="flex flex-col gap-1">
-          <label htmlFor="advance-motive" className="text-body-2 text-text-secondary">
-            {t("advance.flow.motive.label")}
-          </label>
-          <textarea
-            id="advance-motive"
-            aria-required
-            rows={3}
-            maxLength={280}
-            value={motive}
-            onChange={(e) => setMotive(e.target.value)}
-            placeholder={t("advance.flow.motive.placeholder")}
-            className="w-full rounded-md border border-hairline bg-card px-4 py-3 text-body-1 text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <p className="text-body-2 text-text-secondary">{t("advance.flow.motive.helper")}</p>
-        </div>
-
-        {/* Story 5.3 — saver-acknowledgment checkbox (NOT pre-checked).
+          {/* Story 5.3 — saver-acknowledgment checkbox (NOT pre-checked).
             Copy is locked verbatim from BDD line 930. */}
-        <label
-          htmlFor="advance-saver-ack"
-          className="flex min-h-[44px] cursor-pointer items-center gap-2 text-body-2 text-text-primary"
-        >
-          <input
-            id="advance-saver-ack"
-            type="checkbox"
-            aria-required
-            checked={acknowledged}
-            onChange={(e) => setAcknowledged(e.target.checked)}
-            className="h-5 w-5 cursor-pointer rounded border-hairline text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
-          />
-          <span>{t("advance.flow.ack.label")}</span>
-        </label>
+          <label
+            htmlFor="advance-saver-ack"
+            className="flex min-h-[44px] cursor-pointer items-center gap-2 text-body-2 text-text-primary"
+          >
+            <input
+              id="advance-saver-ack"
+              type="checkbox"
+              aria-required
+              checked={acknowledged}
+              onChange={(e) => setAcknowledged(e.target.checked)}
+              className="h-5 w-5 cursor-pointer rounded border-hairline text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+            />
+            <span>{t("advance.flow.ack.label")}</span>
+          </label>
 
-        {/* CTA — disabled when any gate fails; tooltip reflects the
+          {/* CTA — disabled when any gate fails; tooltip reflects the
             FIRST unmet condition (amount → motive → ack). Story 5.4
             wires onConfirm at the route layer. */}
-        <Button
-          type="submit"
-          size="lg"
-          disabled={!ctaEnabled}
-          title={ctaTooltipKey ? t(ctaTooltipKey) : undefined}
-          aria-describedby={ctaTooltipKey ? "advance-cta-help" : undefined}
-        >
-          {t("advance.flow.cta_grant")}
-        </Button>
-        {ctaTooltipKey ? (
-          <span id="advance-cta-help" className="sr-only">
-            {t(ctaTooltipKey)}
-          </span>
-        ) : null}
-      </form>
+          <Button
+            type="submit"
+            size="lg"
+            disabled={!ctaEnabled}
+            title={ctaTooltipKey ? t(ctaTooltipKey) : undefined}
+            aria-describedby={ctaTooltipKey ? "advance-cta-help" : undefined}
+          >
+            {t("advance.flow.cta_grant")}
+          </Button>
+          {ctaTooltipKey ? (
+            <span id="advance-cta-help" className="sr-only">
+              {t(ctaTooltipKey)}
+            </span>
+          ) : null}
+        </form>
+      </div>
     </section>
   );
 }

@@ -315,16 +315,6 @@
         "toast_error": "Échec de l'envoi des rappels."
       }
     },
-    "action_sheet": {
-      "aria_label": "Actions pour {name}",
-      "primary_cta": "Enregistrer cotisation — {amount} FCFA",
-      "secondary_rattrapage": "Rattrapage",
-      "secondary_advance": "Prêt",
-      "secondary_custom": "Montant personnalisé",
-      "secondary_view_profile": "Voir profil",
-      "rattrapage_aria": "Sélectionnez le nombre de jours à rattraper",
-      "rattrapage_option": "× {n} jours"
-    },
     "toast": {
       "committed": "Cotisation enregistrée — {name}",
       "advance_committed": "Prêt accordé — {name}",
@@ -383,6 +373,7 @@
     "flow": {
       "title": "Accorder un prêt",
       "back_label": "Retour au profil",
+      "subtitle": "Avance sur cycle",
       "situation": {
         "title": "Situation actuelle",
         "cycle_day": "Jour {day} sur 30",
@@ -506,8 +497,34 @@
     }
   },
   "transaction": {
+    "new": {
+      "title": "Nouvelle transaction",
+      "subtitle": "Enregistrement rapide",
+      "back_label": "Retour",
+      "view_profile": "Voir le profil",
+      "type_label": "Type d'opération",
+      "type_contribution": "Cotisation",
+      "type_rattrapage": "Rattrapage",
+      "type_advance": "Prêt",
+      "contribution": {
+        "amount_label": "Montant de la cotisation (FCFA)",
+        "amount_helper": "Montant suggéré : {amount} FCFA",
+        "cta": "Confirmer la cotisation"
+      },
+      "rattrapage": {
+        "days_label": "Nombre de jours à rattraper",
+        "day_option": "{n} jours",
+        "summary": "{n} jours × {daily} FCFA = {total} FCFA",
+        "cta": "Confirmer le rattrapage"
+      },
+      "advance": {
+        "note": "Le prêt suit un parcours dédié : simulation d'impact sur le solde et acquittement du membre.",
+        "cta": "Continuer vers Prêt Express"
+      }
+    },
     "error": {
       "rattrapage_invalid_days": "Nombre de jours invalide",
+      "invalid_days": "Nombre de jours invalide",
       "cycle_closed": "Le cycle est clôturé. Redémarrez-en un nouveau pour reprendre les cotisations.",
       "unauthorized": "Vous devez être reconnecté pour enregistrer cette transaction",
       "validation": "Données invalides — vérifiez le montant",

@@ -65,10 +65,10 @@ test.describe("Flow 1 — offline contribution replay (Story 8.4)", () => {
     await page.evaluate(() => window.dispatchEvent(new Event("offline")));
 
     await page.getByRole("button", { name: new RegExp(targetName, "i") }).click();
-    const primaryCta = page.getByRole("button", {
-      name: /enregistrer cotisation — 500 FCFA/i,
-    });
-    await primaryCta.click();
+    await expect(
+      page.getByRole("heading", { level: 1, name: /nouvelle transaction/i }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /confirmer la cotisation/i }).click();
 
     // Offline toast appears with the "Hors-ligne — envoi au prochain
     // réseau" copy (i18n key members.toast.offline, Story 8.3 wiring).
