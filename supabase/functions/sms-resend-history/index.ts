@@ -33,6 +33,7 @@ import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.23.8/mod.ts";
 
 import { assertAuthenticated, buildAnonClient, buildServiceClient } from "../_shared/auth-check.ts";
+import { withCors } from "../_shared/cors.ts";
 import { problem, problemResponse } from "../_shared/rfc7807.ts";
 import { verifyPassword } from "../_shared/verify-password.ts";
 
@@ -240,5 +241,5 @@ export async function handler(req: Request): Promise<Response> {
 type DenoGlobal = { serve?: (handler: (req: Request) => Promise<Response>) => unknown };
 const denoMaybe: DenoGlobal | undefined = (globalThis as { Deno?: DenoGlobal }).Deno;
 if (denoMaybe?.serve) {
-  denoMaybe.serve(handler);
+  denoMaybe.serve(withCors(handler));
 }

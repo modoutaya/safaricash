@@ -64,4 +64,5 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/dispute-notify/index.test.ts \
   supabase/functions/saver-delete/index.test.ts \
   supabase/functions/_shared/termii-client.test.ts \
+  supabase/functions/_shared/cors.test.ts \
   "$@"
