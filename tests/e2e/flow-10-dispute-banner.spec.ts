@@ -47,7 +47,9 @@ test.describe("Flow 10 — dispute banner on the member profile (Story 10.3)", (
 
       // --- 2. The dashboard shows NO dispute banner. ---
       await page.goto("/dashboard");
-      await expect(page.getByRole("heading", { level: 1, name: /tableau de bord/i })).toBeVisible();
+      await expect(
+        page.getByRole("heading", { level: 1, name: /bonjour collecteur/i }),
+      ).toBeVisible();
       await expect(page.getByText("Transaction contestée")).toHaveCount(0);
 
       // --- 3. Tap the banner → the detail sheet. ---
