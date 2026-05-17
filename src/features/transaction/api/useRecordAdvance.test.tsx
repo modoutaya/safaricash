@@ -112,16 +112,17 @@ describe("useRecordAdvance", () => {
     expect(returned?.wasOffline).toBe(true);
   });
 
-  it("Zod rejects motive < 3 chars BEFORE the RPC fires (validation)", async () => {
+  it("Zod accepts a blank motive — motive is optional since Story 4.6", async () => {
+    rpcMock.mockResolvedValue({ data: "33333333-3333-4333-8333-333333333333", error: null });
     const { result } = renderHook(() => useRecordAdvance(), { wrapper: makeWrapper() });
 
     await act(async () => {
-      await expect(result.current.mutateAsync({ ...INPUT, motive: "ok" })).rejects.toBeInstanceOf(
-        RecordAdvanceError,
-      );
+      await result.current.mutateAsync({ ...INPUT, motive: "" });
     });
-    expect(rpcMock).not.toHaveBeenCalled();
-    await waitFor(() => expect(result.current.error?.code).toBe("validation"));
+    expect(rpcMock).toHaveBeenCalledWith(
+      "record_advance",
+      expect.objectContaining({ p_motive: "" }),
+    );
   });
 
   it("classifies sqlstate 23514 → cycle_closed (and does NOT append to event log)", async () => {
