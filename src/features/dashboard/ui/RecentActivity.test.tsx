@@ -19,6 +19,8 @@ const MEMBER: MemberWithMeta = {
   displayStatus: "actif",
   currentCycle: null,
   latestInteractionAt: "2026-05-15T00:00:00.000Z",
+  cycleAdvancesTotal: 0,
+  projectedBalance: null,
 };
 
 const NOW = new Date("2026-05-15T10:00:00.000Z").getTime();

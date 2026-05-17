@@ -15,13 +15,14 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { z } from "zod";
 
+import { computeProjectedFinalBalance } from "@/domain/cycle";
 import { supabase } from "@/infrastructure/supabase/client";
 
 import {
   MEMBERS_QUERY_KEY,
   cycleRowSchema,
   memberRowSchema,
-  transactionTimestampSchema,
+  transactionKindSchema,
   type CycleRow,
   type MemberRow,
   type MemberWithMeta,
@@ -56,6 +57,8 @@ export interface RawMembersData {
   members: MemberRow[];
   cyclesByMember: Map<string, CycleRow[]>;
   latestTxByMember: Map<string, string>;
+  /** cycle_id → Σ advance amounts booked in that cycle (undone rows excluded). */
+  advancesByCycle: Map<string, number>;
 }
 
 /** Pure transform: raw PostgREST rows → sorted, filtered view-model. */
@@ -68,6 +71,7 @@ export function deriveMembersWithMeta(
     const currentCycle = pickCurrentCycle(memberCycles);
     const displayStatus = deriveMemberStatus(row, currentCycle);
     const latestTxAt = data.latestTxByMember.get(row.id) ?? null;
+    const cycleAdvancesTotal = currentCycle ? (data.advancesByCycle.get(currentCycle.id) ?? 0) : 0;
     return {
       id: row.id,
       name: row.name,
@@ -82,6 +86,10 @@ export function deriveMembersWithMeta(
           }
         : null,
       latestInteractionAt: latestTxAt ?? row.created_at,
+      cycleAdvancesTotal,
+      projectedBalance: currentCycle
+        ? computeProjectedFinalBalance(row.daily_amount, cycleAdvancesTotal)
+        : null,
       createdAt: row.created_at,
     };
   });
@@ -98,7 +106,16 @@ export function deriveMembersWithMeta(
 const membersResponseSchema = z.array(memberRowSchema);
 const cyclesResponseSchema = z.array(cycleRowSchema.extend({ member_id: z.string().uuid() }));
 const transactionsResponseSchema = z.array(
-  transactionTimestampSchema.extend({ member_id: z.string().uuid() }),
+  z.object({
+    member_id: z.string().uuid(),
+    cycle_id: z.string().uuid(),
+    kind: transactionKindSchema,
+    // transactions_decrypted.amount is vault-decrypted numeric(12,0);
+    // PostgREST may serialise it as a string — coerce (matches the
+    // dashboard's dashboardTxRowSchema).
+    amount: z.coerce.number(),
+    created_at: z.string(),
+  }),
 );
 
 async function fetchRawMembersData(): Promise<RawMembersData> {
@@ -108,11 +125,10 @@ async function fetchRawMembersData(): Promise<RawMembersData> {
       .select("id, collector_id, name, phone_number, daily_amount, status, created_at, updated_at")
       .order("created_at", { ascending: false }),
     supabase.from("cycles").select("id, member_id, cycle_number, start_date, end_date, status"),
-    // Story 4.5 — exclude undone rows from the recency-sort source. An
-    // undone transaction's created_at must not bump the member to the top
-    // of the list (semantically wrong; the user just cancelled the
-    // action that put them there).
-    supabase.from("transactions").select("member_id, created_at").is("undone_at", null),
+    // transactions_decrypted: `amount` is vault-decrypted here (the raw
+    // transactions table stores it encrypted), and the view already
+    // filters undone rows (Story 4.5) — so no .is("undone_at", null).
+    supabase.from("transactions_decrypted").select("member_id, cycle_id, kind, amount, created_at"),
   ]);
 
   if (membersResult.error) {
@@ -138,14 +154,18 @@ async function fetchRawMembersData(): Promise<RawMembersData> {
   }
 
   const latestTxByMember = new Map<string, string>();
+  const advancesByCycle = new Map<string, number>();
   for (const tx of transactions) {
     const prev = latestTxByMember.get(tx.member_id);
     if (prev === undefined || tx.created_at > prev) {
       latestTxByMember.set(tx.member_id, tx.created_at);
     }
+    if (tx.kind === "advance") {
+      advancesByCycle.set(tx.cycle_id, (advancesByCycle.get(tx.cycle_id) ?? 0) + tx.amount);
+    }
   }
 
-  return { members, cyclesByMember, latestTxByMember };
+  return { members, cyclesByMember, latestTxByMember, advancesByCycle };
 }
 
 export function useMembers(): UseQueryResult<MemberWithMeta[], Error> {

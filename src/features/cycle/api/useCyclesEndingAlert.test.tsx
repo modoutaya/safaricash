@@ -36,6 +36,8 @@ function mkMember(
     displayStatus: "actif",
     currentCycle: { id: "c1", startDate: "2026-04-01", dayNumber: 25 },
     latestInteractionAt: "2026-04-25T12:00:00Z",
+    cycleAdvancesTotal: 0,
+    projectedBalance: null,
     ...override,
   };
 }

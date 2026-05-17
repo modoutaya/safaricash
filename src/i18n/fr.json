@@ -133,6 +133,15 @@
     "status_badge_avance": "Avance",
     "status_badge_termine": "Terminé",
     "amount_per_day": "{amount} F CFA / jour",
+    "card": {
+      "cycle_day": "Jour {day}/30",
+      "advance_inline": "Avance : {amount} F CFA",
+      "days_remaining_one": "1 jour restant",
+      "days_remaining_many": "{days} jours restants",
+      "last_day": "Dernier jour du cycle",
+      "balance_value": "{amount} F CFA",
+      "balance_aria": "Solde prévu : {amount} F CFA"
+    },
     "load_error": "Impossible de charger la liste des membres. Réessayez dans un instant.",
     "add_cta": "Ajouter un membre",
     "create": {

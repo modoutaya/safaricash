@@ -98,6 +98,12 @@ export interface MemberWithMeta {
   displayStatus: DisplayStatus;
   currentCycle: { id: string; startDate: string; dayNumber: number } | null;
   latestInteractionAt: string; // ISO-8601
+  /** Sum of advance amounts booked in the current cycle. 0 when there are
+   *  no advances or no current cycle. */
+  cycleAdvancesTotal: number;
+  /** Projected final payout for the current cycle (dailyAmount × 29 −
+   *  advances, via the Story 3.2 cycle engine). null when no current cycle. */
+  projectedBalance: number | null;
 }
 
 /** TanStack Query key — exported for downstream stories to invalidate. */

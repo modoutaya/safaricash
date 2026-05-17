@@ -247,6 +247,8 @@ describe("useRecordContribution", () => {
         displayStatus: "actif",
         currentCycle: null,
         latestInteractionAt: "2026-04-01T10:00:00.000Z",
+        cycleAdvancesTotal: 0,
+        projectedBalance: null,
       },
       {
         id: INPUT.memberId,
@@ -256,6 +258,8 @@ describe("useRecordContribution", () => {
         displayStatus: "actif",
         currentCycle: null,
         latestInteractionAt: "2026-04-01T08:00:00.000Z",
+        cycleAdvancesTotal: 0,
+        projectedBalance: null,
       },
     ];
     const { client, wrapper } = makeWrapper();
@@ -288,6 +292,8 @@ describe("useRecordContribution", () => {
         displayStatus: "actif",
         currentCycle: null,
         latestInteractionAt: "2026-04-01T10:00:00.000Z",
+        cycleAdvancesTotal: 0,
+        projectedBalance: null,
       },
       {
         id: INPUT.memberId,
@@ -297,6 +303,8 @@ describe("useRecordContribution", () => {
         displayStatus: "actif",
         currentCycle: null,
         latestInteractionAt: "2026-04-01T08:00:00.000Z",
+        cycleAdvancesTotal: 0,
+        projectedBalance: null,
       },
     ];
     const { client, wrapper } = makeWrapper();

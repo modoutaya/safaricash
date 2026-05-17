@@ -15,6 +15,8 @@ const makeMember = (overrides: Partial<MemberWithMeta> = {}): MemberWithMeta => 
   displayStatus: "actif",
   currentCycle: { id: "c1", startDate: "2026-04-11", dayNumber: 11 },
   latestInteractionAt: "2026-04-20T10:00:00Z",
+  cycleAdvancesTotal: 0,
+  projectedBalance: 14500,
   ...overrides,
 });
 
@@ -32,8 +34,50 @@ describe("MemberCard", () => {
     expect(screen.getByText("FN")).toBeInTheDocument();
   });
 
-  it("hides the progress bar when there is no current cycle", () => {
-    render(<MemberCard member={makeMember({ currentCycle: null, displayStatus: "termine" })} />);
+  it("renders the cycle day, days-remaining countdown and projected balance", () => {
+    render(
+      <MemberCard
+        member={makeMember({
+          currentCycle: { id: "c1", startDate: "2026-04-11", dayNumber: 25 },
+          projectedBalance: 145000,
+        })}
+      />,
+    );
+    expect(screen.getByText("Jour 25/30")).toBeInTheDocument();
+    expect(screen.getByText("5 jours restants")).toBeInTheDocument();
+    expect(screen.getByText(/145\s?000 F CFA/)).toBeInTheDocument();
+  });
+
+  it("renders the booked advance inline when the cycle has advances", () => {
+    render(<MemberCard member={makeMember({ cycleAdvancesTotal: 50000 })} />);
+    expect(screen.getByText(/Avance : 50\s?000 F CFA/)).toBeInTheDocument();
+  });
+
+  it("hides the projected balance when it is missing (null or a stale undefined)", () => {
+    const { rerender } = render(<MemberCard member={makeMember({ projectedBalance: null })} />);
+    expect(screen.queryByLabelText(/solde prévu/i)).not.toBeInTheDocument();
+    // The rest of the cycle block still renders.
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+
+    // A persisted cache from before the field existed surfaces `undefined`.
+    rerender(
+      <MemberCard
+        member={{ ...makeMember(), projectedBalance: undefined as unknown as number | null }}
+      />,
+    );
+    expect(screen.queryByLabelText(/solde prévu/i)).not.toBeInTheDocument();
+  });
+
+  it("hides the cycle block when there is no current cycle", () => {
+    render(
+      <MemberCard
+        member={makeMember({
+          currentCycle: null,
+          displayStatus: "termine",
+          projectedBalance: null,
+        })}
+      />,
+    );
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
@@ -61,7 +105,7 @@ describe("MemberCard", () => {
     render(<MemberCard member={makeMember({ dailyAmount: 1500 })} />);
     const text = screen.getByText(/F CFA \/ jour/).textContent ?? "";
     // NBSP (U+00A0) or NARROW NBSP (U+202F) depending on Node ICU version.
-    expect(text).toMatch(/1[\u00A0\u202F]500/);
+    expect(text).toMatch(/1\s500/);
   });
 
   it("passes axe a11y checks (non-interactive)", async () => {
