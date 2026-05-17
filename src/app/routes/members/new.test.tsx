@@ -68,12 +68,6 @@ describe("MembersNewRoute", () => {
     expect(toastSuccess).toHaveBeenCalledWith(expect.stringContaining("Aminata Kane"));
   });
 
-  it("the back-chevron button navigates to /members", () => {
-    renderRoute();
-    fireEvent.click(screen.getByRole("button", { name: /retour aux membres/i }));
-    expect(screen.getByTestId("members-list")).toBeInTheDocument();
-  });
-
   it("Annuler button navigates to /members without calling RPC", () => {
     renderRoute();
     fireEvent.click(screen.getByRole("button", { name: /annuler/i }));

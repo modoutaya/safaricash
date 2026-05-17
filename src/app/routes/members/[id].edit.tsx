@@ -5,8 +5,10 @@
 // a refetch), seeds MemberForm with the current values, owns the
 // useUpdateMember mutation. Renders the in-flight cycle warning banner
 // via the form's belowFields render-prop slot.
+//
+// MemberForm carries its own full-bleed topbar (with the cancel/back
+// action), so this route has no separate header.
 
-import { ChevronLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -40,38 +42,35 @@ export default function MemberEditRoute() {
   const goBackToList = () => navigate("/members");
 
   return (
-    <section className="mx-auto flex w-full max-w-md flex-col gap-4 py-6">
-      <header className="flex items-center gap-2 px-4">
-        <button
-          type="button"
-          onClick={goBackToProfile}
-          aria-label={t("members.edit.back_label")}
-          className="flex h-11 w-11 items-center justify-center rounded-md text-text-secondary hover:bg-neutral-100 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
-        >
-          <ChevronLeft size={24} aria-hidden />
-        </button>
-      </header>
-
+    <div className="flex flex-col">
       {!isUuid ? (
-        <ProfileNotFound
-          message={t("members.profile.error.not_found")}
-          backLabel={t("members.profile.error.back_cta")}
-          onBack={goBackToList}
-        />
+        <div className="p-4">
+          <ProfileNotFound
+            message={t("members.profile.error.not_found")}
+            backLabel={t("members.profile.error.back_cta")}
+            onBack={goBackToList}
+          />
+        </div>
       ) : profileQuery.isLoading ? (
-        <ProfileSkeleton ariaLabel={t("members.edit.title")} />
+        <div className="p-4">
+          <ProfileSkeleton ariaLabel={t("members.edit.title")} />
+        </div>
       ) : profileQuery.isError ? (
-        <ProfileError
-          message={t("members.profile.error.load")}
-          backLabel={t("members.profile.error.back_cta")}
-          onBack={goBackToList}
-        />
+        <div className="p-4">
+          <ProfileError
+            message={t("members.profile.error.load")}
+            backLabel={t("members.profile.error.back_cta")}
+            onBack={goBackToList}
+          />
+        </div>
       ) : profileQuery.data === undefined ? (
-        <ProfileNotFound
-          message={t("members.profile.error.not_found")}
-          backLabel={t("members.profile.error.back_cta")}
-          onBack={goBackToList}
-        />
+        <div className="p-4">
+          <ProfileNotFound
+            message={t("members.profile.error.not_found")}
+            backLabel={t("members.profile.error.back_cta")}
+            onBack={goBackToList}
+          />
+        </div>
       ) : (
         (() => {
           const initialValues: CreateMemberInput = {
@@ -116,6 +115,6 @@ export default function MemberEditRoute() {
           );
         })()
       )}
-    </section>
+    </div>
   );
 }
