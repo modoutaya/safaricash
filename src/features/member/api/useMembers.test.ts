@@ -39,6 +39,7 @@ function makeData(overrides: Partial<RawMembersData> = {}): RawMembersData {
     members: [baseMember],
     cyclesByMember: new Map([[baseMember.id, [activeCycle]]]),
     latestTxByMember: new Map([[baseMember.id, "2026-04-20T10:00:00Z"]]),
+    advancesByCycle: new Map(),
     ...overrides,
   };
 }
@@ -56,6 +57,31 @@ describe("deriveMembersWithMeta", () => {
       currentCycle: { id: "c1", startDate: TODAY_MINUS_10, dayNumber: 11 },
       latestInteractionAt: "2026-04-20T10:00:00Z",
     });
+  });
+
+  it("computes cycleAdvancesTotal + projectedBalance from advancesByCycle", () => {
+    const out = deriveMembersWithMeta(makeData({ advancesByCycle: new Map([["c1", 3000]]) }), NOW);
+    expect(out[0]!.cycleAdvancesTotal).toBe(3000);
+    // Projected = dailyAmount(500) × 29 − advances(3000) = 14 500 − 3 000.
+    expect(out[0]!.projectedBalance).toBe(11500);
+  });
+
+  it("defaults cycleAdvancesTotal to 0 + projectedBalance to dailyAmount×29 with no advances", () => {
+    const out = deriveMembersWithMeta(makeData(), NOW);
+    expect(out[0]!.cycleAdvancesTotal).toBe(0);
+    expect(out[0]!.projectedBalance).toBe(14500);
+  });
+
+  it("projectedBalance is null when the member has no current cycle", () => {
+    const out = deriveMembersWithMeta(
+      makeData({
+        members: [{ ...baseMember, status: "completed" }],
+        cyclesByMember: new Map([[baseMember.id, [{ ...activeCycle, status: "completed" }]]]),
+      }),
+      NOW,
+    );
+    expect(out[0]!.projectedBalance).toBeNull();
+    expect(out[0]!.cycleAdvancesTotal).toBe(0);
   });
 
   it("falls back to members.created_at when no transactions exist", () => {
@@ -218,6 +244,8 @@ describe("useMembers — offline serves the cached/persisted data", () => {
           displayStatus: "actif",
           currentCycle: null,
           latestInteractionAt: "2026-05-15T00:00:00.000Z",
+          cycleAdvancesTotal: 0,
+          projectedBalance: null,
         },
       ];
       client.setQueryData(MEMBERS_QUERY_KEY, seeded);

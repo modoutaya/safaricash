@@ -48,7 +48,7 @@ function synthesiseRawData(n: number): RawMembersData {
     ]);
     latestTxByMember.set(id, new Date(2026, 3, 10 + (i % 7)).toISOString());
   }
-  return { members, cyclesByMember, latestTxByMember };
+  return { members, cyclesByMember, latestTxByMember, advancesByCycle: new Map() };
 }
 
 function percentile(values: number[], p: number): number {
