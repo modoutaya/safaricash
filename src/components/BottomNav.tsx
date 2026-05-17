@@ -41,9 +41,13 @@ export function BottomNav(): JSX.Element {
           className={({ isActive }) =>
             cn(
               "flex flex-1 flex-col items-center gap-1 border-t-[3px] px-1 pb-2 pt-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500",
+              // Text colours must clear WCAG AA 4.5:1 on the white bar
+              // (11px = normal text): primary-700 / text-secondary, not the
+              // lighter primary-500 / text-tertiary. The green top-border
+              // carries the active accent.
               isActive
-                ? "border-primary-500 text-primary-500"
-                : "border-transparent text-text-tertiary",
+                ? "border-primary-500 text-primary-700"
+                : "border-transparent text-text-secondary",
             )
           }
         >
