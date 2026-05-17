@@ -76,6 +76,17 @@ describe("MemberForm — create mode", () => {
     );
   });
 
+  it("shows the cycle recap once a valid daily amount is entered", async () => {
+    renderForm();
+    expect(screen.queryByText("Récapitulatif")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Cotisation quotidienne (FCFA)"), {
+      target: { value: "500" },
+    });
+    await waitFor(() => expect(screen.getByText("Récapitulatif")).toBeInTheDocument());
+    // Total du cycle = 500 × 30 = 15 000 F CFA.
+    expect(screen.getByText(/15\s?000 F CFA/)).toBeInTheDocument();
+  });
+
   it("shows error when amount is below the 100 FCFA floor", async () => {
     renderForm();
     const amount = screen.getByLabelText("Cotisation quotidienne (FCFA)");

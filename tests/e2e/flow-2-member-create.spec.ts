@@ -28,7 +28,7 @@ test.describe("Flow 2.2 — create member manually", () => {
     await page.goto("/members/new");
     await expect(page.getByRole("heading", { level: 1, name: /nouveau membre/i })).toBeVisible();
     await expect(page.getByLabel("Nom")).toBeVisible();
-    await expect(page.getByLabel("Numéro de téléphone (optionnel)")).toBeVisible();
+    await expect(page.getByLabel("Numéro de téléphone")).toBeVisible();
     await expect(page.getByLabel("Cotisation quotidienne (FCFA)")).toBeVisible();
     await expect(page.getByRole("button", { name: /ajouter ce membre/i })).toBeDisabled();
     await expectNoA11yViolations(page, "/members/new manual create form");
@@ -50,7 +50,7 @@ test.describe("Flow 2.2 — create member manually", () => {
 
     const memberName = `E2E Member ${Date.now()}`;
     await page.getByLabel("Nom").fill(memberName);
-    // Skip phone — exercises the empty-phone path.
+    await page.getByLabel("Numéro de téléphone").fill("+221770000000");
     await page.getByLabel("Cotisation quotidienne (FCFA)").fill("500");
 
     const cta = page.getByRole("button", { name: /ajouter ce membre/i });
