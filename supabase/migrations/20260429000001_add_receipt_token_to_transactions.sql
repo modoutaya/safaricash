@@ -15,18 +15,18 @@ alter table public.transactions
   add column receipt_token text null;
 
 comment on column public.transactions.receipt_token is
-  'Story 6.3 / NFR-S3 — 32-hex-char (128-bit) random token used by Story 6.4 Cloudflare Worker to render the public receipt page at /r/<token>. Generated via encode(gen_random_bytes(16), ''hex'').';
+  'Story 6.3 / NFR-S3 — 32-hex-char (128-bit) random token used by Story 6.4 Cloudflare Worker to render the public receipt page at /r/<token>. Generated via encode(extensions.gen_random_bytes(16), ''hex'').';
 
 -- Backfill — pre-prod local dev only (CI starts clean).
 update public.transactions
-   set receipt_token = encode(gen_random_bytes(16), 'hex')
+   set receipt_token = encode(extensions.gen_random_bytes(16), 'hex')
  where receipt_token is null;
 
 alter table public.transactions
   alter column receipt_token set not null;
 
 alter table public.transactions
-  alter column receipt_token set default encode(gen_random_bytes(16), 'hex');
+  alter column receipt_token set default encode(extensions.gen_random_bytes(16), 'hex');
 
 -- Defend against malformed tokens future code might insert.
 alter table public.transactions
