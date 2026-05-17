@@ -23,9 +23,9 @@ describe("RecordAdvanceInputSchema", () => {
     expect(r.success).toBe(false);
   });
 
-  it("rejects motive < 3 chars after trim", () => {
-    const r = RecordAdvanceInputSchema.safeParse({ ...VALID, motive: "  ok " });
-    expect(r.success).toBe(false);
+  it("accepts a blank motive — motive is optional since Story 4.6", () => {
+    expect(RecordAdvanceInputSchema.safeParse({ ...VALID, motive: "" }).success).toBe(true);
+    expect(RecordAdvanceInputSchema.safeParse({ ...VALID, motive: "  ok " }).success).toBe(true);
   });
 
   it("rejects saverAcknowledged: false", () => {
