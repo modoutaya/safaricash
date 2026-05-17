@@ -7,6 +7,7 @@
 //
 // Visual reference: 03-mockups.html .quick-actions.
 
+import { Coins, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -21,16 +22,17 @@ export function DashboardQuickActions(): JSX.Element {
       aria-label={t("dashboard.quick_actions.label")}
       className="grid grid-cols-2 gap-3"
     >
-      <Button type="button" size="lg" className="w-full" onClick={() => navigate("/members")}>
+      <Button type="button" className="w-full" onClick={() => navigate("/members")}>
+        <Coins aria-hidden className="h-4 w-4 shrink-0" />
         {t("dashboard.quick_actions.contribution")}
       </Button>
       <Button
         type="button"
-        size="lg"
         variant="outline"
         className="w-full"
         onClick={() => navigate("/members")}
       >
+        <Zap aria-hidden className="h-4 w-4 shrink-0" />
         {t("dashboard.quick_actions.advance")}
       </Button>
     </div>
