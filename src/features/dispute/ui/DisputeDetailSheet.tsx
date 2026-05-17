@@ -1,6 +1,6 @@
-// Story 10.3 / FR33b — dispute detail bottom-sheet.
+// Story 10.3 / FR33b — dispute detail modal.
 //
-// Native <dialog> bottom-sheet (same pattern as TransactionReceiptSheet):
+// Native <dialog> centered modal (same pattern as TransactionReceiptSheet):
 // shows the saver's optional free-text message + the flagged-at timestamp,
 // and a "Marquer comme résolue" action. Pure presentation — the parent
 // route wires onResolve to useResolveDispute.
@@ -71,7 +71,7 @@ export function DisputeDetailSheet({
       onClose={close}
       onClick={handleBackdropClick}
       aria-labelledby="dispute-detail-sheet-title"
-      className="m-auto mb-0 w-full max-w-md rounded-t-2xl rounded-b-none border-x border-t border-hairline bg-card p-0 shadow-xl backdrop:bg-neutral-900/50"
+      className="m-auto w-full max-w-md rounded-2xl border border-hairline bg-card p-0 shadow-xl backdrop:bg-neutral-900/50"
     >
       <div className="flex flex-col gap-4 p-6" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center justify-between gap-3">
