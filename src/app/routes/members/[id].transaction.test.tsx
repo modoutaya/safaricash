@@ -133,7 +133,9 @@ describe("MemberTransactionRoute", () => {
   it("fires showRattrapageToast on an online rattrapage", async () => {
     rattrapageMutateAsyncMock.mockResolvedValue({ txId: "tx2", wasOffline: false });
     renderRoute();
-    fireEvent.click(screen.getByRole("button", { name: /^rattrapage$/i }));
+    fireEvent.change(screen.getByLabelText(/type d'opération/i), {
+      target: { value: "rattrapage" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /^3 jours$/i }));
     fireEvent.click(screen.getByRole("button", { name: /confirmer le rattrapage/i }));
     await waitFor(() => expect(showRattrapageToastMock).toHaveBeenCalled());

@@ -36,12 +36,10 @@ test.describe("Flow 1 — record rattrapage online (Story 4.4)", () => {
 
     // Tap the card → navigate to the transaction page.
     await page.getByRole("button", { name: new RegExp(targetName, "i") }).click();
-    await expect(
-      page.getByRole("heading", { level: 1, name: /nouvelle transaction/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /^transaction$/i })).toBeVisible();
 
     // Switch to the Rattrapage type, pick 3 days, confirm.
-    await page.getByRole("button", { name: /^rattrapage$/i }).click();
+    await page.getByLabel(/type d'opération/i).selectOption("rattrapage");
     await page.getByRole("button", { name: /^3 jours$/i }).click();
     await page.getByRole("button", { name: /confirmer le rattrapage/i }).click();
 

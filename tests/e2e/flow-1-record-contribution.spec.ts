@@ -35,10 +35,9 @@ test.describe("Flow 1 — record contribution online (Story 4.3)", () => {
 
     // Tap the seeded member's card → navigate to the transaction page.
     await page.getByRole("button", { name: new RegExp(targetName, "i") }).click();
-    await expect(
-      page.getByRole("heading", { level: 1, name: /nouvelle transaction/i }),
-    ).toBeVisible();
-    // Cotisation is the default type; the amount field is pre-filled to 500.
+    await expect(page.getByRole("heading", { level: 1, name: /^transaction$/i })).toBeVisible();
+    // Cotisation is the default type; with no custom amount the suggested
+    // daily amount is committed.
     const submitCta = page.getByRole("button", { name: /confirmer la cotisation/i });
     await expect(submitCta).toBeVisible();
 

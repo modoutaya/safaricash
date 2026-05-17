@@ -155,13 +155,22 @@ function TransactionRouteBody({ memberId }: { memberId: string }): JSX.Element {
     }
   };
 
+  // The member <select> only offers members a transaction can target —
+  // an active cycle, not flagged terminé (same gate as the redirect above).
+  const eligibleMembers = (members ?? [])
+    .filter((m) => m.currentCycle !== null && m.displayStatus !== "termine")
+    .map((m) => ({ id: m.id, name: m.name, dailyAmount: m.dailyAmount }));
+
   return (
     <NewTransactionForm
-      memberName={member.name}
+      key={memberId}
+      members={eligibleMembers}
+      selectedMemberId={memberId}
       dailyAmount={member.dailyAmount}
       daysRemaining={daysRemaining}
       isPending={recordContribution.isPending || recordRattrapage.isPending}
       onBack={() => navigate("/members")}
+      onSelectMember={(id) => navigate(`/members/${id}/transaction`)}
       onViewProfile={() => navigate(`/members/${memberId}`)}
       onSubmitContribution={(amount) => void handleContribution(amount)}
       onSubmitRattrapage={(days) => void handleRattrapage(days)}

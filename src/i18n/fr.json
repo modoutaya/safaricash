@@ -498,23 +498,31 @@
   },
   "transaction": {
     "new": {
-      "title": "Nouvelle transaction",
+      "aria_label": "Nouvelle transaction",
+      "topbar_title": "Transaction",
       "subtitle": "Enregistrement rapide",
       "back_label": "Retour",
       "view_profile": "Voir le profil",
+      "form_title": "Détails de l'opération",
+      "member_label": "Sélectionner le membre",
+      "member_option": "{name} ({amount} FCFA/j)",
       "type_label": "Type d'opération",
-      "type_contribution": "Cotisation",
-      "type_rattrapage": "Rattrapage",
-      "type_advance": "Prêt",
+      "type_contribution": "💰 Cotisation journalière",
+      "type_rattrapage": "🔄 Rattrapage (multiple)",
+      "type_advance": "🏪 Prêt/Avance",
+      "amount": {
+        "currency": "FCFA",
+        "suggested_label": "Montant suggéré pour ce membre"
+      },
       "contribution": {
-        "amount_label": "Montant de la cotisation (FCFA)",
-        "amount_helper": "Montant suggéré : {amount} FCFA",
+        "custom_label": "Montant personnalisé (optionnel)",
+        "custom_placeholder": "Entrer un montant différent...",
         "cta": "Confirmer la cotisation"
       },
       "rattrapage": {
         "days_label": "Nombre de jours à rattraper",
         "day_option": "{n} jours",
-        "summary": "{n} jours × {daily} FCFA = {total} FCFA",
+        "total_label": "Total du rattrapage",
         "cta": "Confirmer le rattrapage"
       },
       "advance": {
