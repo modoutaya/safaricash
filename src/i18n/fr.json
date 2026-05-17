@@ -70,6 +70,12 @@
       "toast_failure": "Échec de l'export. Réessayez."
     }
   },
+  "nav": {
+    "label": "Navigation principale",
+    "dashboard": "Accueil",
+    "members": "Membres",
+    "more": "Plus"
+  },
   "dashboard": {
     "title": "Tableau de bord",
     "stats_label": "Statistiques",

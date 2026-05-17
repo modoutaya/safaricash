@@ -1,37 +1,33 @@
 // Story 1.5 — AppLayout for session-protected routes.
 //
 // Mounted under <ProtectedRoute> by the router; wraps authenticated routes
-// with a minimal header and an <Outlet /> body.
+// with a minimal header, an <Outlet /> body, and the bottom navigation.
 //
-// Story 1.7 — added a "Plus" text link to /settings so the sign-out CTA is
-// reachable without a bottom-nav (the 4-tab nav is deferred to a dedicated
-// UI story).
+// Story 8.1 / FR41 / UX-DR5 — the persistent ConnectivityIndicator pill in
+// the header. The drawer-open state is held here so other surfaces (8.4
+// reconciler retry, 8.5 stalled-sync banner) can open the drawer via
+// shared state.
 //
-// Story 8.1 / FR41 / UX-DR5 — added the persistent ConnectivityIndicator
-// pill in the header. The drawer-open state is held here so future
-// stories (8.4 reconciler retry, 8.5 stalled-sync banner) can open the
-// drawer from elsewhere via shared state.
+// BottomNav — the 4-tab-style app navigation deferred by Story 1.7; it now
+// owns the link to /settings, so the header's stopgap "Plus" text link was
+// removed.
 
 import { useState } from "react";
 import { Link, Outlet } from "react-router-dom";
 
+import { BottomNav } from "@/components/BottomNav";
 import { useConnectivityState } from "@/features/connectivity/api/useConnectivityState";
 import { useReconciler } from "@/features/connectivity/api/useReconciler";
 import { ConnectivityIndicator } from "@/features/connectivity/ui/ConnectivityIndicator";
 import { ConnectivitySyncDrawer } from "@/features/connectivity/ui/ConnectivitySyncDrawer";
 import { useDisputeRealtime } from "@/features/dispute";
-import { useT } from "@/i18n/useT";
 
 export default function AppLayout() {
-  const t = useT();
   const connectivity = useConnectivityState();
   // Story 8.4 — drain offline events on mount + on every window `online`
-  // event. Hook is mount-only (no return value); cache invalidation on
-  // successful drain is handled internally.
+  // event. Hook is mount-only (no return value).
   useReconciler();
-  // Story 10.3 — subscribe to the collector's dispute Realtime channel
-  // (Story 10.2's dispute-notify broadcast). Mount-only; shows an in-app
-  // toast + invalidates the affected member profile on a live dispute.
+  // Story 10.3 — subscribe to the collector's dispute Realtime channel.
   useDisputeRealtime();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -47,16 +43,11 @@ export default function AppLayout() {
           onTap={() => setDrawerOpen(true)}
           className="ml-auto"
         />
-        <Link
-          to="/settings"
-          className="text-body-2 font-medium text-primary-700 underline-offset-4 hover:underline"
-        >
-          {t("settings.title")}
-        </Link>
       </header>
       <main className="flex-1">
         <Outlet />
       </main>
+      <BottomNav />
       <ConnectivitySyncDrawer
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
