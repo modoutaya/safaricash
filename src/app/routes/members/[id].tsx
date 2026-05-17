@@ -95,8 +95,6 @@ export default function MemberProfileRoute() {
           aria-label={t("members.profile.actions_label")}
           className="flex items-center gap-1"
         >
-          {/* Story 2.5 — Modifier is now real; Restart-cycle (2.7) and
-              Supprimer (2.6) stay disabled until those stories ship. */}
           <Button asChild variant="outline" size="sm" disabled={!isUuid}>
             <Link to={`/members/${id}/edit`}>{t("members.profile.action_edit")}</Link>
           </Button>
@@ -113,16 +111,6 @@ export default function MemberProfileRoute() {
           {canResendHistory ? (
             <Button type="button" variant="outline" size="sm" onClick={() => setResendOpen(true)}>
               {t("members.profile.resend_history.action_label")}
-            </Button>
-          ) : null}
-          {isUuid ? (
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={() => setDeleteOpen(true)}
-            >
-              {t("members.profile.action_delete")}
             </Button>
           ) : null}
         </div>
@@ -161,6 +149,22 @@ export default function MemberProfileRoute() {
           onDisputeBannerTap={() => setSelectedDispute(openDisputes[0] ?? null)}
         />
       )}
+
+      {/* Supprimer — a destructive action, kept out of the header action row
+          (which overflowed on narrow screens) and placed full-width at the
+          bottom of the page, separated, to reduce accidental taps. */}
+      {query.data ? (
+        <div className="border-t border-hairline px-4 pt-4">
+          <Button
+            type="button"
+            variant="destructive"
+            className="w-full"
+            onClick={() => setDeleteOpen(true)}
+          >
+            {t("members.profile.action_delete")}
+          </Button>
+        </div>
+      ) : null}
 
       {selectedDispute ? (
         <DisputeDetailSheet
