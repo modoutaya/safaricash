@@ -325,4 +325,49 @@ if (env) {
       }
     },
   });
+
+  // Story 6.8 — an SMS opt-out cancels queued channel='sms' rows but must
+  // leave queued channel='whatsapp' rows alone (separate consent).
+  Deno.test({
+    name: "9. opt-out abandons the queued channel='sms' row but NOT the channel='whatsapp' row",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "oo9");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        // Opt the member in to WhatsApp so the receipt enqueues BOTH rows.
+        await service.from("members").update({ whatsapp_opt_in: true }).eq("id", memberId);
+        const { data: txId } = await userClient.rpc("record_contribution", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_amount: 500,
+          p_cycle_day: 1,
+        });
+
+        await service.rpc("set_member_sms_opt_out", {
+          p_member_id: memberId,
+          p_via: "collector_action",
+        });
+
+        const { data: rows } = await service
+          .from("sms_queue")
+          .select("channel, status")
+          .eq("transaction_id", txId);
+        const byChannel = Object.fromEntries(
+          (rows ?? []).map((r) => [r.channel as string, r.status as string]),
+        );
+        assertEquals(byChannel.sms, "abandoned");
+        assertEquals(byChannel.whatsapp, "queued");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
 }

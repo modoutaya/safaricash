@@ -13,8 +13,9 @@ export type TermiiSendArgs = {
   /** E.164 phone number, e.g. "+221770000000" */
   to: string;
   body: string;
-  /** Termii channel: 'generic' (default) or 'dnd' (do-not-disturb-bypass). */
-  channel?: "generic" | "dnd";
+  /** Termii channel: 'generic' (default), 'dnd' (do-not-disturb-bypass),
+   *  or 'whatsapp' (Story 6.8 — WhatsApp Business secondary delivery). */
+  channel?: "generic" | "dnd" | "whatsapp";
 };
 
 export type TermiiSendResult = {
@@ -52,6 +53,18 @@ function getSenderId(): string {
   return Deno.env.get("TERMII_SENDER_ID") ?? "SafariCash";
 }
 
+// Story 6.8 — WhatsApp Business requires an approved WhatsApp sender,
+// distinct from the SMS sender ID. Its presence IS the "provisioned"
+// signal; the sms-worker gates on it BEFORE a whatsapp send, so this
+// throwing is defence-in-depth (it should be unreachable when unset).
+function getWhatsappSenderId(): string {
+  const id = Deno.env.get("TERMII_WHATSAPP_SENDER_ID");
+  if (!id) {
+    throw new Error("TERMII_WHATSAPP_SENDER_ID missing — WhatsApp is not provisioned.");
+  }
+  return id;
+}
+
 // CODE REVIEW H3 fix: Termii's error responses sometimes echo the request
 // body (which contains the OTP). Strip any 4-10-digit numeric run before
 // embedding in TermiiError.bodyExcerpt so the OTP cannot leak into logs
@@ -83,7 +96,7 @@ async function sendOnce(args: TermiiSendArgs): Promise<TermiiSendResult> {
         body: JSON.stringify({
           api_key: apiKey,
           to: args.to,
-          from: getSenderId(),
+          from: args.channel === "whatsapp" ? getWhatsappSenderId() : getSenderId(),
           sms: args.body,
           type: "plain",
           channel: args.channel ?? "generic",

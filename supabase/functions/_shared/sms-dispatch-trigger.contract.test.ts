@@ -262,4 +262,116 @@ if (env) {
       }
     },
   });
+
+  Deno.test({
+    name: "Story 6.8 — whatsapp_opt_in=false (default) → exactly one channel='sms' row",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "tk8");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        const { data: txId } = await userClient.rpc("record_contribution", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_amount: 500,
+          p_cycle_day: 1,
+        });
+
+        const { data: rows } = await service
+          .from("sms_queue")
+          .select("channel")
+          .eq("transaction_id", txId);
+        assertEquals((rows ?? []).length, 1);
+        assertEquals(rows![0]!.channel, "sms");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "Story 6.8 — whatsapp_opt_in=true → an sms row + a whatsapp row for the receipt",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "tk9");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        await service.from("members").update({ whatsapp_opt_in: true }).eq("id", memberId);
+
+        const { data: txId } = await userClient.rpc("record_contribution", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_amount: 500,
+          p_cycle_day: 1,
+        });
+
+        const { data: rows } = await service
+          .from("sms_queue")
+          .select("channel, status, template_key")
+          .eq("transaction_id", txId);
+        const channels = (rows ?? []).map((r) => r.channel).sort();
+        assertEquals(channels, ["sms", "whatsapp"]);
+        // Both rows are queued, same template + body.
+        for (const r of rows ?? []) {
+          assertEquals(r.status, "queued");
+          assertEquals(r.template_key, "first_receipt");
+        }
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "Story 6.8 — sms_opt_out + whatsapp_opt_in → only the channel='whatsapp' row",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "tk10");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        // Opted out of SMS but in to WhatsApp — the two consents are independent.
+        await service
+          .from("members")
+          .update({ sms_opt_out: true, whatsapp_opt_in: true })
+          .eq("id", memberId);
+
+        const { data: txId } = await userClient.rpc("record_contribution", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_amount: 500,
+          p_cycle_day: 1,
+        });
+
+        const { data: rows } = await service
+          .from("sms_queue")
+          .select("channel")
+          .eq("transaction_id", txId);
+        assertEquals((rows ?? []).length, 1);
+        assertEquals(rows![0]!.channel, "whatsapp");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
 }

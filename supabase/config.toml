@@ -422,6 +422,11 @@ TERMII_INBOUND_SECRET = "env(TERMII_INBOUND_SECRET)"
 RESEND_API_KEY = "env(RESEND_API_KEY)"
 RESEND_FROM = "env(RESEND_FROM)"
 FOUNDER_SUPPORT_EMAIL = "env(FOUNDER_SUPPORT_EMAIL)"
+# Story 6.8 — WhatsApp Business secondary delivery. The presence of
+# TERMII_WHATSAPP_SENDER_ID is the "provisioned" signal: when set, the
+# sms-worker sends channel='whatsapp' rows via Termii's WhatsApp channel;
+# when unset, those rows are silently abandoned (no failure, no retry).
+TERMII_WHATSAPP_SENDER_ID = "env(TERMII_WHATSAPP_SENDER_ID)"
 
 [analytics]
 enabled = true

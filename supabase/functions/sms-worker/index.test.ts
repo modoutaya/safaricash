@@ -498,4 +498,115 @@ if (env) {
       }
     },
   });
+
+  Deno.test({
+    name: "13. Story 6.8 — a channel='whatsapp' row, WhatsApp unprovisioned → abandoned, no audit",
+    ...denoOpts,
+    fn: async () => {
+      // TERMII_WHATSAPP_SENDER_ID is unset in the test edge runtime → the
+      // worker treats WhatsApp as not provisioned and silently abandons the
+      // row (no Termii call, no audit, no retry) — the BDD's graceful no-op.
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "sw13");
+      try {
+        const { data: inserted, error: insErr } = await service
+          .from("sms_queue")
+          .insert({
+            collector_id: c.userId,
+            transaction_id: null,
+            recipient_phone: "+221770000777",
+            body: "WhatsApp receipt body",
+            status: "queued",
+            template_key: "first_receipt",
+            retry_count: 0,
+            channel: "whatsapp",
+          })
+          .select("id")
+          .single();
+        assertEquals(insErr, null);
+        const queueId = inserted!.id as string;
+
+        const res = await fetch(env.fnUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${env.serviceKey}`,
+          },
+          body: JSON.stringify({ batch_size: 100 }),
+        });
+        assertEquals(res.status, 200);
+        await res.body?.cancel();
+
+        // The whatsapp row → abandoned (WhatsApp not provisioned).
+        const { data: row } = await service
+          .from("sms_queue")
+          .select("status, abandoned_at")
+          .eq("id", queueId)
+          .single();
+        assertEquals(row?.status, "abandoned");
+        assert(row?.abandoned_at !== null);
+
+        // NO audit event for this row — "no error logged for the missing WhatsApp".
+        const { count: auditCount } = await service
+          .from("audit_log")
+          .select("event_id", { count: "exact", head: true })
+          .eq("entity_id", queueId);
+        assertEquals(auditCount, 0);
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "14. Story 6.8 — claim_sms_queue_batch returns the channel column",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "sw14");
+      try {
+        const { data: inserted, error: insErr } = await service
+          .from("sms_queue")
+          .insert({
+            collector_id: c.userId,
+            transaction_id: null,
+            recipient_phone: "+221770000778",
+            body: "channel-column test",
+            status: "queued",
+            template_key: "first_receipt",
+            retry_count: 0,
+            channel: "whatsapp",
+          })
+          .select("id")
+          .single();
+        assertEquals(insErr, null);
+        const queueId = inserted!.id as string;
+
+        const { data: claimed, error: claimErr } = await service.rpc("claim_sms_queue_batch", {
+          p_batch_size: 100,
+          p_claim_ttl_seconds: 90,
+        });
+        assertEquals(claimErr, null);
+        const rows = (claimed ?? []) as Array<{ id: string; channel: unknown }>;
+        // The seeded row guarantees the queue is non-empty.
+        assert(rows.length > 0, "claim_sms_queue_batch returned no rows");
+        // Every claimed row carries a string `channel` → the RPC returns the column.
+        for (const r of rows) {
+          assert(
+            r.channel === "sms" || r.channel === "whatsapp",
+            `claimed row has no valid channel: ${JSON.stringify(r.channel)}`,
+          );
+        }
+        // And if the seeded row is in the batch, its channel is 'whatsapp'.
+        const mine = rows.find((r) => r.id === queueId);
+        if (mine) assertEquals(mine.channel, "whatsapp");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
 }
