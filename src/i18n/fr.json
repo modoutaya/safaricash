@@ -70,9 +70,24 @@
       "toast_failure": "Échec de l'export. Réessayez."
     }
   },
+  "nav": {
+    "label": "Navigation principale",
+    "dashboard": "Accueil",
+    "members": "Membres",
+    "more": "Plus"
+  },
   "dashboard": {
     "title": "Tableau de bord",
     "stats_label": "Statistiques",
+    "hero": {
+      "greeting": "Bonjour Collecteur",
+      "subtitle": "Votre activité aujourd'hui"
+    },
+    "quick_actions": {
+      "label": "Actions rapides",
+      "contribution": "Cotisation",
+      "advance": "Prêt Express"
+    },
     "cycles_ending": {
       "title": "Cycles se terminant cette semaine",
       "body_zero": "Aucun cycle dans la fenêtre",
@@ -83,8 +98,8 @@
     },
     "stat": {
       "active_members": "Membres actifs",
-      "today_collected": "Collecté aujourd'hui",
-      "commission": "Commission ce cycle"
+      "today_collected": "Collecté",
+      "commission": "Commission"
     },
     "activity": {
       "title": "Activité récente",

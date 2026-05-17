@@ -33,7 +33,9 @@ test.describe("Flow 9 — dashboard polled stats (Story 9.1)", () => {
     await seedMembersForCollector(service, seededCollector, 2, "DASH");
 
     await page.goto("/dashboard");
-    await expect(page.getByRole("heading", { level: 1, name: /tableau de bord/i })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: /bonjour collecteur/i }),
+    ).toBeVisible();
 
     // --- Active-members count = 2. ---
     await expect(page.getByText("Membres actifs")).toBeVisible();
@@ -42,11 +44,11 @@ test.describe("Flow 9 — dashboard polled stats (Story 9.1)", () => {
     // --- Commission this cycle = Σ commission(dailyAmount) = 2 × 500 = 1000.
     // Today's collection (2 seed contributions × 500) is also 1000, so the
     // "1 000" figure renders on both cards — assert at least one shows. ---
-    await expect(page.getByText("Commission ce cycle")).toBeVisible();
+    await expect(page.getByText("Commission")).toBeVisible();
     await expect(page.getByText(/1[\s ]?000/).first()).toBeVisible();
 
     // --- Today's collection — the 2 seed contributions landed today. ---
-    await expect(page.getByText("Collecté aujourd'hui")).toBeVisible();
+    await expect(page.getByText("Collecté")).toBeVisible();
 
     // --- Recent activity — the seed contributions show as Cotisation rows. ---
     await expect(page.getByRole("heading", { level: 2, name: /activité récente/i })).toBeVisible();

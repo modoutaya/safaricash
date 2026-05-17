@@ -17,6 +17,10 @@ const buttonVariants = cva(
         // available for low-prominence accents (banners, icons).
         destructive:
           "bg-destructive-text text-white hover:bg-destructive-text/90 active:bg-destructive-text/80",
+        // Amber CTA for the warning palette (token warning = #854F0B) —
+        // dark enough that white text passes WCAG AA, mirroring the
+        // destructive-variant rationale above.
+        warning: "bg-warning text-white hover:bg-warning/90 active:bg-warning/80",
         outline: "border border-primary text-primary-700 bg-transparent hover:bg-primary-50",
         secondary: "bg-primary-50 text-primary-900 hover:bg-primary-100",
         ghost: "text-primary-700 hover:bg-primary-50",

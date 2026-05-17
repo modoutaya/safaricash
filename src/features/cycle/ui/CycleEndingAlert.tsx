@@ -37,7 +37,7 @@ export function CycleEndingAlert(): JSX.Element {
       data-testid="cycle-ending-alert"
       className={
         hasContent
-          ? "flex items-center gap-3 rounded-md border border-warning-200 bg-warning-50 px-4 py-3 text-warning-800"
+          ? "flex items-center gap-3 rounded-md bg-warning-bg px-4 py-3 text-warning-text"
           : "sr-only"
       }
     >
@@ -47,14 +47,14 @@ export function CycleEndingAlert(): JSX.Element {
             <p className="text-body-1 font-semibold">{t("dashboard.cycles_ending.title")}</p>
             <p className="text-body-2">{t(bodyKey(count), { count })}</p>
           </div>
-          <Button asChild size="sm" variant="outline">
+          <Button asChild size="sm" variant="warning">
             <Link to="/members?filter=cycles-ending">{t("dashboard.cycles_ending.cta")}</Link>
           </Button>
           <button
             type="button"
             aria-label={t("dashboard.cycles_ending.dismiss_aria")}
             onClick={dismiss}
-            className="flex h-11 w-11 items-center justify-center rounded-md text-warning-800 hover:bg-warning-bg/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-warning-text hover:bg-warning/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <X size={18} aria-hidden />
           </button>
