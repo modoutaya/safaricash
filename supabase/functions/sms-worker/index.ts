@@ -43,6 +43,8 @@ type ClaimedRow = {
     | "resend"
     | "opt_out_confirmation";
   retry_count: number;
+  // Story 6.8 — the delivery channel; routes the Termii send.
+  channel: "sms" | "whatsapp";
   age_seconds: number;
 };
 
@@ -59,6 +61,13 @@ function logJson(level: "info" | "warn" | "error", event: string, fields: Record
 
 function hashPhone(phone: string): string {
   return createHash("sha256").update(phone).digest("hex").slice(0, 16);
+}
+
+// Story 6.8 — WhatsApp is "provisioned" iff TERMII_WHATSAPP_SENDER_ID is
+// set and non-empty (mirrors the TERMII_SENDER_ID / TERMII_API_KEY pattern).
+function whatsappProvisioned(): boolean {
+  const id = Deno.env.get("TERMII_WHATSAPP_SENDER_ID");
+  return !!id && id.trim() !== "";
 }
 
 function constantTimeEquals(a: string, b: string): boolean {
@@ -245,6 +254,7 @@ async function processRow(
     logJson("info", "sms_worker.row_processed", {
       queue_id: row.id,
       template_key: row.template_key,
+      channel: row.channel,
       recipient_phone_hash: phoneHash,
       outcome: "skipped",
       retry_count: row.retry_count,
@@ -254,11 +264,23 @@ async function processRow(
     return { queue_id: row.id, outcome: "skipped" };
   }
 
+  // Story 6.8 — a channel='whatsapp' row when WhatsApp is not provisioned:
+  // silently abandon it. No Termii call, no audit, no retry, no error log
+  // (the BDD: "no failure, no retry, no error logged for the missing
+  // WhatsApp"). abandonRow logs at `info` only.
+  if (row.channel === "whatsapp" && !whatsappProvisioned()) {
+    return abandonRow(service, row, "abandoned", "whatsapp_not_provisioned", phoneHash, t0);
+  }
+
   // Fire Termii.
   let messageId: string | null = null;
   let termiiErr: TermiiError | null = null;
   try {
-    const result = await sendSmsNoRetry({ to: row.recipient_phone, body: row.body });
+    const result = await sendSmsNoRetry({
+      to: row.recipient_phone,
+      body: row.body,
+      channel: row.channel === "whatsapp" ? "whatsapp" : "generic",
+    });
     messageId = result.message_id;
   } catch (err) {
     if (err instanceof TermiiError) {
@@ -287,6 +309,7 @@ async function processRow(
     }
     await emitAudit(service, row.collector_id, "sms.sent", row.id, {
       template_key: row.template_key,
+      channel: row.channel,
       recipient_phone_hash: phoneHash,
       message_id: messageId,
     });
@@ -319,6 +342,7 @@ async function processRow(
     }
     await emitAudit(service, row.collector_id, "sms.failed", row.id, {
       template_key: row.template_key,
+      channel: row.channel,
       recipient_phone_hash: phoneHash,
       http_status: httpStatus,
       error_excerpt: errExcerpt,
@@ -353,6 +377,7 @@ async function processRow(
     }
     await emitAudit(service, row.collector_id, "sms.abandoned", row.id, {
       template_key: row.template_key,
+      channel: row.channel,
       recipient_phone_hash: phoneHash,
       retry_count: row.retry_count,
       age_seconds: row.age_seconds,
