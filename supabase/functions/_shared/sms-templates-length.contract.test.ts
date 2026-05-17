@@ -115,12 +115,23 @@ if (env) {
         });
 
         const cases: Array<
-          ["first_receipt" | "subsequent_receipt" | "settlement" | "dispute_ack", number]
+          [
+            (
+              | "first_receipt"
+              | "subsequent_receipt"
+              | "settlement"
+              | "dispute_ack"
+              | "opt_out_confirmation"
+            ),
+            number,
+          ]
         > = [
           ["first_receipt", 320],
           ["subsequent_receipt", 160],
           ["settlement", 160],
           ["dispute_ack", 160],
+          // Story 10.5 — static member-scoped body; p_transaction_id ignored.
+          ["opt_out_confirmation", 160],
         ];
 
         for (const [key, budget] of cases) {

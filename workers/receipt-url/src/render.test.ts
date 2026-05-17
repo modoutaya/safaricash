@@ -212,6 +212,38 @@ describe("renderReceiptHtml — settlement (Story 7.5)", () => {
   });
 });
 
+describe("renderReceiptHtml — Story 10.5 anonymised-saver opt-out gate", () => {
+  it("OMITS the opt-out link on a contribution receipt for an anonymised saver", () => {
+    const html = renderReceiptHtml(TOKEN, {
+      ...PAYLOAD_CONTRIBUTION,
+      anonymised_at: "2026-05-17T09:00:00Z",
+    });
+    expect(html).not.toContain(`/r/${TOKEN}/opt-out`);
+    expect(html).not.toContain("Ne plus recevoir de SMS");
+    // The rest of the receipt still renders.
+    expect(html).toContain("500 FCFA");
+    expect(html).toContain("Fatou");
+  });
+
+  it("KEEPS the opt-out link when anonymised_at is null", () => {
+    const html = renderReceiptHtml(TOKEN, { ...PAYLOAD_CONTRIBUTION, anonymised_at: null });
+    expect(html).toContain(`/r/${TOKEN}/opt-out`);
+  });
+
+  it("OMITS the opt-out link on a settlement receipt for an anonymised saver", () => {
+    const html = renderReceiptHtml(TOKEN, {
+      ...PAYLOAD_CONTRIBUTION,
+      kind: "settlement",
+      cycle_start_date: "2026-04-12",
+      cycle_end_date: "2026-05-11",
+      anonymised_at: "2026-05-17T09:00:00Z",
+    });
+    expect(html).not.toContain("Ne plus recevoir de SMS");
+    // The settlement receipt still renders its core anatomy.
+    expect(html).toContain("<h1>Cycle clôturé</h1>");
+  });
+});
+
 describe("renderReceiptHtml — XSS defence", () => {
   it("escapes HTML special characters in member_first_name", () => {
     const html = renderReceiptHtml(TOKEN, {
@@ -352,6 +384,10 @@ describe("renderOptOutConfirmedHtml — Story 6.5", () => {
 
   it("mentions reversibility via the collector", () => {
     expect(html).toContain("contactez votre collecteur");
+  });
+
+  it("mentions the confirmation SMS was sent (Story 10.5)", () => {
+    expect(html).toContain("SMS de confirmation");
   });
 
   it("does NOT contain a <script> tag", () => {

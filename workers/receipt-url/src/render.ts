@@ -19,6 +19,9 @@ export type ReceiptPayload = {
    *  ISO date strings YYYY-MM-DD. Optional for pre-Story-7.5 RPC versions. */
   cycle_start_date?: string;
   cycle_end_date?: string;
+  /** Story 10.5 — when non-null the saver is anonymised (FR48); the
+   *  receipt-page opt-out link is then omitted. ISO 8601 timestamp. */
+  anonymised_at?: string | null;
 };
 
 const KIND_LABELS: Record<string, string> = {
@@ -304,6 +307,16 @@ ${bodyContent}
 </html>`;
 }
 
+/** Story 10.5 — the receipt-page footer opt-out link. Omitted entirely for
+ *  an anonymised saver (AC #1): their data is already destroyed (FR48), so a
+ *  "stop SMS" surface is incoherent — callers pass "" when anonymised_at is set. */
+function optOutSection(token: string): string {
+  return `<section class="opt-out" aria-label="Ne plus recevoir de SMS">
+    <a href="/r/${escapeHtml(token)}/opt-out">Ne plus recevoir de SMS</a>
+    <small>Votre opt-out est traçable et peut être annulé via votre collecteur.</small>
+  </section>`;
+}
+
 export function renderReceiptHtml(token: string, payload: ReceiptPayload): string {
   // Story 7.5 — settlement receipt page is a separate visual surface
   // (different title / header / rows / no dispute CTA). Branch early
@@ -351,10 +364,7 @@ export function renderReceiptHtml(token: string, payload: ReceiptPayload): strin
     <small>${REVERSIBILITY_NOTE}</small>
   </section>
 
-  <section class="opt-out" aria-label="Ne plus recevoir de SMS">
-    <a href="/r/${escapeHtml(token)}/opt-out">Ne plus recevoir de SMS</a>
-    <small>Votre opt-out est traçable et peut être annulé via votre collecteur.</small>
-  </section>
+  ${payload.anonymised_at ? "" : optOutSection(token)}
 
   <aside class="disclosure">${TRACKER_DISCLOSURE}</aside>
 </main>
@@ -403,10 +413,7 @@ function renderSettlementReceiptHtml(token: string, payload: ReceiptPayload): st
 
   <p class="settlement-closing">${SETTLEMENT_CLOSING_STATEMENT}</p>
 
-  <section class="opt-out" aria-label="Ne plus recevoir de SMS">
-    <a href="/r/${escapeHtml(token)}/opt-out">Ne plus recevoir de SMS</a>
-    <small>Votre opt-out est traçable et peut être annulé via votre collecteur.</small>
-  </section>
+  ${payload.anonymised_at ? "" : optOutSection(token)}
 
   <aside class="disclosure">${TRACKER_DISCLOSURE}</aside>
 </main>
@@ -438,7 +445,7 @@ export function renderOptOutConfirmedHtml(): string {
   <header>
     <h1>SafariCash</h1>
   </header>
-  <p class="opt-out-confirmed">Vous ne recevrez plus de SMS de SafariCash. Cette décision est traçable et réversible — contactez votre collecteur pour reprendre les notifications.</p>
+  <p class="opt-out-confirmed">Vous ne recevrez plus de SMS de SafariCash. Un SMS de confirmation vient de vous être envoyé. Cette décision est traçable et réversible — contactez votre collecteur pour reprendre les notifications.</p>
   <aside class="disclosure">${TRACKER_DISCLOSURE}</aside>
 </main>
 `.trim();

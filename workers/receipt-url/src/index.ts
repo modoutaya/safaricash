@@ -92,11 +92,20 @@ async function fetchReceiptPayload(env: Env, token: string): Promise<ReceiptPayl
   return rows[0] ?? null;
 }
 
-async function fetchMemberIdFromToken(env: Env, token: string): Promise<string | null> {
-  const result = await supabaseRpc<string | null>(env, "get_member_id_from_token", {
-    p_token: token,
-  });
-  return result ?? null;
+type MemberFromToken = { memberId: string; anonymisedAt: string | null };
+
+async function fetchMemberFromToken(env: Env, token: string): Promise<MemberFromToken | null> {
+  // Story 10.5 — get_member_id_from_token now RETURNS TABLE(member_id,
+  // anonymised_at); PostgREST surfaces it as a row array.
+  const rows = await supabaseRpc<{ member_id: string; anonymised_at: string | null }[]>(
+    env,
+    "get_member_id_from_token",
+    { p_token: token },
+  );
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const row = rows[0];
+  if (!row?.member_id) return null;
+  return { memberId: row.member_id, anonymisedAt: row.anonymised_at ?? null };
 }
 
 async function setMemberSmsOptOut(env: Env, memberId: string): Promise<boolean> {
@@ -149,18 +158,31 @@ export default {
         if (!tokenIsValid(rawToken)) return notFoundHtml();
 
         if (method === "GET") {
-          return new Response(renderOptOutFormHtml(rawToken), {
-            status: 200,
-            headers: HTML_HEADERS,
-          });
+          try {
+            const member = await fetchMemberFromToken(env, rawToken);
+            // Story 10.5 — no opt-out surface for an unknown token or an
+            // already-anonymised saver (their data is destroyed — FR48).
+            if (!member || member.anonymisedAt) return notFoundHtml();
+            return new Response(renderOptOutFormHtml(rawToken), {
+              status: 200,
+              headers: HTML_HEADERS,
+            });
+          } catch (err) {
+            logJson("error", "receipt_url.opt_out_form_unhandled", {
+              token_prefix: tokenPrefix(rawToken),
+              error: err instanceof Error ? err.message : String(err),
+            });
+            return new Response("Service unavailable", { status: 500, headers: TEXT_HEADERS });
+          }
         }
         if (method === "POST") {
           try {
-            const memberId = await fetchMemberIdFromToken(env, rawToken);
-            if (!memberId) {
+            const member = await fetchMemberFromToken(env, rawToken);
+            // Story 10.5 — 404 an unknown token or an anonymised saver.
+            if (!member || member.anonymisedAt) {
               return notFoundHtml();
             }
-            const ok = await setMemberSmsOptOut(env, memberId);
+            const ok = await setMemberSmsOptOut(env, member.memberId);
             if (!ok) {
               return new Response("Service unavailable", { status: 500, headers: TEXT_HEADERS });
             }

@@ -67,6 +67,7 @@ if (env) {
           "subsequent_receipt",
           "settlement",
           "dispute_ack",
+          "opt_out_confirmation",
         ] as const) {
           const { data: body, error } = await service.rpc("format_sms_body", {
             p_template_key: key,

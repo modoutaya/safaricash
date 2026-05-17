@@ -243,4 +243,86 @@ if (env) {
       assertEquals(error?.code, "P0002");
     },
   });
+
+  // Story 10.5 — the final confirmation SMS.
+  Deno.test({
+    name: "7. receipt_url opt-out enqueues exactly one opt_out_confirmation SMS (idempotent)",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "oo7");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId } = await seedMemberWithCycle(userClient, service, c.userId);
+
+        await service.rpc("set_member_sms_opt_out", {
+          p_member_id: memberId,
+          p_via: "receipt_url",
+        });
+
+        const { data: rows } = await service
+          .from("sms_queue")
+          .select("status, body, transaction_id, recipient_phone")
+          .eq("collector_id", c.userId)
+          .eq("template_key", "opt_out_confirmation");
+        assertEquals((rows ?? []).length, 1);
+        assertEquals(rows![0]!.status, "queued");
+        assertEquals(rows![0]!.transaction_id, null);
+        // seedMemberWithCycle seeds the member with this phone.
+        assertEquals(rows![0]!.recipient_phone, "+221770000666");
+        assertStringIncludes(rows![0]!.body as string, "SafariCash");
+
+        // Idempotent — a second receipt_url call enqueues nothing further.
+        await service.rpc("set_member_sms_opt_out", {
+          p_member_id: memberId,
+          p_via: "receipt_url",
+        });
+        const { count } = await service
+          .from("sms_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("collector_id", c.userId)
+          .eq("template_key", "opt_out_confirmation");
+        assertEquals(count, 1);
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "8. stop_keyword opt-out enqueues NO opt_out_confirmation SMS",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "oo8");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId } = await seedMemberWithCycle(userClient, service, c.userId);
+
+        await service.rpc("set_member_sms_opt_out", {
+          p_member_id: memberId,
+          p_via: "stop_keyword",
+        });
+
+        const { count } = await service
+          .from("sms_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("collector_id", c.userId)
+          .eq("template_key", "opt_out_confirmation");
+        assertEquals(count, 0);
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
 }

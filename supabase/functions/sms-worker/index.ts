@@ -35,7 +35,13 @@ type ClaimedRow = {
   transaction_id: string | null;
   recipient_phone: string;
   body: string;
-  template_key: "first_receipt" | "subsequent_receipt" | "settlement" | "dispute_ack";
+  template_key:
+    | "first_receipt"
+    | "subsequent_receipt"
+    | "settlement"
+    | "dispute_ack"
+    | "resend"
+    | "opt_out_confirmation";
   retry_count: number;
   age_seconds: number;
 };
