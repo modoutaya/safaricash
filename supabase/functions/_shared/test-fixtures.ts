@@ -83,11 +83,27 @@ export async function seedMemberWithCycle(
   return { memberId, cycleId: cycle.id };
 }
 
-/** Tears down a collector's state — transactions/cycles/members/users in FK-safe order. */
+/**
+ * Tears down a collector's state in FK-safe order.
+ *
+ * Every table below references public.users(id) ON DELETE RESTRICT, so the
+ * public.users row — and in turn the auth.users row (public.users → auth
+ * is itself RESTRICT) — can only be removed once they are all cleared.
+ * Order matters: disputes reference transactions; members/cycles/
+ * transactions deletes fire the AFTER-DELETE audit trigger, so audit_log
+ * is purged last (after those rows AND their delete-audit rows exist).
+ *
+ * Previously this only deleted sms_queue/transactions/cycles/members and
+ * then called deleteUser — which silently failed against the RESTRICT FK,
+ * leaking an orphan public.users + auth.users row on every test run.
+ */
 export async function cleanup(service: SupabaseClient, c: PhoneCollector): Promise<void> {
   await service.from("sms_queue").delete().eq("collector_id", c.userId);
+  await service.from("disputes").delete().eq("collector_id", c.userId);
   await service.from("transactions").delete().eq("collector_id", c.userId);
   await service.from("cycles").delete().eq("collector_id", c.userId);
   await service.from("members").delete().eq("collector_id", c.userId);
+  await service.from("audit_log").delete().eq("collector_id", c.userId);
+  await service.from("users").delete().eq("id", c.userId);
   await service.auth.admin.deleteUser(c.userId);
 }
