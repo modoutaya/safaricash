@@ -28,7 +28,7 @@ export default function DashboardRoute() {
       <DashboardHero
         greetingName={collectorName}
         activeMembersCount={stats.activeMembersCount}
-        todayCollected={stats.todayCollected}
+        cycleCollected={stats.cycleCollected}
         commissionThisCycle={stats.commissionThisCycle}
       />
       <div className="flex flex-col gap-4 p-4">

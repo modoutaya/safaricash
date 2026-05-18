@@ -13,7 +13,7 @@ describe("DashboardStatCards", () => {
     render(
       <DashboardStatCards
         activeMembersCount={7}
-        todayCollected={12500}
+        cycleCollected={12500}
         commissionThisCycle={3000}
       />,
     );
@@ -28,7 +28,7 @@ describe("DashboardStatCards", () => {
 
   it("axe-clean", async () => {
     const { container } = render(
-      <DashboardStatCards activeMembersCount={0} todayCollected={0} commissionThisCycle={0} />,
+      <DashboardStatCards activeMembersCount={0} cycleCollected={0} commissionThisCycle={0} />,
     );
     expect(await axe(container)).toHaveNoViolations();
   });

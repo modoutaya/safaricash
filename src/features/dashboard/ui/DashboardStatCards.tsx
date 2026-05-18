@@ -12,7 +12,7 @@ import { useT } from "@/i18n/useT";
 
 export interface DashboardStatCardsProps {
   activeMembersCount: number;
-  todayCollected: number;
+  cycleCollected: number;
   commissionThisCycle: number;
 }
 
@@ -32,17 +32,14 @@ function StatTile({ label, value }: { label: string; value: string }): JSX.Eleme
 
 export function DashboardStatCards({
   activeMembersCount,
-  todayCollected,
+  cycleCollected,
   commissionThisCycle,
 }: DashboardStatCardsProps): JSX.Element {
   const t = useT();
   return (
     <div role="group" aria-label={t("dashboard.stats_label")} className="mt-5 flex gap-2">
       <StatTile label={t("dashboard.stat.active_members")} value={String(activeMembersCount)} />
-      <StatTile
-        label={t("dashboard.stat.today_collected")}
-        value={formatFcfaAmount(todayCollected)}
-      />
+      <StatTile label={t("dashboard.stat.collected")} value={formatFcfaAmount(cycleCollected)} />
       <StatTile
         label={t("dashboard.stat.commission")}
         value={formatFcfaAmount(commissionThisCycle)}

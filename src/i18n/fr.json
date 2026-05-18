@@ -99,7 +99,7 @@
     },
     "stat": {
       "active_members": "Membres actifs",
-      "today_collected": "Collecté",
+      "collected": "Collecté",
       "commission": "Commission"
     },
     "activity": {
