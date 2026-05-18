@@ -80,7 +80,8 @@
     "title": "Tableau de bord",
     "stats_label": "Statistiques",
     "hero": {
-      "greeting": "Bonjour Collecteur",
+      "greeting": "Bonjour {name}",
+      "greeting_fallback": "Collecteur",
       "subtitle": "Votre activité aujourd'hui"
     },
     "quick_actions": {

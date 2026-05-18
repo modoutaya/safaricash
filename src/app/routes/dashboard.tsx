@@ -10,6 +10,7 @@
 // Visual reference: 03-mockups.html (Dashboard Principal).
 
 import { CycleEndingAlert } from "@/features/cycle";
+import { useCollectorName } from "@/features/dashboard/api/useCollectorName";
 import { useDashboardStats } from "@/features/dashboard/api/useDashboardStats";
 import { DashboardHero } from "@/features/dashboard/ui/DashboardHero";
 import { DashboardQuickActions } from "@/features/dashboard/ui/DashboardQuickActions";
@@ -20,10 +21,12 @@ import { useT } from "@/i18n/useT";
 export default function DashboardRoute() {
   const t = useT();
   const { stats, members, lastUpdatedAt } = useDashboardStats();
+  const collectorName = useCollectorName();
 
   return (
     <section className="mx-auto flex w-full max-w-2xl flex-col" aria-label={t("dashboard.title")}>
       <DashboardHero
+        greetingName={collectorName}
         activeMembersCount={stats.activeMembersCount}
         todayCollected={stats.todayCollected}
         commissionThisCycle={stats.commissionThisCycle}
