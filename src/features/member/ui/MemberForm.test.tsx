@@ -118,6 +118,29 @@ describe("MemberForm — create mode", () => {
     );
   });
 
+  it("accepts a bare 9-digit phone (no +221) and normalises it on submit", async () => {
+    const { onSubmit } = renderForm();
+    fireEvent.change(screen.getByLabelText("Nom"), { target: { value: "Awa Diallo" } });
+    fireEvent.change(screen.getByLabelText("Numéro de téléphone"), {
+      target: { value: "777915898" },
+    });
+    fireEvent.change(screen.getByLabelText("Cotisation quotidienne (FCFA)"), {
+      target: { value: "500" },
+    });
+
+    const cta = screen.getByRole("button", { name: /ajouter ce membre/i });
+    await waitFor(() => expect(cta).toBeEnabled());
+    fireEvent.click(cta);
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        name: "Awa Diallo",
+        phoneNumber: "+221777915898",
+        dailyAmount: 500,
+      }),
+    );
+  });
+
   it("renders the error banner when errorCode = 'unauthorized'", () => {
     renderForm({ errorCode: "unauthorized" });
     expect(screen.getByText(/vous devez être reconnecté/i)).toBeInTheDocument();
