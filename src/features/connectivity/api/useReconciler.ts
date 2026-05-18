@@ -19,6 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { useCollectorId } from "@/features/auth/api/useCollectorId";
+import { DASHBOARD_QUERY_KEY } from "@/features/dashboard/api/useDashboardStats";
 import { MEMBERS_QUERY_KEY, MEMBER_PROFILE_QUERY_KEY } from "@/features/member";
 import { computeBackoffMs, replayPendingEvents, type ReplayResult } from "@/infrastructure/sync";
 
@@ -61,6 +62,7 @@ export function useReconciler(): void {
         clearBackoffTimer();
         void queryClient.invalidateQueries({ queryKey: MEMBERS_QUERY_KEY });
         void queryClient.invalidateQueries({ queryKey: MEMBER_PROFILE_QUERY_KEY });
+        void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
         return;
       }
       // Transient failure (network / session) — schedule a backoff retry.

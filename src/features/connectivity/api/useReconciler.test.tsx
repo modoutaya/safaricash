@@ -82,7 +82,7 @@ describe("useReconciler", () => {
     await waitFor(() => expect(replayMock).toHaveBeenCalledTimes(2));
   });
 
-  it("invalidates MEMBERS + MEMBER_PROFILE queries on successful drain (succeeded > 0 && networkFailures == 0)", async () => {
+  it("invalidates MEMBERS + MEMBER_PROFILE + DASHBOARD queries on successful drain (succeeded > 0 && networkFailures == 0)", async () => {
     useCollectorIdMock.mockReturnValue(COLLECTOR);
     replayMock.mockResolvedValue({
       attempted: 3,
@@ -95,8 +95,9 @@ describe("useReconciler", () => {
     const { invalidateSpy, wrapper } = wrap();
     renderHook(() => useReconciler(), { wrapper });
 
-    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledTimes(3));
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["members", "list"] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["dashboard", "transactions"] });
   });
 
   it("does NOT invalidate when the drain had network failures", async () => {
