@@ -46,6 +46,28 @@ async function recordContrib(
   return txId as string;
 }
 
+// The Supabase Edge runtime lazily loads each function's isolate on its
+// first request — that cold start can transiently 500. Ping sms-dispatch
+// until it answers (any non-5xx status = isolate up) so the assertion
+// tests below hit a warm function. Kills the recurring "happy path → 500"
+// CI flake.
+async function warmUpEdgeFunction(url: string): Promise<void> {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      await res.body?.cancel();
+      if (res.status < 500) return;
+    } catch {
+      // Connection refused / reset mid-cold-start — retry.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+}
+
 const env = envOrSkip();
 
 Deno.test({
@@ -61,6 +83,9 @@ if (env) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const denoOpts = { sanitizeResources: false, sanitizeOps: false };
+
+  // Absorb the sms-dispatch cold start before the assertion tests run.
+  await warmUpEdgeFunction(env.fnUrl);
 
   Deno.test({
     name: "happy path — POST → 200 + new sms_queue row + audit sms.queued event",
