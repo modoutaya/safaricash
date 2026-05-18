@@ -11,7 +11,7 @@
 // `beforeinstallprompt`; iOS users still install via Share → Add to
 // Home Screen). Also hides itself once `appinstalled` fires.
 
-import { Download } from "lucide-react";
+import { Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,7 @@ export function InstallAppButton(): JSX.Element | null {
         className="w-full"
         onClick={() => void handleInstall()}
       >
-        <Download aria-hidden className="h-4 w-4 shrink-0" />
+        <Smartphone aria-hidden className="h-4 w-4 shrink-0" />
         {t("install.cta")}
       </Button>
     </div>
