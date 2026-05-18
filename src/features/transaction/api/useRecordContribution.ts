@@ -8,6 +8,7 @@ import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/r
 import { useRef } from "react";
 import type { PostgrestError } from "@supabase/supabase-js";
 
+import { DASHBOARD_QUERY_KEY } from "@/features/dashboard/api/useDashboardStats";
 import { MEMBERS_QUERY_KEY, MEMBER_PROFILE_QUERY_KEY } from "@/features/member";
 import { supabase } from "@/infrastructure/supabase/client";
 import { appendEvent, OfflineEventLogError } from "@/infrastructure/sync";
@@ -188,6 +189,8 @@ export function useRecordContribution(): UseRecordContributionReturn {
         void queryClient.invalidateQueries({
           queryKey: [...MEMBER_PROFILE_QUERY_KEY, input.memberId],
         });
+        // Refresh the dashboard's collected total + recent activity.
+        void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
       }
     },
   });

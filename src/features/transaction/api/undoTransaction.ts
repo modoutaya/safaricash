@@ -15,6 +15,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { supabase } from "@/infrastructure/supabase/client";
+import { DASHBOARD_QUERY_KEY } from "@/features/dashboard/api/useDashboardStats";
 import { MEMBERS_QUERY_KEY, MEMBER_PROFILE_QUERY_KEY } from "@/features/member";
 
 import { UndoTransactionError, classifyUndoError } from "./undoTransactionError";
@@ -30,7 +31,9 @@ export async function undoTransaction(
     throw new UndoTransactionError(classifyUndoError(error), error.message);
   }
   // Recency sort regresses — invalidate the member list AND the per-
-  // member profile (transaction history will lose the undone row).
+  // member profile (transaction history will lose the undone row), plus
+  // the dashboard (collected total + recent activity drop the row).
   void queryClient.invalidateQueries({ queryKey: MEMBERS_QUERY_KEY });
   void queryClient.invalidateQueries({ queryKey: MEMBER_PROFILE_QUERY_KEY });
+  void queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY });
 }
