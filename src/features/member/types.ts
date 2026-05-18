@@ -7,7 +7,7 @@
 import { z } from "zod";
 
 import type { StatusBadgeKind } from "@/components/domain/StatusBadge";
-import { isValidSenegalPhone } from "@/features/auth/ui/phoneFormat";
+import { formatE164, isValidSenegalPhone } from "@/features/auth/ui/phoneFormat";
 
 // ---------------------------------------------------------------------------
 // Enum shapes — mirrors public.{members_status_enum,cycles_status_enum}
@@ -123,11 +123,15 @@ export const MEMBER_HEADER_CTA_THRESHOLD = 10;
 export const createMemberInputSchema = z.object({
   name: z.string().trim().min(2, "Au moins 2 caractères").max(80, "Maximum 80 caractères"),
   // Required — every member must have a phone (E.164 Senegal mobile).
+  // formatE164 normalises the input first, so a bare 9-digit local
+  // number (e.g. 771234567) is accepted — the +221 indicatif is
+  // optional, mirroring the login field.
   phoneNumber: z
     .string()
     .trim()
     .min(1, "Numéro requis")
-    .refine(isValidSenegalPhone, "Numéro invalide (format +221XXXXXXXXX)"),
+    .transform(formatE164)
+    .refine(isValidSenegalPhone, "Numéro invalide"),
   dailyAmount: z.coerce
     .number()
     .int("Montant entier requis")
