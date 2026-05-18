@@ -2,18 +2,18 @@
 // Story 1.5b — Provision a new collector (PRD v1.3 auth pivot).
 //
 // Invoke: npm run provision-collector -- --phone +221771234567 \
-//                                        --password '<defaultPassword>'
+//                                        --password '<defaultPassword>' \
+//                                        --name 'Mamadou Ndiaye'
 //
 // What it does:
 //   1. `supabase.auth.admin.createUser` with phone_confirm: true so the
 //      collector can sign in immediately.
-//   2. Insert the matching public.users row (role = 'collector').
+//   2. Insert the matching public.users row (role = 'collector', name).
 //   3. Print the credentials for the founder to forward via WhatsApp / call.
 //
-// Note: public.users at MVP is minimal (id / phone_number / role). The
-// collector's display name is NOT stored server-side — the founder tracks
-// it out-of-band at MVP scale. If a display name is needed later, add it
-// as a migration + a --name flag here.
+// --name is optional but recommended: public.users.name drives the
+// dashboard's "Bonjour {prénom}" greeting. Omitted → NULL → the greeting
+// falls back to the generic "Bonjour Collecteur".
 //
 // Env (in .env.local):
 //   VITE_SUPABASE_URL         — Supabase project URL
@@ -63,6 +63,7 @@ const { values } = parseArgs({
   options: {
     phone: { type: "string" },
     password: { type: "string" },
+    name: { type: "string" },
   },
   strict: true,
   allowPositionals: false,
@@ -70,8 +71,11 @@ const { values } = parseArgs({
 
 const phone = values.phone;
 const password = values.password;
+const name = values.name?.trim() ? values.name.trim() : null;
 if (!phone || !password) {
-  console.error("Usage: npm run provision-collector -- --phone +221771234567 --password '<p>'");
+  console.error(
+    "Usage: npm run provision-collector -- --phone +221771234567 --password '<p>' [--name '<nom>']",
+  );
   process.exit(1);
 }
 if (!/^\+221[0-9]{9}$/.test(phone)) {
@@ -100,6 +104,7 @@ const { error: insertErr } = await admin.from("users").insert({
   id: userId,
   phone_number: phone,
   role: "collector",
+  name,
 });
 if (insertErr) {
   // Roll back the auth user so the two sides stay aligned. If the
@@ -124,5 +129,6 @@ if (insertErr) {
 console.log("\n✅ Collector provisioned. Forward these credentials out-of-band:\n");
 console.log(`   Phone:    ${phone}`);
 console.log(`   Password: ${password}`);
+console.log(`   Name:     ${name ?? "(none — dashboard greets 'Bonjour Collecteur')"}`);
 console.log(`   User ID:  ${userId}\n`);
 console.log("They sign in at /login with the phone + password.");
