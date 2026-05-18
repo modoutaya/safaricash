@@ -47,6 +47,9 @@
     "empty_state_subtext": "Ajoutez votre premier membre pour démarrer votre cycle.",
     "empty_state_cta": "Ajouter mon premier membre"
   },
+  "install": {
+    "cta": "Installer l'application"
+  },
   "settings": {
     "title": "Plus",
     "signout_cta": "Se déconnecter",
