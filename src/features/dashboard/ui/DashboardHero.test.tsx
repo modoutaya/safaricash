@@ -14,7 +14,7 @@ describe("DashboardHero", () => {
       <DashboardHero
         greetingName={null}
         activeMembersCount={5}
-        todayCollected={9000}
+        cycleCollected={9000}
         commissionThisCycle={1500}
       />,
     );
@@ -29,7 +29,7 @@ describe("DashboardHero", () => {
       <DashboardHero
         greetingName="Awa Diallo"
         activeMembersCount={0}
-        todayCollected={0}
+        cycleCollected={0}
         commissionThisCycle={0}
       />,
     );
@@ -41,7 +41,7 @@ describe("DashboardHero", () => {
       <DashboardHero
         greetingName={null}
         activeMembersCount={0}
-        todayCollected={0}
+        cycleCollected={0}
         commissionThisCycle={0}
       />,
     );

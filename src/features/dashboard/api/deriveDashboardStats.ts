@@ -4,12 +4,12 @@
 // is unit-tested on its own, exactly like `deriveMembersWithMeta`.
 //
 // Inputs:
-//   - members        : the collector's MemberWithMeta[] (from useMembers).
-//   - todayTransactions : transactions_decrypted rows whose created_at is on
-//     the current UTC day — the query applies the `gte today-start` filter
-//     (Senegal / Africa-Dakar is UTC+0, so the UTC day IS the local day).
-//   - recentTransactions : the 5 most recent transactions_decrypted rows
-//     (the query applies `order created_at desc limit 5`).
+//   - members              : the collector's MemberWithMeta[] (useMembers).
+//   - collectedTransactions : transactions_decrypted rows for the active
+//     cycles, kind ∈ {contribution, rattrapage} — the query filters by
+//     `cycle_id IN (active cycle ids)` so this is the running cumulative
+//     collection for the cycle in progress (NOT a single day).
+//   - recentTransactions   : the 5 most recent transactions_decrypted rows.
 // `transactions_decrypted` already excludes undone rows (the view has
 // `where undone_at is null`), so no undone filtering is needed here.
 
@@ -35,7 +35,8 @@ export interface DashboardActivity {
 
 export interface DashboardStats {
   activeMembersCount: number;
-  todayCollected: number;
+  /** Cumulative contributions + rattrapages collected for the active cycles. */
+  cycleCollected: number;
   commissionThisCycle: number;
   recentActivity: DashboardActivity[];
 }
@@ -49,19 +50,16 @@ const COLLECTED_KINDS = new Set(["contribution", "rattrapage"]);
 
 export function deriveDashboardStats(
   members: MemberWithMeta[],
-  todayTransactions: DashboardTxRow[],
+  collectedTransactions: DashboardTxRow[],
   recentTransactions: DashboardTxRow[],
-  now: Date = new Date(),
 ): DashboardStats {
   const active = members.filter((m) => ACTIVE_DISPLAY_STATUSES.has(m.displayStatus));
 
-  // Defensive today-filter: the query already applies `gte today-start`,
-  // but a stale persisted `todayTransactions` (rehydrated from a prior day)
-  // must not be summed as today's collection. Senegal / Africa-Dakar is
-  // UTC+0, so the UTC calendar day IS the local day.
-  const todayUtc = now.toISOString().slice(0, 10);
-  const todayCollected = todayTransactions
-    .filter((t) => COLLECTED_KINDS.has(t.kind) && t.created_at.slice(0, 10) === todayUtc)
+  // The query already scopes to the active cycles and the collected kinds;
+  // the kind filter here is defensive (a stale persisted blob, or a query
+  // shape change, must never let an advance inflate "collected").
+  const cycleCollected = collectedTransactions
+    .filter((t) => COLLECTED_KINDS.has(t.kind))
     .reduce((sum, t) => sum + t.amount, 0);
 
   // Sort newest-first before the cap — do NOT rely on the caller's ordering
@@ -82,7 +80,7 @@ export function deriveDashboardStats(
     // INV-4 — commission is exactly 1 day's daily-amount per cycle; use the
     // domain function, never inline the arithmetic.
     commissionThisCycle: active.reduce((sum, m) => sum + commission(m.dailyAmount), 0),
-    todayCollected,
+    cycleCollected,
     recentActivity,
   };
 }

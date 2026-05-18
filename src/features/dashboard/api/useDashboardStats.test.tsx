@@ -36,14 +36,12 @@ const MEMBER: MemberWithMeta = {
   projectedBalance: null,
 };
 
-// `created_at` is "now" so the deriveDashboardStats today-filter includes it
-// regardless of the run date.
-const TODAY_TX: DashboardTxRow = {
-  id: "tx-today",
+const COLLECTED_TX: DashboardTxRow = {
+  id: "tx-collected",
   member_id: MEMBER.id,
   kind: "contribution",
   amount: 500,
-  created_at: new Date().toISOString(),
+  created_at: "2026-05-15T08:00:00.000Z",
 };
 
 describe("useDashboardStats", () => {
@@ -55,11 +53,11 @@ describe("useDashboardStats", () => {
     setOnline(false);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(MEMBERS_QUERY_KEY, [MEMBER]);
-    // The hook date-stamps the query key — seed the same date-stamped key.
-    const todayKey = new Date().toISOString().slice(0, 10);
-    client.setQueryData([...DASHBOARD_QUERY_KEY, todayKey], {
-      today: [TODAY_TX],
-      recent: [TODAY_TX],
+    // MEMBER has no active cycle → the hook's activeCycleIds is []; seed the
+    // matching cycle-scoped query key.
+    client.setQueryData([...DASHBOARD_QUERY_KEY, []], {
+      collected: [COLLECTED_TX],
+      recent: [COLLECTED_TX],
     });
 
     const { result } = renderHook(() => useDashboardStats(), {
@@ -70,7 +68,7 @@ describe("useDashboardStats", () => {
     expect(result.current.isError).toBe(false);
     expect(result.current.stats.activeMembersCount).toBe(1);
     expect(result.current.stats.commissionThisCycle).toBe(500);
-    expect(result.current.stats.todayCollected).toBe(500);
+    expect(result.current.stats.cycleCollected).toBe(500);
     expect(result.current.stats.recentActivity).toHaveLength(1);
   });
 });

@@ -6,9 +6,6 @@ import type { MemberWithMeta } from "@/features/member";
 
 import { deriveDashboardStats, type DashboardTxRow } from "./deriveDashboardStats";
 
-/** Fixed "now" so the today-filter is deterministic regardless of run date. */
-const NOW = new Date("2026-05-15T12:00:00.000Z");
-
 function member(overrides: Partial<MemberWithMeta>): MemberWithMeta {
   return {
     id: crypto.randomUUID(),
@@ -30,17 +27,17 @@ function tx(overrides: Partial<DashboardTxRow>): DashboardTxRow {
     member_id: crypto.randomUUID(),
     kind: "contribution",
     amount: 500,
-    created_at: "2026-05-15T08:00:00.000000Z", // today, relative to NOW
+    created_at: "2026-05-15T08:00:00.000000Z",
     ...overrides,
   };
 }
 
 describe("deriveDashboardStats", () => {
   it("empty data → all-zero stats + empty activity", () => {
-    const s = deriveDashboardStats([], [], [], NOW);
+    const s = deriveDashboardStats([], [], []);
     expect(s).toEqual({
       activeMembersCount: 0,
-      todayCollected: 0,
+      cycleCollected: 0,
       commissionThisCycle: 0,
       recentActivity: [],
     });
@@ -55,7 +52,6 @@ describe("deriveDashboardStats", () => {
       ],
       [],
       [],
-      NOW,
     );
     expect(s.activeMembersCount).toBe(2);
   });
@@ -69,44 +65,27 @@ describe("deriveDashboardStats", () => {
       ],
       [],
       [],
-      NOW,
     );
     // commission() = dailyAmount × 1 — termine member excluded.
     expect(s.commissionThisCycle).toBe(1500);
   });
 
-  it("todayCollected sums contribution + rattrapage amounts", () => {
+  it("cycleCollected sums contribution + rattrapage amounts", () => {
     const s = deriveDashboardStats(
       [],
       [tx({ kind: "contribution", amount: 500 }), tx({ kind: "rattrapage", amount: 1500 })],
       [],
-      NOW,
     );
-    expect(s.todayCollected).toBe(2000);
+    expect(s.cycleCollected).toBe(2000);
   });
 
-  it("todayCollected EXCLUDES advance transactions (money out, not collected)", () => {
+  it("cycleCollected EXCLUDES advance transactions (money out, not collected)", () => {
     const s = deriveDashboardStats(
       [],
       [tx({ kind: "contribution", amount: 500 }), tx({ kind: "advance", amount: 10000 })],
       [],
-      NOW,
     );
-    expect(s.todayCollected).toBe(500);
-  });
-
-  it("todayCollected EXCLUDES rows from a prior UTC day (the today boundary)", () => {
-    const s = deriveDashboardStats(
-      [],
-      [
-        tx({ kind: "contribution", amount: 500, created_at: "2026-05-15T06:00:00.000000Z" }),
-        tx({ kind: "contribution", amount: 9000, created_at: "2026-05-14T23:30:00.000000Z" }),
-      ],
-      [],
-      NOW,
-    );
-    // Only the 2026-05-15 row counts — the 2026-05-14 row is yesterday.
-    expect(s.todayCollected).toBe(500);
+    expect(s.cycleCollected).toBe(500);
   });
 
   it("recentActivity is sorted newest-first and capped at 5", () => {
@@ -120,7 +99,7 @@ describe("deriveDashboardStats", () => {
       tx({ amount: 500, created_at: "2026-05-15T05:00:00.000000Z" }),
       tx({ amount: 400, created_at: "2026-05-15T04:00:00.000000Z" }),
     ];
-    const s = deriveDashboardStats([], [], rows, NOW);
+    const s = deriveDashboardStats([], [], rows);
     expect(s.recentActivity).toHaveLength(5);
     // Newest-first: 07:00 then 06:00 — the two oldest (01:00, 02:00) dropped.
     expect(s.recentActivity[0]!.amount).toBe(700);
@@ -130,7 +109,7 @@ describe("deriveDashboardStats", () => {
   });
 
   it("recentActivity returns all rows when fewer than 5", () => {
-    const s = deriveDashboardStats([], [], [tx({}), tx({})], NOW);
+    const s = deriveDashboardStats([], [], [tx({}), tx({})]);
     expect(s.recentActivity).toHaveLength(2);
   });
 
@@ -142,7 +121,7 @@ describe("deriveDashboardStats", () => {
       amount: 7000,
       created_at: "2026-05-15T09:30:00.000000Z",
     });
-    const s = deriveDashboardStats([], [], [row], NOW);
+    const s = deriveDashboardStats([], [], [row]);
     expect(s.recentActivity[0]).toEqual({
       id: "tx-1",
       kind: "advance",

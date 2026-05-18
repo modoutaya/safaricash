@@ -13,14 +13,14 @@ export interface DashboardHeroProps {
   /** Collector's name; null falls back to a generic greeting. */
   greetingName: string | null;
   activeMembersCount: number;
-  todayCollected: number;
+  cycleCollected: number;
   commissionThisCycle: number;
 }
 
 export function DashboardHero({
   greetingName,
   activeMembersCount,
-  todayCollected,
+  cycleCollected,
   commissionThisCycle,
 }: DashboardHeroProps): JSX.Element {
   const t = useT();
@@ -33,7 +33,7 @@ export function DashboardHero({
       <p className="mt-1 text-body-2 text-primary-foreground/80">{t("dashboard.hero.subtitle")}</p>
       <DashboardStatCards
         activeMembersCount={activeMembersCount}
-        todayCollected={todayCollected}
+        cycleCollected={cycleCollected}
         commissionThisCycle={commissionThisCycle}
       />
     </header>
