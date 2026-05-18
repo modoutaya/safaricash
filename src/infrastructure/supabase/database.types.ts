@@ -416,6 +416,7 @@ export type Database = {
         Row: {
           created_at: string;
           id: string;
+          name: string | null;
           phone_number: string;
           role: Database["public"]["Enums"]["users_role_enum"];
           updated_at: string;
@@ -423,6 +424,7 @@ export type Database = {
         Insert: {
           created_at?: string;
           id: string;
+          name?: string | null;
           phone_number: string;
           role?: Database["public"]["Enums"]["users_role_enum"];
           updated_at?: string;
@@ -430,6 +432,7 @@ export type Database = {
         Update: {
           created_at?: string;
           id?: string;
+          name?: string | null;
           phone_number?: string;
           role?: Database["public"]["Enums"]["users_role_enum"];
           updated_at?: string;
