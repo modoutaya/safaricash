@@ -4,6 +4,7 @@
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
+import { InstallAppButton } from "@/components/domain/InstallAppButton";
 import { LoginForm } from "@/features/auth/ui/LoginForm";
 import { useT } from "@/i18n/useT";
 
@@ -11,7 +12,7 @@ export default function LoginRoute() {
   const navigate = useNavigate();
   const t = useT();
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background py-8">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-background py-8">
       <LoginForm
         onSignedIn={(result) => {
           // Narrow discriminated union — LoginForm only fires this on
@@ -32,6 +33,7 @@ export default function LoginRoute() {
           }
         }}
       />
+      <InstallAppButton />
     </main>
   );
 }
