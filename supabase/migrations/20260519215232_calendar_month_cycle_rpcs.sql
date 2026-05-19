@@ -513,7 +513,11 @@ begin
   ) values (
     v_collector_id, p_member_id, p_cycle_id, 'contribution',
     v_amount_secret, p_cycle_day,
-    case when p_event_id is null then 'online' else 'offline_reconciled' end,
+    -- Explicit cast required: under PG 17 strict mode, a CASE branching on
+    -- two text literals types to TEXT and is no longer implicit-cast to
+    -- the enum at INSERT time (SQLSTATE 42804). The Story 8.4 migration
+    -- lacked this cast; Story 4.6's record_advance had it. Add it here.
+    (case when p_event_id is null then 'online' else 'offline_reconciled' end)::transactions_source_enum,
     p_event_id
   )
   returning id into v_tx_id;
@@ -613,7 +617,8 @@ begin
   ) values (
     v_collector_id, p_member_id, p_cycle_id, 'rattrapage',
     v_amount_secret, p_cycle_day,
-    case when p_event_id is null then 'online' else 'offline_reconciled' end,
+    -- Same PG-17-strict CASE-to-enum cast as record_contribution above.
+    (case when p_event_id is null then 'online' else 'offline_reconciled' end)::transactions_source_enum,
     p_days_covered, p_event_id
   )
   returning id into v_tx_id;
