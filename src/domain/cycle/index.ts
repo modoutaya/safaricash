@@ -2,9 +2,8 @@
 // Mirrors src/domain/audit/index.ts.
 
 export {
-  CONTRIBUTION_DAYS,
   COMMISSION_DAYS,
-  CYCLE_TOTAL_DAYS,
+  MIN_CYCLE_LENGTH_DAYS,
   DEFAULT_CYCLE_ENDING_WINDOW_DAYS,
   RATTRAPAGE_DAY_OPTIONS,
   canAcceptAdvance,
@@ -12,7 +11,9 @@ export {
   computeMemberStats,
   computeProjectedFinalBalance,
   cycleDay,
+  cycleLengthDays,
   daysUntilCycleEnd,
+  deriveCycleBounds,
   isCycleClosedForTransactions,
   isCycleInUpcomingEndWindow,
   isSettlementReady,

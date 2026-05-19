@@ -16,6 +16,10 @@ export function selectMembersWithCycleEndingSoon(
   return members.filter((m) => {
     if (m.currentCycle === null) return false;
     if (m.displayStatus === "termine") return false;
-    return isCycleInUpcomingEndWindow(m.currentCycle.dayNumber, windowDays);
+    return isCycleInUpcomingEndWindow(
+      m.currentCycle.dayNumber,
+      windowDays,
+      m.currentCycle.cycleLength,
+    );
   });
 }

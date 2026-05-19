@@ -57,7 +57,11 @@ function useFilteredMembers(
         // window. Members without an active cycle are excluded.
         if (m.currentCycle === null) return false;
         if (
-          !isCycleInUpcomingEndWindow(m.currentCycle.dayNumber, DEFAULT_CYCLE_ENDING_WINDOW_DAYS)
+          !isCycleInUpcomingEndWindow(
+            m.currentCycle.dayNumber,
+            DEFAULT_CYCLE_ENDING_WINDOW_DAYS,
+            m.currentCycle.cycleLength,
+          )
         ) {
           return false;
         }

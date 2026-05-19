@@ -19,7 +19,12 @@ import type { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CYCLE_TOTAL_DAYS, commission, computeProjectedFinalBalance } from "@/domain/cycle";
+import {
+  commission,
+  computeProjectedFinalBalance,
+  cycleLengthDays,
+  deriveCycleBounds,
+} from "@/domain/cycle";
 import type { TranslationKey } from "@/i18n/keys";
 import { useT } from "@/i18n/useT";
 
@@ -87,19 +92,24 @@ const EMPTY_DEFAULTS: MemberFormInput = {
   dailyAmount: "",
 };
 
-/** Live cycle recap (create mode) — mirrors 03-mockups.html .preview-card. */
+/** Live cycle recap (create mode) — mirrors 03-mockups.html .preview-card.
+ *  The new member's first cycle is the calendar-month cycle derived from
+ *  today's date (Story 11.2 — variable length), so the recap previews the
+ *  actual cycle the member will get. */
 function CycleRecap({ name, dailyAmount }: { name: string; dailyAmount: number }): JSX.Element {
   const t = useT();
   const amount = (value: number): string =>
     t("members.create.recap.amount", { amount: formatFcfaAmount(value) });
+  const { startDate, endDate } = deriveCycleBounds(new Date().toISOString().slice(0, 10));
+  const cycleLength = cycleLengthDays(startDate, endDate);
   const rows: ReadonlyArray<{ label: string; value: string }> = [
     { label: t("members.create.recap.row_member"), value: name },
     { label: t("members.create.recap.row_contribution"), value: amount(dailyAmount) },
-    { label: t("members.create.recap.row_total"), value: amount(dailyAmount * CYCLE_TOTAL_DAYS) },
+    { label: t("members.create.recap.row_total"), value: amount(dailyAmount * cycleLength) },
     { label: t("members.create.recap.row_commission"), value: amount(commission(dailyAmount)) },
     {
       label: t("members.create.recap.row_repayment"),
-      value: amount(computeProjectedFinalBalance(dailyAmount, 0)),
+      value: amount(computeProjectedFinalBalance(dailyAmount, 0, cycleLength - 1)),
     },
   ];
   return (

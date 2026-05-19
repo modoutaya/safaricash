@@ -10,7 +10,12 @@ expect.extend(toHaveNoViolations);
 describe("AdvanceSimulationPanel", () => {
   it("empty state — candidateAmount=0 shows placeholder, row 4 dimmed", () => {
     const { container } = render(
-      <AdvanceSimulationPanel dailyAmount={5000} existingAdvances={[]} candidateAmount={0} />,
+      <AdvanceSimulationPanel
+        dailyAmount={5000}
+        cycleLength={30}
+        existingAdvances={[]}
+        candidateAmount={0}
+      />,
     );
     expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "empty");
     expect(screen.getByText(/— FCFA/)).toBeInTheDocument();
@@ -18,7 +23,12 @@ describe("AdvanceSimulationPanel", () => {
 
   it("valid state — dailyAmount=5000, no existing, candidate=20_000 → final balance = 125 000", () => {
     const { container } = render(
-      <AdvanceSimulationPanel dailyAmount={5000} existingAdvances={[]} candidateAmount={20_000} />,
+      <AdvanceSimulationPanel
+        dailyAmount={5000}
+        cycleLength={30}
+        existingAdvances={[]}
+        candidateAmount={20_000}
+      />,
     );
     expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "valid");
     expect(screen.getByText(/150[\s\u00a0]000 FCFA/)).toBeInTheDocument();
@@ -31,6 +41,7 @@ describe("AdvanceSimulationPanel", () => {
     const { container } = render(
       <AdvanceSimulationPanel
         dailyAmount={5000}
+        cycleLength={30}
         existingAdvances={[10_000]}
         candidateAmount={20_000}
       />,
@@ -41,7 +52,12 @@ describe("AdvanceSimulationPanel", () => {
 
   it("boundary — candidate hits exactly capacity (5000 × 29 = 145 000) → final = 0; state=valid", () => {
     const { container } = render(
-      <AdvanceSimulationPanel dailyAmount={5000} existingAdvances={[]} candidateAmount={145_000} />,
+      <AdvanceSimulationPanel
+        dailyAmount={5000}
+        cycleLength={30}
+        existingAdvances={[]}
+        candidateAmount={145_000}
+      />,
     );
     expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "valid");
     // Match exactly "0 FCFA" (boundary: row 4 only). The leading whitespace
@@ -51,7 +67,12 @@ describe("AdvanceSimulationPanel", () => {
 
   it("over-limit — candidate=200_000 → row 3 warning + row 4 = 0 FCFA + explanatory note", () => {
     const { container } = render(
-      <AdvanceSimulationPanel dailyAmount={5000} existingAdvances={[]} candidateAmount={200_000} />,
+      <AdvanceSimulationPanel
+        dailyAmount={5000}
+        cycleLength={30}
+        existingAdvances={[]}
+        candidateAmount={200_000}
+      />,
     );
     expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "over-limit");
     expect(screen.getByText(/Dépasse le solde disponible/)).toBeInTheDocument();
@@ -63,7 +84,12 @@ describe("AdvanceSimulationPanel", () => {
 
   it("aria-live='polite' is on the final-balance container only", () => {
     const { container } = render(
-      <AdvanceSimulationPanel dailyAmount={5000} existingAdvances={[]} candidateAmount={20_000} />,
+      <AdvanceSimulationPanel
+        dailyAmount={5000}
+        cycleLength={30}
+        existingAdvances={[]}
+        candidateAmount={20_000}
+      />,
     );
     const liveRegions = container.querySelectorAll('[aria-live="polite"]');
     expect(liveRegions).toHaveLength(1);
@@ -72,11 +98,21 @@ describe("AdvanceSimulationPanel", () => {
 
   it("re-renders correctly when candidateAmount changes", () => {
     const { rerender } = render(
-      <AdvanceSimulationPanel dailyAmount={5000} existingAdvances={[]} candidateAmount={10_000} />,
+      <AdvanceSimulationPanel
+        dailyAmount={5000}
+        cycleLength={30}
+        existingAdvances={[]}
+        candidateAmount={10_000}
+      />,
     );
     expect(screen.getByText(/− 10[\s\u00a0]000 FCFA/)).toBeInTheDocument();
     rerender(
-      <AdvanceSimulationPanel dailyAmount={5000} existingAdvances={[]} candidateAmount={20_000} />,
+      <AdvanceSimulationPanel
+        dailyAmount={5000}
+        cycleLength={30}
+        existingAdvances={[]}
+        candidateAmount={20_000}
+      />,
     );
     expect(screen.getByText(/− 20[\s\u00a0]000 FCFA/)).toBeInTheDocument();
   });
@@ -94,6 +130,7 @@ describe("AdvanceSimulationPanel", () => {
           dailyAmount={dailyAmount}
           existingAdvances={c.existingAdvances}
           candidateAmount={c.candidateAmount}
+          cycleLength={30}
         />,
       );
       const results = await axe(container);

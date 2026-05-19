@@ -22,8 +22,6 @@ import { formatFcfaAmount } from "../api/formatAmount";
 import { memberInitials } from "../api/memberInitials";
 import type { MemberWithMeta } from "../types";
 
-const CYCLE_TOTAL_DAYS = 30;
-
 export interface MemberCardProps {
   member: MemberWithMeta;
   onSelect?: (memberId: string) => void;
@@ -34,7 +32,7 @@ export function MemberCard({ member, onSelect, className }: MemberCardProps): JS
   const t = useT();
   const interactive = typeof onSelect === "function";
   const cycle = member.currentCycle;
-  const daysRemaining = cycle ? CYCLE_TOTAL_DAYS - cycle.dayNumber : 0;
+  const daysRemaining = cycle ? cycle.cycleLength - cycle.dayNumber : 0;
   // Defensive: a stale persisted cache from before this field existed can
   // surface `undefined`; only render a real, finite number.
   const projectedBalance =

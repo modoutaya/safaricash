@@ -203,10 +203,14 @@ describe("deriveMembersWithMeta", () => {
     expect(out[0]!.currentCycle!.dayNumber).toBe(1);
   });
 
-  it("clamps cycle day to 30 when the cycle has overflowed its window", () => {
+  it("clamps cycle day to cycleLength when the cycle has overflowed its window", () => {
+    // A coherent 30-day cycle (2026-01-01 → 2026-01-30) that NOW (2026-04-21)
+    // has long overflowed → cycleDay clamps to the cycle's own length, 30.
     const out = deriveMembersWithMeta(
       makeData({
-        cyclesByMember: new Map([[baseMember.id, [{ ...activeCycle, start_date: "2026-01-01" }]]]),
+        cyclesByMember: new Map([
+          [baseMember.id, [{ ...activeCycle, start_date: "2026-01-01", end_date: "2026-01-30" }]],
+        ]),
       }),
       NOW,
     );

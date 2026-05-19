@@ -13,7 +13,13 @@ const makeMember = (overrides: Partial<MemberWithMeta> = {}): MemberWithMeta => 
   phoneNumber: "+221770000001",
   dailyAmount: 500,
   displayStatus: "actif",
-  currentCycle: { id: "c1", startDate: "2026-04-11", dayNumber: 11 },
+  currentCycle: {
+    id: "c1",
+    startDate: "2026-04-11",
+    endDate: "2026-05-10",
+    cycleLength: 30,
+    dayNumber: 11,
+  },
   latestInteractionAt: "2026-04-20T10:00:00Z",
   cycleAdvancesTotal: 0,
   projectedBalance: 14500,
@@ -38,7 +44,13 @@ describe("MemberCard", () => {
     render(
       <MemberCard
         member={makeMember({
-          currentCycle: { id: "c1", startDate: "2026-04-11", dayNumber: 25 },
+          currentCycle: {
+            id: "c1",
+            startDate: "2026-04-11",
+            endDate: "2026-05-10",
+            cycleLength: 30,
+            dayNumber: 25,
+          },
           projectedBalance: 145000,
         })}
       />,

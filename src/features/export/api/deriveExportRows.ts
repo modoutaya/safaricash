@@ -4,7 +4,7 @@
 // unit-tested on its own. `commission` / `computeProjectedFinalBalance`
 // come from the cycle-engine domain — never re-derived inline.
 
-import { commission, computeProjectedFinalBalance } from "@/domain/cycle";
+import { commission, computeProjectedFinalBalance, cycleLengthDays } from "@/domain/cycle";
 
 /** Subset of a `cycles` row the export needs.
  *  Note: `cycles` has NO `settled_payout` column — the realised payout of
@@ -85,7 +85,11 @@ export function deriveCycleSummaryRows(
     const final_payout =
       cycle.status === "settled" && settledPayout !== null
         ? settledPayout
-        : computeProjectedFinalBalance(dailyAmount, advances_sum);
+        : computeProjectedFinalBalance(
+            dailyAmount,
+            advances_sum,
+            cycleLengthDays(cycle.start_date, cycle.end_date) - 1,
+          );
 
     return {
       cycle_id: cycle.id,

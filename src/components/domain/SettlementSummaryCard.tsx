@@ -6,7 +6,7 @@
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { commission, settle } from "@/domain/cycle";
+import { commission, cycleLengthDays, settle } from "@/domain/cycle";
 import { formatFcfaAmount } from "@/features/member/api/formatAmount";
 import { memberInitials } from "@/features/member/api/memberInitials";
 import { useT } from "@/i18n/useT";
@@ -69,7 +69,9 @@ export function SettlementSummaryCard({
   const firstName = memberName.split(" ")[0] ?? memberName;
   const commissionAmount = commission(dailyAmount);
   const advancesSum = sumAdvances(advances);
-  const finalPayout = settle(dailyAmount, advances);
+  // Story 11.2 — payout is bounded by THIS cycle's length, not a fixed 30.
+  const contributionDays = cycleLengthDays(cycleStartDate, cycleEndDate) - 1;
+  const finalPayout = settle(dailyAmount, advances, contributionDays);
   const hasAdvances = advances.length > 0;
   const showAdvancesSubList = advances.length > 1;
 

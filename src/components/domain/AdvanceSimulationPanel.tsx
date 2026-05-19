@@ -10,12 +10,7 @@
 // ux-design-specification.md:509-510 (warning + destructive palettes),
 // docs/ADR/004-cycle-invariants.md (INV-1 — projection independent of cycleDay).
 
-import {
-  CYCLE_TOTAL_DAYS,
-  canAcceptAdvance,
-  commission,
-  computeProjectedFinalBalance,
-} from "@/domain/cycle";
+import { canAcceptAdvance, commission, computeProjectedFinalBalance } from "@/domain/cycle";
 import { formatFcfaAmount } from "@/features/member/api/formatAmount";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
@@ -27,6 +22,9 @@ export interface AdvanceSimulationPanelProps {
   existingAdvances: ReadonlyArray<number>;
   /** FCFA integer. 0 when the input is empty (caller normalises). */
   candidateAmount: number;
+  /** Inclusive day count of the member's current cycle (Story 11.2 —
+   *  variable length). `contributionDays = cycleLength − 1`. */
+  cycleLength: number;
   /** Caller-side spacing/sizing tweaks. */
   className?: string;
 }
@@ -37,9 +35,12 @@ function deriveState(
   dailyAmount: number,
   existingAdvances: ReadonlyArray<number>,
   candidateAmount: number,
+  contributionDays: number,
 ): SimulationState {
   if (candidateAmount === 0) return "empty";
-  return canAcceptAdvance(dailyAmount, existingAdvances, candidateAmount) ? "valid" : "over-limit";
+  return canAcceptAdvance(dailyAmount, existingAdvances, candidateAmount, contributionDays)
+    ? "valid"
+    : "over-limit";
 }
 
 function sumAdvances(existingAdvances: ReadonlyArray<number>, candidateAmount: number): number {
@@ -52,18 +53,21 @@ export function AdvanceSimulationPanel({
   dailyAmount,
   existingAdvances,
   candidateAmount,
+  cycleLength,
   className,
 }: AdvanceSimulationPanelProps): JSX.Element {
   const t = useT();
-  const state = deriveState(dailyAmount, existingAdvances, candidateAmount);
+  const contributionDays = cycleLength - 1;
+  const state = deriveState(dailyAmount, existingAdvances, candidateAmount, contributionDays);
 
-  const totalProjected = dailyAmount * CYCLE_TOTAL_DAYS;
+  const totalProjected = dailyAmount * cycleLength;
   const commissionAmount = commission(dailyAmount);
   // Projected final balance = engine's raw value, except clamped to 0
   // for the over-limit display (BDD line 903 — "row 4 shows 0 FCFA").
   const projectedRaw = computeProjectedFinalBalance(
     dailyAmount,
     sumAdvances(existingAdvances, candidateAmount),
+    contributionDays,
   );
   const finalBalance = state === "over-limit" ? 0 : projectedRaw;
 

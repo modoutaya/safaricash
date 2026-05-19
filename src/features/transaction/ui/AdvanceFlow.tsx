@@ -20,7 +20,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 
 import { AdvanceSimulationPanel } from "@/components/domain/AdvanceSimulationPanel";
 import { Button } from "@/components/ui/button";
-import { CYCLE_TOTAL_DAYS, isCycleClosedForTransactions } from "@/domain/cycle";
+import { canAcceptAdvance, cycleLengthDays, isCycleClosedForTransactions } from "@/domain/cycle";
 import { useMemberProfile } from "@/features/member";
 import { formatFcfaAmount } from "@/features/member/api/formatAmount";
 import { useT } from "@/i18n/useT";
@@ -111,10 +111,11 @@ export function AdvanceFlow({
 
   const handleChipTap = (n: number) => setRawAmount(String(n));
 
-  const canAcceptCheck = (n: number): boolean => {
-    const total = existingAdvanceAmounts.reduce((a, b) => a + b, 0) + n;
-    return total <= data.member.daily_amount * (CYCLE_TOTAL_DAYS - 1);
-  };
+  // Story 11.2 — capacity is bounded by the cycle's own length.
+  const cycleLength = cycleLengthDays(data.currentCycle.start_date, data.currentCycle.end_date);
+
+  const canAcceptCheck = (n: number): boolean =>
+    canAcceptAdvance(data.member.daily_amount, existingAdvanceAmounts, n, cycleLength - 1);
 
   const trimmedMotive = motive.trim();
   const ctaEnabled = candidateAmount > 0 && canAcceptCheck(candidateAmount);
@@ -270,6 +271,7 @@ export function AdvanceFlow({
           dailyAmount={data.member.daily_amount}
           existingAdvances={existingAdvanceAmounts}
           candidateAmount={candidateAmount}
+          cycleLength={cycleLength}
         />
 
         {/* Amber security notice. */}

@@ -6,7 +6,7 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { axe, toHaveNoViolations } from "jest-axe";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MemberForm, type MemberFormProps } from "./MemberForm";
 import type { CreateMemberInput } from "../types";
@@ -31,6 +31,15 @@ function renderForm(overrides: Partial<MemberFormProps> = {}) {
 describe("MemberForm — create mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // CycleRecap previews the member's FIRST cycle via deriveCycleBounds(today)
+    // — variable-length per Story 11.2. Pin the clock to the 1st of a 30-day
+    // month so the recap is deterministic (cycleLength 30). `toFake: ["Date"]`
+    // mocks only Date — setTimeout stays real so `waitFor` polling works.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-04-01T12:00:00Z") });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("renders the 3 labelled fields + submit CTA disabled by default", () => {

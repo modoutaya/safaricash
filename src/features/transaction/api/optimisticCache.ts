@@ -95,7 +95,12 @@ export function applyOptimisticTransactionUpdate(
     const nextStats = computeMemberStats(
       nextTransactions,
       { dailyAmount: previousProfile.member.daily_amount },
-      previousProfile.currentCycle ? { startDate: previousProfile.currentCycle.start_date } : null,
+      previousProfile.currentCycle
+        ? {
+            startDate: previousProfile.currentCycle.start_date,
+            endDate: previousProfile.currentCycle.end_date,
+          }
+        : null,
     );
     const nextProfile: MemberProfileData = {
       ...previousProfile,

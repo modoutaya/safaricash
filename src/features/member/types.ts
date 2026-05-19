@@ -96,13 +96,22 @@ export interface MemberWithMeta {
   phoneNumber: string | null;
   dailyAmount: number;
   displayStatus: DisplayStatus;
-  currentCycle: { id: string; startDate: string; dayNumber: number } | null;
+  currentCycle: {
+    id: string;
+    startDate: string;
+    /** YYYY-MM-DD — the cycle's last calendar day (variable length, Story 11.2). */
+    endDate: string;
+    dayNumber: number;
+    /** Inclusive day count of the cycle: end − start + 1. */
+    cycleLength: number;
+  } | null;
   latestInteractionAt: string; // ISO-8601
   /** Sum of advance amounts booked in the current cycle. 0 when there are
    *  no advances or no current cycle. */
   cycleAdvancesTotal: number;
-  /** Projected final payout for the current cycle (dailyAmount × 29 −
-   *  advances, via the Story 3.2 cycle engine). null when no current cycle. */
+  /** Projected final payout for the current cycle (dailyAmount ×
+   *  contributionDays − advances, via the cycle engine). null when no
+   *  current cycle. */
   projectedBalance: number | null;
 }
 
