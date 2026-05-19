@@ -497,7 +497,10 @@ if (env) {
         await markCycleCompleted(service, cycleId);
 
         // dailyAmount = 500 (default in the seed helper) → payout = 500 × 23 = 11_500.
-        const { data, error } = await service.rpc("commit_cycle_settlement", {
+        // Call via the JWT-bound user client — commit_cycle_settlement
+        // raises 28000 ('auth required') when auth.uid() is null, which
+        // is the case for the service-role client.
+        const { data, error } = await userClient.rpc("commit_cycle_settlement", {
           p_member_id: memberId,
           p_cycle_id: cycleId,
           p_expected_payout: 11_500,
