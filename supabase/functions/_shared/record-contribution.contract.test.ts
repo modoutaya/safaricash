@@ -87,6 +87,15 @@ async function seedMemberWithCycle(
     .eq("collector_id", collectorId)
     .single();
   if (!cycle) throw new Error("seedMember: cycle not found");
+  // Story 11.3 — pin the seeded cycle to a deterministic 30-day window so
+  // tests asserting cycle_day ∈ [1, 30] keep working regardless of when
+  // they run (post-11.3 create_member_with_cycle produces variable-length
+  // calendar-month cycles by default).
+  const { error: pinErr } = await service
+    .from("cycles")
+    .update({ start_date: "2026-04-01", end_date: "2026-04-30" })
+    .eq("id", cycle.id);
+  if (pinErr) throw new Error(`seedMember: pin cycle dates — ${pinErr.message}`);
   return { memberId, cycleId: cycle.id };
 }
 
@@ -284,6 +293,56 @@ if (env) {
       } finally {
         await cleanup(service, ownerC);
         await cleanup(service, intruderC);
+      }
+    },
+  });
+
+  // -------------------------------------------------------------------------
+  // Story 11.3 AC #12 — cycle_day = 31 accepted; cycle_day = 32 rejected.
+  // -------------------------------------------------------------------------
+  Deno.test({
+    name: "11.3 AC #12 — record_contribution accepts cycle_day=31; rejects cycle_day=32",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "rec113");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        // Seed + override to a 31-day cycle (January 2026 → cycleLength 31).
+        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        const { error: pinErr } = await service
+          .from("cycles")
+          .update({ start_date: "2026-01-01", end_date: "2026-01-31" })
+          .eq("id", cycleId);
+        if (pinErr) throw new Error(`pin cycle: ${pinErr.message}`);
+
+        // cycle_day = 31 is now accepted (was rejected pre-11.3).
+        const { data: txId, error: errAccept } = await userClient.rpc("record_contribution", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_amount: 500,
+          p_cycle_day: 31,
+        });
+        assertEquals(errAccept, null);
+        assert(typeof txId === "string");
+
+        // cycle_day = 32 still rejected.
+        const { error: err32 } = await userClient.rpc("record_contribution", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_amount: 500,
+          p_cycle_day: 32,
+        });
+        assert(err32 !== null);
+        assertEquals(err32?.code, "22000");
+        assertStringIncludes(err32?.message ?? "", "invalid_cycle_day");
+      } finally {
+        await cleanup(service, c);
       }
     },
   });

@@ -16,7 +16,11 @@ export const RecordAdvanceInputSchema = z.object({
   memberId: z.string().uuid(),
   cycleId: z.string().uuid(),
   amount: z.number().int().positive(),
-  cycleDay: z.number().int().min(1).max(30),
+  // Story 11.3 — ceiling raised 30 → 31 to admit the last day of a 31-day
+  // calendar-month cycle. Bumped in lockstep with the DB column check on
+  // public.transactions.cycle_day, the record_advance RPC validation, and
+  // src/features/member/types.ts transactionRowSchema.cycle_day.
+  cycleDay: z.number().int().min(1).max(31),
   motive: z.string(),
   saverAcknowledged: z.literal(true),
 });

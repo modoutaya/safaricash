@@ -33,8 +33,13 @@ describe("RecordAdvanceInputSchema", () => {
     expect(r.success).toBe(false);
   });
 
-  it("rejects cycleDay = 31 (out of [1, 30])", () => {
+  it("accepts cycleDay = 31 — the last day of a 31-day cycle (Story 11.3)", () => {
     const r = RecordAdvanceInputSchema.safeParse({ ...VALID, cycleDay: 31 });
+    expect(r.success).toBe(true);
+  });
+
+  it("rejects cycleDay = 32 (out of [1, 31])", () => {
+    const r = RecordAdvanceInputSchema.safeParse({ ...VALID, cycleDay: 32 });
     expect(r.success).toBe(false);
   });
 });
