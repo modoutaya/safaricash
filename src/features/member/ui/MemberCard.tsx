@@ -14,6 +14,7 @@
 // Visual reference: 03-mockups.html .member-card.
 
 import { StatusBadge } from "@/components/domain/StatusBadge";
+import { daysUntilCycleEnd } from "@/domain/cycle";
 import { CycleProgressBar } from "@/features/cycle";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
@@ -32,7 +33,7 @@ export function MemberCard({ member, onSelect, className }: MemberCardProps): JS
   const t = useT();
   const interactive = typeof onSelect === "function";
   const cycle = member.currentCycle;
-  const daysRemaining = cycle ? cycle.cycleLength - cycle.dayNumber : 0;
+  const daysRemaining = cycle ? daysUntilCycleEnd(cycle.dayNumber, cycle.cycleLength) : 0;
   // Defensive: a stale persisted cache from before this field existed can
   // surface `undefined`; only render a real, finite number.
   const projectedBalance =

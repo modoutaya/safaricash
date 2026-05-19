@@ -1,6 +1,6 @@
 # Story 11.2: Cycle engine refactor to variable-length cycles
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -98,6 +98,17 @@ The `cycles` table already has `start_date` AND `end_date` columns (`init_schema
   - Story file: Completion Notes + File List + Change Log.
   - `sprint-status.yaml`: `11-2-cycle-engine-variable-length: ready-for-dev` → `review`.
 
+### Review Findings
+
+> Code review 2026-05-19 (`bmad-code-review`, 3 layers, model `claude-sonnet-4-6` ≠ implementer `claude-opus-4-7`). 6 patch findings, ~19 dismissed as noise. Engine logic, new helpers, property-test names/counts, barrel, and the 14 consumer source updates verified correct.
+
+- [x] [Review][Patch] Story 11.3 handoff — SQL RPCs + `cycle_day` ceiling. `commit_cycle_settlement` AND `record_advance` migrations still hardcode `× 29`; the `cycle_day` ceiling is capped at 30 (DB `check`, RPC validation, and the `transactionRowSchema` Zod `max(30)` in `src/features/member/types.ts:68`). Not a PR #117 defect — SQL is out of 11.2 scope and no non-30-day cycle exists until 11.3 creates one — but Story 11.3 MUST update all three in lockstep or settlement/advance break for variable-length cycles (NFR-R3 mismatch). 11.3's scope note currently omits `record_advance` and the `cycle_day` ceiling. [docs handoff — 11.3 scope] (High, edge)
+- [x] [Review][Patch] Stale `× 29` test notation not cleaned up (AC #16 miss) — `[id].settlement.test.tsx`, `deriveExportRows.test.ts`, `useMemberProfile.test.tsx`, `AdvanceFlow.test.tsx`, `useMembers.test.ts` (test name), `AdvanceSimulationPanel.test.tsx` (comment) still carry `× 29` / `30 −` notation. All numerically correct (30-day fixtures) so tests pass, but AC #16 required updating the notation. [multiple *.test.*] (Med, auditor)
+- [x] [Review][Patch] INV-9 property test oracle is weak — the test helper `endOfMonthOf` re-implements production `lastDayOfMonth` (`Date.UTC(y, m+1, 0)`), so a shared off-by-one would not be caught; `startIsValid` checks only `endsWith("-01")`, not that it is the *next* month. Use an independent oracle (e.g. day-after-`endDate` is the 1st) and assert `startDate === firstDayOfNextMonth(requested)` on roll-forward. [src/domain/cycle/cycleEngine.test.ts] (Med, blind+edge)
+- [x] [Review][Patch] Leap-year February untested — `deriveCycleBounds` / `cycleLengthDays` have no Feb-29 case; the property-test `fc.date` range (2026-2027) excludes all leap Februaries. ADR A1.4 explicitly lists "February (28 or 29 days)" as a boundary. Add a 2028 (leap) example test. [src/domain/cycle/cycleEngine.test.ts] (Med, edge)
+- [x] [Review][Patch] `isCycleInUpcomingEndWindow` embedded property test — `day` arbitrary `[1,31]` is independent of `cycleLength` `[3,31]`; when `day > cycleLength` the assertion is vacuously true. Constrain `day` to `[1, cycleLength]` via a derived arbitrary. [src/domain/cycle/cycleEngine.test.ts] (Low, blind)
+- [x] [Review][Patch] `MemberCard` `daysRemaining` uses raw `cycleLength − dayNumber` — replace with the engine's `daysUntilCycleEnd(dayNumber, cycleLength)` (clamps to ≥ 0). Value cannot go negative via normal paths, but the engine helper exists for exactly this and keeps the consumer consistent. [src/features/member/ui/MemberCard.tsx] (Low, blind+edge+auditor)
+
 ## Dev Notes
 
 ### Architecture compliance
@@ -106,6 +117,19 @@ The `cycles` table already has `start_date` AND `end_date` columns (`init_schema
 - **Single source of truth.** `deriveCycleBounds` is the canonical cycle-bounds derivation. Story 11.3's SQL RPC mirrors it; 11.3 must add a contract test cross-checking SQL output against this TS function (same pattern as `settle()` ↔ `commit_cycle_settlement`). Flag this in the 11.2 → 11.3 handoff; do not build the SQL side here.
 - **Tokens / strict TS.** No `as` casts; the new function signatures are explicit. UTC date math throughout (`T00:00:00Z`) — mirror the existing `cycleDay` parsing; DST must stay invisible.
 - **Cite sources.** Engine + test changes cite ADR-004 § Amendment A1 invariant IDs in comments.
+
+### Handoff to Story 11.3 — load-bearing items
+
+The code-review (2026-05-19) surfaced three items Story 11.3 **must** update in lockstep with the SQL migration, or settlement and advance break for variable-length cycles (NFR-R3 mismatch). 11.3's current scope mentions only the first; the others are added here.
+
+1. **`commit_cycle_settlement` payout recompute** — server still computes `daily_amount × 29 − Σ(advances)` (migration `20260514000005`, line ~120). Must become `daily_amount × ((c.end_date − c.start_date + 1) − 1) − Σ(advances)`. The client-side `expectedPayout` in `[id].settlement.tsx` now uses the variable formula; **as long as no non-30-day cycle exists in the DB the cross-check still passes**, but the moment 11.3's `create_member_with_cycle` produces a month-aligned partial cycle, every settlement on that cycle is rejected with `payout mismatch` until the server formula is updated. Already in 11.3 scope.
+2. **`record_advance` capacity check** — server uses `daily_amount × 29` for the capacity ceiling (migration `20260427000002`, line ~100). Must become `daily_amount × (cycleLength − 1)` derived from the cycle row's dates. Client `canAcceptAdvance` already enforces the correct, tighter capacity for partial cycles — so without the SQL fix the server would accept advances the client rejected (a problem only if the client guard is ever bypassed, e.g. the offline replay path). **Currently NOT in 11.3 scope — add it.**
+3. **`cycle_day` ceiling — DB, RPC, AND Zod** — three layers cap `cycle_day` at 30:
+   - DB: `init_schema.sql` `check (cycle_day between 1 and 30)` on `transactions`.
+   - RPC validation: `record_contribution` + `record_advance` raise `invalid_cycle_day` for `p_cycle_day > 30`.
+   - TypeScript: `src/features/member/types.ts:68` `transactionRowSchema.cycle_day: z.number().int().min(1).max(30)`.
+
+   A 31-day cycle can produce `cycleDay = 31`. Until all three are raised to 31, a contribution or advance on day 31 of a 31-day cycle fails. **Currently NOT in 11.3 scope — add it.** The Zod ceiling is a TS-only change but is intentionally bundled with 11.3 so the DB / RPC / TS limit ships as one coherent unit.
 
 ### Scope clarification — why 11.2 absorbs call-site updates the Sprint Change Proposal listed under 11.4
 
@@ -237,3 +261,4 @@ claude-opus-4-7 (1M context) — `bmad-dev-story` workflow, 2026-05-19.
 |------------|---------------------|--------|
 | 2026-05-19 | Winston (architect) | Story 11.2 spec generated by `bmad-create-story`. Second story of Epic 11. Refactors `cycleEngine.ts` to variable-length calendar-month cycles per the merged ADR-004 Amendment A1: removes `CYCLE_TOTAL_DAYS`/`CONTRIBUTION_DAYS`, adds `MIN_CYCLE_LENGTH_DAYS` + `cycleLengthDays` + `deriveCycleBounds`, threads `contributionDays`/`endDate` through projection/settle/canAcceptAdvance/cycleDay/computeMemberStats, rewrites the 9 `fast-check` property tests. Scope clarified vs the Sprint Change Proposal: 11.2 absorbs all TypeScript call-site updates (~8 files) to keep the build green; 11.4 keeps only the display-copy `/30` denominator. 100 % coverage gate on `src/domain/cycle/`. Status → ready-for-dev. |
 | 2026-05-19 | dev agent | Implementation complete via `bmad-dev-story`. Engine refactored + barrel updated; `cycleEngine.test.ts` rewritten (9 property tests, INV-2 renamed, legacy `cycleLength = 30` case); 14 consumer files + 9 consumer test files updated; `MemberWithMeta.currentCycle` view-model gained `endDate` + `cycleLength`. Two stale tests fixed (`MemberForm` recap pinned clock; `useMembers` clamp test given a coherent fixture). Gates: typecheck / lint / 1032 vitest (cycle domain 100 %) / build all green. Playwright deferred to CI (no `SUPABASE_TEST_*` env locally); E2E specs verified to need no changes (seeds are 30-day cycles). Zero new dependency / migration / SQL. Status → review. |
+| 2026-05-19 | code review | `bmad-code-review` — 3 adversarial layers (model `claude-sonnet-4-6` ≠ implementer `claude-opus-4-7`). 6 patch findings, all resolved; ~19 dismissed as noise. Fixes: (1) explicit Handoff-to-Story-11.3 section in Dev Notes flagging `commit_cycle_settlement` + `record_advance` + `cycle_day` ceiling (DB/RPC/Zod), with 11-3 sprint-status entry scope-widened; (2) stale `× 29` notation cleaned across 6 test files; (3) INV-9 property test strengthened with an independent `isLastDayOfMonth`/`firstDayOfNextMonth` oracle (no longer mirrors production); (4) leap-year February tests added (Feb 1 / Feb 27 / Feb 28 of 2028, fc.date range extended through 2028); (5) `isCycleInUpcomingEndWindow` embedded property test now chains `day` to `[1, cycleLength]` so out-of-range cases can't vacuously satisfy; (6) `MemberCard` `daysRemaining` uses `daysUntilCycleEnd` engine helper. Gates re-run: typecheck / lint / 1035 vitest (cycle domain 100 %). Status → done. |

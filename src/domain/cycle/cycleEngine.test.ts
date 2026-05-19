@@ -39,10 +39,25 @@ function isoDatePlusDays(startDate: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Test-only: last calendar day (YYYY-MM-DD) of the given date's month. */
-function endOfMonthOf(isoDate: string): string {
+/** Test-only oracle: a date is the last calendar day of its month iff the
+ *  next day is the 1st of some month. Uses `isoDatePlusDays` (setUTCDate)
+ *  — a different code path than production `lastDayOfMonth`'s
+ *  `Date.UTC(y, m+1, 0)`, so a shared off-by-one in production would not
+ *  be hidden by a mirroring test helper. */
+function isLastDayOfMonth(isoDate: string): boolean {
+  return isoDatePlusDays(isoDate, 1).endsWith("-01");
+}
+
+/** Test-only: 1st of the calendar month AFTER the given date (year-aware
+ *  via setUTCDate-based arithmetic, independent of production's modulo). */
+function firstDayOfNextMonth(isoDate: string): string {
   const d = new Date(`${isoDate}T00:00:00Z`);
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+  // Jump deep into the next month then snap to day 1 — avoids any month-
+  // length / modulo logic mirroring production.
+  d.setUTCDate(1);
+  d.setUTCDate(d.getUTCDate() + 40);
+  d.setUTCDate(1);
+  return d.toISOString().slice(0, 10);
 }
 
 // ---------------------------------------------------------------------------
@@ -189,23 +204,32 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
     );
   });
 
-  it("INV-9: end_date is the month-end of start; short residual rolls forward; length ≥ MIN (propCycleBoundsDerivation)", () => {
+  it("INV-9: end_date is the month-end of start; short residual rolls forward to the next month; length ≥ MIN (propCycleBoundsDerivation)", () => {
+    // Range extended through 2028 to cover leap-year February (29 days).
     fc.assert(
       fc.property(
         fc.date({
           min: new Date("2026-01-01"),
-          max: new Date("2027-12-31"),
+          max: new Date("2028-12-31"),
           noInvalidDate: true,
         }),
         (requestedAt) => {
           const requested = requestedAt.toISOString().slice(0, 10);
           const { startDate, endDate } = deriveCycleBounds(requested);
           const length = cycleLengthDays(startDate, endDate);
-          // end_date must be the last day of START's month — not just some month-end.
-          const endIsMonthEndOfStart = endDate === endOfMonthOf(startDate);
-          // startDate is either the requested date (no roll-forward) or the 1st of next month.
-          const startIsValid = startDate === requested || startDate.endsWith("-01");
-          return endIsMonthEndOfStart && length >= MIN_CYCLE_LENGTH_DAYS && startIsValid;
+
+          // (a) endDate is a month-end (oracle: day-after is the 1st — uses
+          //     setUTCDate arithmetic, NOT the production Date.UTC(y,m+1,0)).
+          if (!isLastDayOfMonth(endDate)) return false;
+          // (b) endDate sits in startDate's year-month (same YYYY-MM prefix).
+          if (endDate.slice(0, 7) !== startDate.slice(0, 7)) return false;
+          // (c) length respects the MIN floor.
+          if (length < MIN_CYCLE_LENGTH_DAYS) return false;
+          // (d) startDate is EITHER requested (no roll) OR exactly the 1st of
+          //     the month AFTER requested's month — not just some month's 1st.
+          if (startDate !== requested && startDate !== firstDayOfNextMonth(requested)) return false;
+
+          return true;
         },
       ),
     );
@@ -279,6 +303,32 @@ describe("cycleEngine — example tests", () => {
       expect(deriveCycleBounds("2026-06-30")).toEqual({
         startDate: "2026-07-01",
         endDate: "2026-07-31",
+      });
+    });
+
+    it("leap-year February — registration on the 1st gives a 29-day cycle (ADR A1.4 boundary)", () => {
+      // 2028 is a leap year. February 2028 has 29 days; ending on the 29th
+      // is the correct month-end (vs. 28th in a non-leap year).
+      expect(deriveCycleBounds("2028-02-01")).toEqual({
+        startDate: "2028-02-01",
+        endDate: "2028-02-29",
+      });
+      expect(cycleLengthDays("2028-02-01", "2028-02-29")).toBe(29);
+    });
+
+    it("leap-year February — registration on the 27th yields exactly MIN_CYCLE_LENGTH_DAYS (no roll)", () => {
+      // 2028-02-27 → rawLen = 29 − 27 + 1 = 3 = MIN → no roll-forward.
+      expect(deriveCycleBounds("2028-02-27")).toEqual({
+        startDate: "2028-02-27",
+        endDate: "2028-02-29",
+      });
+    });
+
+    it("leap-year February — registration on the 28th rolls forward (rawLen = 2 < 3)", () => {
+      // 2028-02-28 → rawLen = 29 − 28 + 1 = 2 < 3 → roll to March 2028.
+      expect(deriveCycleBounds("2028-02-28")).toEqual({
+        startDate: "2028-03-01",
+        endDate: "2028-03-31",
       });
     });
   });
@@ -461,13 +511,22 @@ describe("cycleEngine — example tests", () => {
       expect(isCycleInUpcomingEndWindow(30, 7, 30)).toBe(true);
     });
 
-    it("INV: isCycleInUpcomingEndWindow(day, w, len) ≡ (len − day ≤ w)", () => {
+    it("INV: isCycleInUpcomingEndWindow(day, w, len) ≡ (len − day ≤ w) — day constrained to [1, cycleLength] so the clamp does not vacuously satisfy the property", () => {
       fc.assert(
         fc.property(
-          fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
-          fc.integer({ min: 1, max: 31 }),
-          fc.integer({ min: 0, max: 31 }),
-          (cycleLength, day, windowDays) => {
+          // Chain so `day` cannot exceed `cycleLength` — out-of-range days
+          // would clamp daysUntilCycleEnd to 0 and make the property
+          // vacuously true regardless of implementation correctness.
+          fc
+            .integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 })
+            .chain((cycleLength) =>
+              fc.tuple(
+                fc.constant(cycleLength),
+                fc.integer({ min: 1, max: cycleLength }),
+                fc.integer({ min: 0, max: 31 }),
+              ),
+            ),
+          ([cycleLength, day, windowDays]) => {
             const expected = cycleLength - day <= windowDays;
             return isCycleInUpcomingEndWindow(day, windowDays, cycleLength) === expected;
           },

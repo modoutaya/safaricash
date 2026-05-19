@@ -118,6 +118,7 @@ function buildBase() {
       daysRemaining: 0,
       contributedTotal: 1_000,
       outstandingAdvances: 3_000,
+      // Fixture cycle is 30 days → contributionDays 29. Projected = 500 × 29 − 3 000.
       projectedFinalBalance: 500 * 29 - 3_000,
     },
     totalTransactionsCount: 3,
@@ -177,7 +178,8 @@ describe("MemberSettlementRoute", () => {
     expect(screen.getByRole("heading", { level: 2, name: /Awa Diallo/ })).toBeInTheDocument();
     // Cycle date range
     expect(screen.getByText(/Cycle du 12\/04\/2026 au 11\/05\/2026/)).toBeInTheDocument();
-    // Final payout = settle(500, [3000]) = 500*29 - 3000 = 11 500 FCFA
+    // Fixture cycle (2026-04-12 \u2192 2026-05-11) is 30 days \u2192 contributionDays 29.
+    // Final payout = settle(500, [3000], 29) = 500 \u00d7 29 \u2212 3000 = 11 500 FCFA.
     expect(screen.getByText(/11[\s\u00a0]500 FCFA/)).toBeInTheDocument();
     // Both CTAs present
     expect(screen.getByRole("button", { name: /Vérifier les transactions/ })).toBeInTheDocument();
@@ -439,6 +441,7 @@ describe("MemberSettlementRoute", () => {
           daysRemaining: 0,
           contributedTotal: 1_000,
           outstandingAdvances: 6_000,
+          // Fixture cycle is 30 days → contributionDays 29. Projected = 500 × 29 − 6 000.
           projectedFinalBalance: 500 * 29 - 6_000,
         },
       }),

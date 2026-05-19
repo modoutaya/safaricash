@@ -37,7 +37,7 @@ describe("AdvanceSimulationPanel", () => {
     expect(screen.getByText(/125[\s\u00a0]000 FCFA/)).toBeInTheDocument();
   });
 
-  it("valid state with existing advances — final = dailyAmount × 29 − (existing + candidate)", () => {
+  it("valid state with existing advances — final = dailyAmount × contributionDays − (existing + candidate)", () => {
     const { container } = render(
       <AdvanceSimulationPanel
         dailyAmount={5000}
@@ -50,7 +50,7 @@ describe("AdvanceSimulationPanel", () => {
     expect(screen.getByText(/115[\s\u00a0]000 FCFA/)).toBeInTheDocument();
   });
 
-  it("boundary — candidate hits exactly capacity (5000 × 29 = 145 000) → final = 0; state=valid", () => {
+  it("boundary — candidate hits exactly capacity (dailyAmount × contributionDays = 5000 × 29 = 145 000 for cycleLength=30) → final = 0; state=valid", () => {
     const { container } = render(
       <AdvanceSimulationPanel
         dailyAmount={5000}

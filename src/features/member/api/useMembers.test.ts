@@ -66,7 +66,7 @@ describe("deriveMembersWithMeta", () => {
     expect(out[0]!.projectedBalance).toBe(11500);
   });
 
-  it("defaults cycleAdvancesTotal to 0 + projectedBalance to dailyAmount×29 with no advances", () => {
+  it("defaults cycleAdvancesTotal to 0 + projectedBalance to dailyAmount × contributionDays with no advances (30-day fixture → contributionDays 29)", () => {
     const out = deriveMembersWithMeta(makeData(), NOW);
     expect(out[0]!.cycleAdvancesTotal).toBe(0);
     expect(out[0]!.projectedBalance).toBe(14500);
