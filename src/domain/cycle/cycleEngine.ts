@@ -1,19 +1,31 @@
 // Story 3.2 — Pure cycle engine.
+// Story 11.2 — variable-length (calendar-month) cycles.
 //
-// Single source of truth for cycle math. Implements ADR-004's 8 invariants
-// (docs/ADR/004-cycle-invariants.md). Zero infrastructure / framework /
+// Single source of truth for cycle math. Implements ADR-004's invariants
+// (docs/ADR/004-cycle-invariants.md), as amended by § Amendment A1 for
+// variable-length calendar-month cycles. Zero infrastructure / framework /
 // React imports. Inputs are scalars / readonly arrays of scalars; outputs
 // are scalars / records of scalars. Caller supplies `now` for any time-
 // dependent helper — INV-7 forbids `Date.now()` reads inside the engine.
 //
 // FR15 / FR16 / FR17 / NFR-R3 zero-tolerance live here.
+//
+// A cycle spans [start_date, end_date] inclusive. `cycleLength` is derived
+// per-cycle from those two dates — the engine no longer assumes 30 days.
+// `contributionDays` is always `cycleLength − 1` (one day is the
+// collector's commission, ADR-004 INV-4).
 
 const MS_PER_DAY = 86_400_000;
 
-/** Cycle structure (ADR-004 § Context). */
-export const CYCLE_TOTAL_DAYS = 30;
+/** ADR-004 INV-4 — commission is exactly 1 day, always (never prorated). */
 export const COMMISSION_DAYS = 1;
-export const CONTRIBUTION_DAYS = CYCLE_TOTAL_DAYS - COMMISSION_DAYS;
+
+/**
+ * ADR-004 § Amendment A1.5 — roll-forward threshold. A cycle whose
+ * calendar-month residual is shorter than this rolls forward to the next
+ * month. Product-tunable (Amendment A1-Q1); single point of edit.
+ */
+export const MIN_CYCLE_LENGTH_DAYS = 3;
 
 function sum(xs: ReadonlyArray<number>): number {
   let total = 0;
@@ -21,9 +33,76 @@ function sum(xs: ReadonlyArray<number>): number {
   return total;
 }
 
+/** Parse a YYYY-MM-DD date string as a UTC-midnight epoch. */
+function utcEpoch(isoDate: string): number {
+  return new Date(`${isoDate}T00:00:00Z`).getTime();
+}
+
+/** Format a UTC year/0-indexed-month/day triple as YYYY-MM-DD. */
+function isoDate(year: number, month0: number, day: number): string {
+  const mm = String(month0 + 1).padStart(2, "0");
+  const dd = String(day).padStart(2, "0");
+  return `${year}-${mm}-${dd}`;
+}
+
+/** Last calendar day (1-based) of the given UTC year + 0-indexed month. */
+function lastDayOfMonth(year: number, month0: number): number {
+  return new Date(Date.UTC(year, month0 + 1, 0)).getUTCDate();
+}
+
+/**
+ * Inclusive day count of a cycle: `end_date − start_date + 1`. UTC math —
+ * DST is invisible. ADR-004 § Amendment A1: replaces the fixed
+ * `CYCLE_TOTAL_DAYS = 30` constant.
+ */
+export function cycleLengthDays(startDate: string, endDate: string): number {
+  return Math.round((utcEpoch(endDate) - utcEpoch(startDate)) / MS_PER_DAY) + 1;
+}
+
+/**
+ * INV-9 — cycle-bounds derivation (write-path invariant).
+ *
+ * For a requested start date, the cycle's `end_date` is the last calendar
+ * day of that month. If the residual length is below
+ * `MIN_CYCLE_LENGTH_DAYS`, the cycle rolls forward to the next month
+ * (start = 1st, end = its last day — year-aware: Dec → Jan next year).
+ * The derived `cycleLength` is always `≥ MIN_CYCLE_LENGTH_DAYS`.
+ *
+ * This is the canonical reference implementation; Story 11.3's SQL RPCs
+ * mirror it and cross-check against it.
+ */
+export function deriveCycleBounds(requestedDate: string): {
+  startDate: string;
+  endDate: string;
+} {
+  const d = new Date(`${requestedDate}T00:00:00Z`);
+  const year = d.getUTCFullYear();
+  const month0 = d.getUTCMonth();
+  const day = d.getUTCDate();
+
+  const monthEnd = lastDayOfMonth(year, month0);
+  const rawLen = monthEnd - day + 1;
+
+  if (rawLen >= MIN_CYCLE_LENGTH_DAYS) {
+    return {
+      startDate: isoDate(year, month0, day),
+      endDate: isoDate(year, month0, monthEnd),
+    };
+  }
+
+  // Roll forward to the 1st of the next month (year-aware).
+  const nextYear = month0 === 11 ? year + 1 : year;
+  const nextMonth0 = (month0 + 1) % 12;
+  return {
+    startDate: isoDate(nextYear, nextMonth0, 1),
+    endDate: isoDate(nextYear, nextMonth0, lastDayOfMonth(nextYear, nextMonth0)),
+  };
+}
+
 /**
  * INV-4 — commission is exactly 1 × dailyAmount, always. The collector
- * earns one day's contribution per cycle — never more, never less.
+ * earns one day's contribution per cycle — never more, never less, never
+ * prorated to the cycle length (a partial cycle still takes a full day).
  */
 export function commission(dailyAmount: number): number {
   return dailyAmount * COMMISSION_DAYS;
@@ -32,69 +111,76 @@ export function commission(dailyAmount: number): number {
 /**
  * FR17 — projected final balance.
  *
- *   projected = (dailyAmount × 30) − (1 × dailyAmount) − Σ(advances)
- *             = dailyAmount × 29 − Σ(advances)
+ *   projected = dailyAmount × contributionDays − Σ(advances)
  *
- * INV-1 — independent of cycleDay. INV-4 — commission is constant.
- * INV-3 — caller is responsible for capacity check via canAcceptAdvance().
- * Per ADR-004 Q1: returns the raw value (may be negative); UI decides
- * presentation.
+ * where `contributionDays = cycleLength − 1` (the −1 is the commission
+ * day, INV-4). INV-1 — independent of cycleDay. Per ADR-004 Q1: returns
+ * the raw value (may be negative); UI decides presentation.
  */
-export function computeProjectedFinalBalance(dailyAmount: number, advancesSoFar: number): number {
-  return dailyAmount * CONTRIBUTION_DAYS - advancesSoFar;
+export function computeProjectedFinalBalance(
+  dailyAmount: number,
+  advancesSoFar: number,
+  contributionDays: number,
+): number {
+  return dailyAmount * contributionDays - advancesSoFar;
 }
 
 /**
- * INV-3 — accept iff Σ(existing) + new ≤ dailyAmount × 29 (i.e., the new
- * advance does not push the projected balance below 0). Strict ≤ at the
- * equality boundary — landing exactly at 0 is allowed.
+ * INV-3 — accept iff Σ(existing) + new ≤ dailyAmount × contributionDays
+ * (i.e., the new advance does not push the projected balance below 0).
+ * Strict ≤ at the equality boundary — landing exactly at 0 is allowed.
  */
 export function canAcceptAdvance(
   dailyAmount: number,
   existingAdvances: ReadonlyArray<number>,
   newAdvanceAmount: number,
+  contributionDays: number,
 ): boolean {
-  return sum(existingAdvances) + newAdvanceAmount <= dailyAmount * CONTRIBUTION_DAYS;
+  return sum(existingAdvances) + newAdvanceAmount <= dailyAmount * contributionDays;
 }
 
 /**
  * INV-2 / INV-7 — settlement amount.
  *
  * Per ADR-004 INV-2 (NFR-R3 zero-tolerance): for a fully-paid cycle,
- * settle ≡ projected balance at day 30. Implementation MIRRORS
- * computeProjectedFinalBalance to satisfy that property by construction.
+ * settle ≡ projected balance at the cycle's last day. Implementation
+ * MIRRORS computeProjectedFinalBalance to satisfy that by construction.
  *
- * Note: this function does NOT take `contributions` as an argument. The
- * contractual amount per FR17 is `dailyAmount × 29 − Σ(advances)`,
- * regardless of how many days were actually recorded. Reconciliation
- * between contractual and actual is a Story 7.x concern.
+ * The contractual amount per FR17 is `dailyAmount × contributionDays −
+ * Σ(advances)`, regardless of how many days were actually recorded.
  */
-export function settle(dailyAmount: number, advances: ReadonlyArray<number>): number {
-  return computeProjectedFinalBalance(dailyAmount, sum(advances));
+export function settle(
+  dailyAmount: number,
+  advances: ReadonlyArray<number>,
+  contributionDays: number,
+): number {
+  return computeProjectedFinalBalance(dailyAmount, sum(advances), contributionDays);
 }
 
 /**
- * INV-5 — clamped to [1, 30].
+ * INV-5 — clamped to [1, cycleLength].
  * INV-6 — monotonic in real time.
  *
- * Day 1 = startDate. Day 30 = startDate + 29 days. Any `now` before
- * startDate clamps to 1; any `now` after startDate + 29 days clamps to 30.
+ * Day 1 = startDate. Day `cycleLength` = endDate. Any `now` before
+ * startDate clamps to 1; any `now` after endDate clamps to `cycleLength`.
+ * `cycleLength` is derived internally from start/end — never a parameter.
  *
  * UTC math throughout — DST is invisible to this function.
  */
-export function cycleDay(startDate: string, now: Date): number {
-  const start = new Date(`${startDate}T00:00:00Z`).getTime();
-  const elapsed = Math.floor((now.getTime() - start) / MS_PER_DAY) + 1;
-  return Math.min(CYCLE_TOTAL_DAYS, Math.max(1, elapsed));
+export function cycleDay(startDate: string, endDate: string, now: Date): number {
+  const cycleLength = cycleLengthDays(startDate, endDate);
+  const elapsed = Math.floor((now.getTime() - utcEpoch(startDate)) / MS_PER_DAY) + 1;
+  return Math.min(cycleLength, Math.max(1, elapsed));
 }
 
 /**
- * Per ADR-004 Q2: `settle()` accepts any inputs (no day-30 gate). This
- * separate predicate gates the actual settlement WRITE at the future
- * Edge Function layer (Story 7.x). True iff the cycle has reached day 30.
+ * Per ADR-004 Q2: `settle()` accepts any inputs (no end-date gate). This
+ * separate predicate gates the actual settlement WRITE at the Edge
+ * Function layer (Story 7.x). True iff `now` is on or after the cycle's
+ * last day (`endDate`).
  */
-export function isSettlementReady(now: Date, startDate: string): boolean {
-  return cycleDay(startDate, now) >= CYCLE_TOTAL_DAYS;
+export function isSettlementReady(now: Date, endDate: string): boolean {
+  return now.getTime() >= utcEpoch(endDate);
 }
 
 /**
@@ -131,20 +217,24 @@ export const RATTRAPAGE_DAY_OPTIONS = [2, 3, 4] as const;
 /**
  * Story 3.5 — days remaining in the cycle for a given 1-indexed day. Pure
  * scalar in/out (INV-7 — no `Date.now()` reads). Clamps to ≥ 0 so that
- * defensive callers passing day > 30 don't yield negative remainders.
+ * defensive callers passing day > cycleLength don't yield negatives.
  */
-export function daysUntilCycleEnd(cycleDayValue: number): number {
-  return Math.max(0, CYCLE_TOTAL_DAYS - cycleDayValue);
+export function daysUntilCycleEnd(cycleDayValue: number, cycleLength: number): number {
+  return Math.max(0, cycleLength - cycleDayValue);
 }
 
 /**
  * Story 3.5 — true iff the cycle's current day puts it within `windowDays`
- * of completion (inclusive of day 30 / 0 days remaining — a cycle on its
- * last calendar day is still "ending soon" until Story 3.3's status
+ * of completion (inclusive of the last day / 0 days remaining — a cycle on
+ * its last calendar day is still "ending soon" until Story 3.3's status
  * trigger flips it to `completed`).
  */
-export function isCycleInUpcomingEndWindow(cycleDayValue: number, windowDays: number): boolean {
-  return daysUntilCycleEnd(cycleDayValue) <= windowDays;
+export function isCycleInUpcomingEndWindow(
+  cycleDayValue: number,
+  windowDays: number,
+  cycleLength: number,
+): boolean {
+  return daysUntilCycleEnd(cycleDayValue, cycleLength) <= windowDays;
 }
 
 /** Pure derived stats per FR17. Replaces the Story 2.4
@@ -165,7 +255,7 @@ export interface MemberStatsTransaction {
 export function computeMemberStats(
   transactions: ReadonlyArray<MemberStatsTransaction>,
   member: { dailyAmount: number },
-  currentCycle: { startDate: string } | null,
+  currentCycle: { startDate: string; endDate: string } | null,
   now: Date = new Date(),
 ): MemberStats {
   let contributedTotal = 0;
@@ -178,17 +268,28 @@ export function computeMemberStats(
     }
   }
 
-  const day = currentCycle ? cycleDay(currentCycle.startDate, now) : 0;
-  const daysRemaining = currentCycle ? CYCLE_TOTAL_DAYS - day : 0;
-  const projectedFinalBalance = currentCycle
-    ? computeProjectedFinalBalance(member.dailyAmount, outstandingAdvances)
-    : 0;
+  if (currentCycle === null) {
+    return {
+      cycleDay: 0,
+      daysRemaining: 0,
+      contributedTotal,
+      outstandingAdvances,
+      projectedFinalBalance: 0,
+    };
+  }
+
+  const cycleLength = cycleLengthDays(currentCycle.startDate, currentCycle.endDate);
+  const day = cycleDay(currentCycle.startDate, currentCycle.endDate, now);
 
   return {
     cycleDay: day,
-    daysRemaining,
+    daysRemaining: daysUntilCycleEnd(day, cycleLength),
     contributedTotal,
     outstandingAdvances,
-    projectedFinalBalance,
+    projectedFinalBalance: computeProjectedFinalBalance(
+      member.dailyAmount,
+      outstandingAdvances,
+      cycleLength - 1,
+    ),
   };
 }

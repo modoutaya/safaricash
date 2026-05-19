@@ -16,7 +16,7 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { CYCLE_TOTAL_DAYS } from "@/domain/cycle";
+import { daysUntilCycleEnd } from "@/domain/cycle";
 import { useMembers } from "@/features/member";
 import {
   showContributionToast,
@@ -88,7 +88,7 @@ function TransactionRouteBody({ memberId }: { memberId: string }): JSX.Element {
 
   const cycle = member.currentCycle;
   const cycleDay = cycle.dayNumber;
-  const daysRemaining = Math.max(0, CYCLE_TOTAL_DAYS - cycleDay);
+  const daysRemaining = daysUntilCycleEnd(cycleDay, cycle.cycleLength);
 
   const undoHandler = (txId: string) => async (): Promise<void> => {
     try {

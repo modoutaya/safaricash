@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { EnvelopeHandoverScreen } from "@/components/domain/EnvelopeHandoverScreen";
 import { ProfileError, ProfileSkeleton } from "@/components/domain/MemberProfileStates";
 import { SettlementSummaryCard } from "@/components/domain/SettlementSummaryCard";
-import { settle } from "@/domain/cycle";
+import { cycleLengthDays, settle } from "@/domain/cycle";
 import { useMemberProfile } from "@/features/member";
 import type { CommitSettlementError } from "@/features/settlement/api/commitSettlementError";
 import type { CommitSettlementResult } from "@/features/settlement/api/useCommitSettlement";
@@ -120,8 +120,11 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
   // NFR-R3 cross-check value — Story 7.1's card already calls settle()
   // internally to render the final payout row. We re-call it here to pass
   // the SAME value to the Edge Function (the server recomputes independently
-  // and rejects on mismatch).
-  const expectedPayout = settle(data.member.daily_amount, advances);
+  // and rejects on mismatch). Story 11.2 — contributionDays is derived from
+  // THIS cycle's calendar-month length, not a fixed 30.
+  const settlementContributionDays =
+    cycleLengthDays(data.currentCycle.start_date, data.currentCycle.end_date) - 1;
+  const expectedPayout = settle(data.member.daily_amount, advances, settlementContributionDays);
 
   const handleVerifyTransactions = () => {
     navigate(`/members/${memberId}`);

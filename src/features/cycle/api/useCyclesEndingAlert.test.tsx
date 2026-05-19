@@ -34,7 +34,13 @@ function mkMember(
     phoneNumber: null,
     dailyAmount: 500,
     displayStatus: "actif",
-    currentCycle: { id: "c1", startDate: "2026-04-01", dayNumber: 25 },
+    currentCycle: {
+      id: "c1",
+      startDate: "2026-04-01",
+      endDate: "2026-04-30",
+      cycleLength: 30,
+      dayNumber: 25,
+    },
     latestInteractionAt: "2026-04-25T12:00:00Z",
     cycleAdvancesTotal: 0,
     projectedBalance: null,
@@ -71,7 +77,13 @@ describe("useCyclesEndingAlert", () => {
       mkMember({
         id: "3",
         name: "Out",
-        currentCycle: { id: "c", startDate: "2026-04-01", dayNumber: 5 },
+        currentCycle: {
+          id: "c",
+          startDate: "2026-04-01",
+          endDate: "2026-04-30",
+          cycleLength: 30,
+          dayNumber: 5,
+        },
       }),
     ]);
 

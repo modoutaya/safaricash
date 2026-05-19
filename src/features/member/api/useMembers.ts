@@ -15,7 +15,7 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { z } from "zod";
 
-import { computeProjectedFinalBalance } from "@/domain/cycle";
+import { computeProjectedFinalBalance, cycleDay, cycleLengthDays } from "@/domain/cycle";
 import { supabase } from "@/infrastructure/supabase/client";
 
 import {
@@ -30,9 +30,6 @@ import {
 import { deriveMemberStatus } from "./deriveMemberStatus";
 import { sortMembersByRecency } from "./sortMembersByRecency";
 
-const MS_PER_DAY = 86_400_000;
-const CYCLE_TOTAL_DAYS = 30;
-
 /** Pick the cycle that represents the member's CURRENT state. Cycles with
  *  status in ('active', 'with_advance') qualify; if multiple, the highest
  *  cycle_number wins (defensive — schema invariant ensures ≤1 in practice). */
@@ -40,15 +37,6 @@ function pickCurrentCycle(cycles: CycleRow[]): CycleRow | null {
   const candidates = cycles.filter((c) => c.status === "active" || c.status === "with_advance");
   if (candidates.length === 0) return null;
   return candidates.reduce((best, c) => (c.cycle_number > best.cycle_number ? c : best));
-}
-
-/** Compute 1-indexed cycle day from a YYYY-MM-DD start_date. Clamps to
- *  [1, CYCLE_TOTAL_DAYS] — the caller (CycleProgressBar) clamps again
- *  defensively. */
-function computeCycleDay(startDate: string, now: Date = new Date()): number {
-  const start = new Date(`${startDate}T00:00:00Z`).getTime();
-  const diffDays = Math.floor((now.getTime() - start) / MS_PER_DAY) + 1;
-  return Math.min(CYCLE_TOTAL_DAYS, Math.max(1, diffDays));
 }
 
 /** Input shape for the pure transform — decoupled from the PostgREST call
@@ -82,13 +70,19 @@ export function deriveMembersWithMeta(
         ? {
             id: currentCycle.id,
             startDate: currentCycle.start_date,
-            dayNumber: computeCycleDay(currentCycle.start_date, now),
+            endDate: currentCycle.end_date,
+            dayNumber: cycleDay(currentCycle.start_date, currentCycle.end_date, now),
+            cycleLength: cycleLengthDays(currentCycle.start_date, currentCycle.end_date),
           }
         : null,
       latestInteractionAt: latestTxAt ?? row.created_at,
       cycleAdvancesTotal,
       projectedBalance: currentCycle
-        ? computeProjectedFinalBalance(row.daily_amount, cycleAdvancesTotal)
+        ? computeProjectedFinalBalance(
+            row.daily_amount,
+            cycleAdvancesTotal,
+            cycleLengthDays(currentCycle.start_date, currentCycle.end_date) - 1,
+          )
         : null,
       createdAt: row.created_at,
     };

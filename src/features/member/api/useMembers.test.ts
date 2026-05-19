@@ -66,7 +66,7 @@ describe("deriveMembersWithMeta", () => {
     expect(out[0]!.projectedBalance).toBe(11500);
   });
 
-  it("defaults cycleAdvancesTotal to 0 + projectedBalance to dailyAmount×29 with no advances", () => {
+  it("defaults cycleAdvancesTotal to 0 + projectedBalance to dailyAmount × contributionDays with no advances (30-day fixture → contributionDays 29)", () => {
     const out = deriveMembersWithMeta(makeData(), NOW);
     expect(out[0]!.cycleAdvancesTotal).toBe(0);
     expect(out[0]!.projectedBalance).toBe(14500);
@@ -203,10 +203,14 @@ describe("deriveMembersWithMeta", () => {
     expect(out[0]!.currentCycle!.dayNumber).toBe(1);
   });
 
-  it("clamps cycle day to 30 when the cycle has overflowed its window", () => {
+  it("clamps cycle day to cycleLength when the cycle has overflowed its window", () => {
+    // A coherent 30-day cycle (2026-01-01 → 2026-01-30) that NOW (2026-04-21)
+    // has long overflowed → cycleDay clamps to the cycle's own length, 30.
     const out = deriveMembersWithMeta(
       makeData({
-        cyclesByMember: new Map([[baseMember.id, [{ ...activeCycle, start_date: "2026-01-01" }]]]),
+        cyclesByMember: new Map([
+          [baseMember.id, [{ ...activeCycle, start_date: "2026-01-01", end_date: "2026-01-30" }]],
+        ]),
       }),
       NOW,
     );

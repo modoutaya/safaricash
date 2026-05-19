@@ -15,7 +15,13 @@ function mkMember(
     phoneNumber: null,
     dailyAmount: 500,
     displayStatus: "actif",
-    currentCycle: { id: "cycle-1", startDate: "2026-04-01", dayNumber: 25 },
+    currentCycle: {
+      id: "cycle-1",
+      startDate: "2026-04-01",
+      endDate: "2026-04-30",
+      cycleLength: 30,
+      dayNumber: 25,
+    },
     latestInteractionAt: "2026-04-25T12:00:00Z",
     cycleAdvancesTotal: 0,
     projectedBalance: null,
@@ -40,24 +46,48 @@ describe("selectMembersWithCycleEndingSoon", () => {
     const inWindow = mkMember({
       id: "in1",
       name: "InWindow1",
-      currentCycle: { id: "c-in1", startDate: "2026-04-01", dayNumber: 25 },
+      currentCycle: {
+        id: "c-in1",
+        startDate: "2026-04-01",
+        endDate: "2026-04-30",
+        cycleLength: 30,
+        dayNumber: 25,
+      },
     });
     const outOfWindow = mkMember({
       id: "out1",
       name: "OutOfWindow",
-      currentCycle: { id: "c-out", startDate: "2026-04-01", dayNumber: 10 },
+      currentCycle: {
+        id: "c-out",
+        startDate: "2026-04-01",
+        endDate: "2026-04-30",
+        cycleLength: 30,
+        dayNumber: 10,
+      },
     });
     const nullCycle = mkMember({ id: "null1", name: "NullCycle", currentCycle: null });
     const termine = mkMember({
       id: "t1",
       name: "Termine",
       displayStatus: "termine",
-      currentCycle: { id: "c-t", startDate: "2026-04-01", dayNumber: 30 },
+      currentCycle: {
+        id: "c-t",
+        startDate: "2026-04-01",
+        endDate: "2026-04-30",
+        cycleLength: 30,
+        dayNumber: 30,
+      },
     });
     const inWindow2 = mkMember({
       id: "in2",
       name: "InWindow2",
-      currentCycle: { id: "c-in2", startDate: "2026-04-01", dayNumber: 30 },
+      currentCycle: {
+        id: "c-in2",
+        startDate: "2026-04-01",
+        endDate: "2026-04-30",
+        cycleLength: 30,
+        dayNumber: 30,
+      },
     });
 
     const result = selectMembersWithCycleEndingSoon(
@@ -72,12 +102,24 @@ describe("selectMembersWithCycleEndingSoon", () => {
     const day29 = mkMember({
       id: "29",
       name: "Day29",
-      currentCycle: { id: "c-29", startDate: "2026-04-01", dayNumber: 29 },
+      currentCycle: {
+        id: "c-29",
+        startDate: "2026-04-01",
+        endDate: "2026-04-30",
+        cycleLength: 30,
+        dayNumber: 29,
+      },
     });
     const day30 = mkMember({
       id: "30",
       name: "Day30",
-      currentCycle: { id: "c-30", startDate: "2026-04-01", dayNumber: 30 },
+      currentCycle: {
+        id: "c-30",
+        startDate: "2026-04-01",
+        endDate: "2026-04-30",
+        cycleLength: 30,
+        dayNumber: 30,
+      },
     });
     expect(selectMembersWithCycleEndingSoon([day29, day30], 0).map((m) => m.id)).toEqual(["30"]);
   });
@@ -86,12 +128,24 @@ describe("selectMembersWithCycleEndingSoon", () => {
     const day1 = mkMember({
       id: "1",
       name: "Day1",
-      currentCycle: { id: "c-1", startDate: "2026-04-01", dayNumber: 1 },
+      currentCycle: {
+        id: "c-1",
+        startDate: "2026-04-01",
+        endDate: "2026-04-30",
+        cycleLength: 30,
+        dayNumber: 1,
+      },
     });
     const day30 = mkMember({
       id: "30",
       name: "Day30",
-      currentCycle: { id: "c-30", startDate: "2026-04-01", dayNumber: 30 },
+      currentCycle: {
+        id: "c-30",
+        startDate: "2026-04-01",
+        endDate: "2026-04-30",
+        cycleLength: 30,
+        dayNumber: 30,
+      },
     });
     const nullC = mkMember({ id: "null", name: "Null", currentCycle: null });
     expect(selectMembersWithCycleEndingSoon([day1, day30, nullC], 30).map((m) => m.id)).toEqual([

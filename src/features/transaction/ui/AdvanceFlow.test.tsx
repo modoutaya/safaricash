@@ -86,6 +86,7 @@ const mkData = (
     totalTransactionsCount: 0,
     stats: {
       cycleDay: overrides.cycleDay ?? 10,
+      // Fixture cycle is 30 days → daysRemaining = cycleLength − cycleDay.
       daysRemaining: 30 - (overrides.cycleDay ?? 10),
       contributedTotal: overrides.contributedTotal ?? 0,
       outstandingAdvances: overrides.outstandingAdvances ?? 0,
@@ -137,7 +138,8 @@ describe("AdvanceFlow", () => {
     expect(screen.getByRole("button", { name: /^100K$/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^150K$/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/montant du prêt/i)).toBeInTheDocument();
-    // Simulation panel — row 1 = 5000 × 30 = 150 000.
+    // Simulation panel — row 1 (total cycle, GROSS) = dailyAmount × cycleLength
+    // = 5000 × 30 = 150_000 (fixture cycle is 30 days).
     expect(screen.getByText(/impact sur le solde final/i)).toBeInTheDocument();
     expect(screen.getByText(/150\s000 FCFA/)).toBeInTheDocument();
   });
@@ -232,7 +234,8 @@ describe("AdvanceFlow", () => {
 
   it("over-limit chip is disabled when N would exceed capacity", () => {
     // dailyAmount=5000, existing advances summing to 130 000.
-    // Capacity = 5000 × 29 = 145 000. Remaining = 15 000.
+    // Capacity = dailyAmount × contributionDays = 5000 × 29 = 145_000 (30-day
+    // fixture → contributionDays 29). Remaining = 15_000.
     useMemberProfileMock.mockReturnValue(mkProfile({ data: mkData({ advanceTxs: [130_000] }) }));
     renderWithRouter();
     expect(screen.getByRole("button", { name: /^50K$/i })).toBeDisabled();

@@ -71,17 +71,19 @@ describe("deriveCycleSummaryRows", () => {
 
   it("final_payout falls back to the projection when a settled cycle has no settlement tx", () => {
     const rows = deriveCycleSummaryRows([cycle({ status: "settled" })], [MEMBER], []);
-    // computeProjectedFinalBalance(500, 0) = 500×29 = 14500.
+    // Fixture cycle is 30 days (start + 29 days) → contributionDays 29.
+    // computeProjectedFinalBalance(500, 0, 29) = 500 × 29 = 14_500.
     expect(rows[0]!.final_payout).toBe(14500);
   });
 
-  it("final_payout for a non-settled cycle = projected balance (daily×29 − advances)", () => {
+  it("final_payout for a non-settled cycle = projected balance (daily × contributionDays − advances)", () => {
     const rows = deriveCycleSummaryRows(
       [cycle({ status: "with_advance" })],
       [MEMBER],
       [tx({ kind: "advance", amount: 2000 })],
     );
-    // computeProjectedFinalBalance(500, 2000) = 500×29 − 2000 = 12500.
+    // computeProjectedFinalBalance(500, 2000, 29) = 500 × 29 − 2000 = 12_500
+    // (30-day fixture → contributionDays 29).
     expect(rows[0]!.final_payout).toBe(12500);
   });
 
@@ -103,7 +105,8 @@ describe("deriveCycleSummaryRows", () => {
       [MEMBER],
       [tx({ kind: "advance", amount: 1000 })],
     );
-    // computeProjectedFinalBalance(500, 1000) = 500×29 − 1000 = 13500.
+    // computeProjectedFinalBalance(500, 1000, 29) = 500 × 29 − 1000 = 13_500
+    // (30-day fixture → contributionDays 29).
     expect(rows[0]!.final_payout).toBe(13500);
   });
 

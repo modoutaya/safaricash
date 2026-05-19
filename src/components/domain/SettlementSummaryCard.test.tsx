@@ -60,8 +60,9 @@ describe("SettlementSummaryCard", () => {
 
   it("math — final payout uses settle(dailyAmount, advances); dailyAmount=500, advances=[3000,2000] → 9 500 FCFA", () => {
     render(<SettlementSummaryCard {...baseProps} dailyAmount={500} advances={[3_000, 2_000]} />);
-    // settle(500, [3000, 2000]) = 500 * 29 − 5000 = 9500
-    expect(settle(500, [3_000, 2_000])).toBe(9_500);
+    // baseProps cycle 2026-04-12 → 2026-05-11 = 30 days → 29 contribution days.
+    // settle(500, [3000, 2000], 29) = 500 * 29 − 5000 = 9500
+    expect(settle(500, [3_000, 2_000], 29)).toBe(9_500);
     expect(screen.getByText(/9[\s\u00a0]500 FCFA/)).toBeInTheDocument();
   });
 

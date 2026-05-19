@@ -110,7 +110,7 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
   const stats = computeMemberStats(
     transactions,
     { dailyAmount: member.daily_amount },
-    currentCycle ? { startDate: currentCycle.start_date } : null,
+    currentCycle ? { startDate: currentCycle.start_date, endDate: currentCycle.end_date } : null,
   );
 
   return {
