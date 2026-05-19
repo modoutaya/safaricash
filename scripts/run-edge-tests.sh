@@ -57,6 +57,7 @@ deno test --allow-net --allow-env --allow-read --no-check --node-modules-dir=aut
   supabase/functions/sms-resend-history/index.test.ts \
   supabase/functions/_shared/enqueue-resend-transaction.contract.test.ts \
   supabase/functions/_shared/commit-cycle-settlement.contract.test.ts \
+  supabase/functions/_shared/derive-cycle-bounds.contract.test.ts \
   supabase/functions/_shared/get-receipt-payload-cycle-dates.contract.test.ts \
   supabase/functions/_shared/update-member-idempotent.contract.test.ts \
   supabase/functions/_shared/audit-export-event.contract.test.ts \

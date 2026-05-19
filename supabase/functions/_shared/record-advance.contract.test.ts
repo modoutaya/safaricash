@@ -94,6 +94,15 @@ async function seedMemberWithCycle(
     .eq("collector_id", collectorId)
     .single();
   if (!cycle) throw new Error("seedMember: cycle not found");
+  // Story 11.3 — pin the seeded cycle to a deterministic 30-day window
+  // so the existing `× 29` capacity assertions in this file remain valid
+  // regardless of when the test runs (the new RPC produces a variable-
+  // length calendar-month cycle by default).
+  const { error: pinErr } = await service
+    .from("cycles")
+    .update({ start_date: "2026-04-01", end_date: "2026-04-30" })
+    .eq("id", cycle.id);
+  if (pinErr) throw new Error(`seedMember: pin cycle dates — ${pinErr.message}`);
   return { memberId, cycleId: cycle.id };
 }
 
