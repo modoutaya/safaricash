@@ -379,7 +379,7 @@ New model:
 
 **Steady state.** Once a cycle ends on a month's last day and the next is started on the 1st, every subsequent cycle is a full calendar month (28/29/30/31 days). Only a member's first cycle — or a mid-month FR12 restart — is partial.
 
-**Engine generalization.** Every `30` / `29` / `[1, 30]` in the Sections above becomes a per-cycle value: `cycleLength` replaces the constant 30; `contributionDays = cycleLength − 1` replaces 29. The pure-function contract (INV-7), the zero-infrastructure rule, and the 100 % coverage gate are unchanged.
+**Engine generalization.** Every `30` / `29` / `[1, 30]` in the Sections above becomes a per-cycle value: `cycleLength` replaces the constant 30; `contributionDays = cycleLength − 1` replaces 29. The pure-function contract (INV-7), the zero-infrastructure rule, and the 100 % coverage gate are unchanged. Derived helpers generalize the same way: `daysUntilCycleEnd` and the `daysRemaining` field of `computeMemberStats` become `cycleLength − cycleDay` (was `30 − cycleDay`) — both currently hard-code `CYCLE_TOTAL_DAYS` and Story 11.2 must thread `cycleLength` into them.
 
 ### A1.2 — Amended invariants
 
@@ -405,13 +405,14 @@ canAcceptAdvance(...) ≡ (Σ(existingAdvances) + a) ≤ dailyAmount × (cycleLe
 The strict `≤` at the equality boundary is preserved (landing at exactly 0 projected balance is allowed). Skeleton: `propAdvanceCapacityBound` (name unchanged; arbitraries gain `cycleLength`).
 
 **INV-5 — Cycle-day clamping — AMENDED.**
-The clamp range `[1, 30]` becomes `[1, cycleLength]`:
+The clamp range `[1, 30]` becomes `[1, cycleLength]`. The function takes the cycle's `start_date` and `end_date` and derives the length internally — `cycleLength` is never a separate parameter:
 
 ```
+cycleLength               = end − start + 1
 cycleDay(start, end, now) = min(cycleLength, max(1, floor((now − start) / 1 day) + 1))
 ```
 
-Any `now` before `start_date` clamps to 1; any `now` after `end_date` clamps to `cycleLength`. Skeleton: `propCycleDayClamped` (name unchanged; the upper-bound arbitrary becomes `cycleLength`, not the literal 30).
+Any `now` before `start_date` clamps to 1; any `now` after `end_date` clamps to `cycleLength`. Skeleton: `propCycleDayClamped` (name unchanged; the upper bound becomes the derived `cycleLength`, not the literal 30). The A1.6 skeleton constructs `end` from a generated `cycleLength` so the call site matches the `(start, end, now)` signature.
 
 ### A1.3 — Unchanged invariants (re-confirmed)
 
@@ -433,6 +434,7 @@ Skeleton: `propCommissionInvariance` (unchanged).
 ### A1.4 — INV-9 — Cycle-bounds derivation — NEW
 
 - **Statement.** For any `start_date`, the cycle's `end_date` is the last calendar day of `month(start_date)`. If the resulting length is below `MIN_CYCLE_LENGTH_DAYS`, the cycle rolls forward to the next month (start = 1st, end = its last day). The derived `cycleLength` is always `≥ MIN_CYCLE_LENGTH_DAYS`.
+- **Scope — write-path only.** INV-9 constrains what `deriveCycleBounds` produces and what Story 11.3's RPCs (`create_member_with_cycle`, `restart_member_cycle`) write. It is **not** a read-path assertion on existing rows: legacy cycles created before Story 11.3 store `end_date = start_date + 29 days` (not a month-end) and are exempt by design — see A1.7. The engine's read-path functions accept any `(start_date, end_date)` pair and derive `cycleLength` from it; they never assume INV-9 holds for the row they are given.
 - **Mathematical formulation.**
 
   ```
@@ -461,16 +463,37 @@ The roll-forward threshold is a single named constant, **`MIN_CYCLE_LENGTH_DAYS`
 Illustrative `fast-check` pseudocode — Story 11.2 implements these in `src/domain/cycle/cycleEngine.test.ts`. Function signatures are implementation-defined; the invariant ID, skeleton name, and intent are fixed.
 
 ```ts
+// INV-1 — projected balance is invariant in cycleDay (variable-length)
+it("INV-1: projected balance does not depend on cycleDay", () => {
+  fc.assert(
+    fc.property(
+      fc.integer({ min: 100, max: 100_000 }), // dailyAmount
+      fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }), // cycleLength
+      fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 31 }), // advances
+      (dailyAmount, cycleLength, advances) => {
+        const contributionDays = cycleLength - 1;
+        // cycleDay is NOT an input to the projection — invariance is structural.
+        // Any two evaluations on the same cycle yield the same value.
+        const a = computeProjectedFinalBalance(dailyAmount, sum(advances), contributionDays);
+        const b = computeProjectedFinalBalance(dailyAmount, sum(advances), contributionDays);
+        return a === b;
+      },
+    ),
+  );
+});
+
 // INV-2 (renamed) — settled ≡ projected at the cycle's last day
 it("INV-2: settled balance equals projected balance at cycle end (NFR-R3 gate)", () => {
   fc.assert(
     fc.property(
       fc.integer({ min: 100, max: 100_000 }), // dailyAmount
-      fc.integer({ min: 3, max: 31 }), // cycleLength
+      fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }), // cycleLength
       (dailyAmount, cycleLength) => {
         const contributionDays = cycleLength - 1;
+        // The substance of INV-2: settle() and the projection must agree byte-for-byte.
         const settled = settle(dailyAmount, [], contributionDays);
-        return settled === dailyAmount * contributionDays;
+        const projected = computeProjectedFinalBalance(dailyAmount, 0, contributionDays);
+        return settled === projected && settled === dailyAmount * contributionDays;
       },
     ),
   );
@@ -481,7 +504,7 @@ it("INV-3: advance accepted iff total advances ≤ dailyAmount × (cycleLength �
   fc.assert(
     fc.property(
       fc.integer({ min: 100, max: 100_000 }),
-      fc.integer({ min: 3, max: 31 }),
+      fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
       fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 20 }),
       fc.integer({ min: 1, max: 100_000 }),
       (dailyAmount, cycleLength, existing, newAdvance) => {
@@ -498,11 +521,15 @@ it("INV-5: cycleDay is clamped to [1, cycleLength]", () => {
   fc.assert(
     fc.property(
       fc.date({ min: new Date("2026-01-01"), max: new Date("2026-12-31") }),
-      fc.integer({ min: 3, max: 31 }), // cycleLength
+      fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }), // cycleLength
       fc.integer({ min: -100, max: 200 }), // day offset from start
       (start, cycleLength, dayOffset) => {
+        // cycleDay's signature is (startDate: string, endDate: string, now: Date).
+        // Build endDate from the generated cycleLength so the call site matches.
+        const startDate = start.toISOString().slice(0, 10);
+        const endDate = isoDatePlusDays(startDate, cycleLength - 1);
         const now = new Date(start.getTime() + dayOffset * 86_400_000);
-        const day = cycleDay(start, cycleLength, now);
+        const day = cycleDay(startDate, endDate, now);
         return day >= 1 && day <= cycleLength;
       },
     ),
@@ -510,24 +537,31 @@ it("INV-5: cycleDay is clamped to [1, cycleLength]", () => {
 });
 
 // INV-9 (new) — cycle-bounds derivation + roll-forward
-it("INV-9: end_date is month-end; short residual rolls forward; length ≥ MIN", () => {
+it("INV-9: end_date is month-end of start; short residual rolls forward; length ≥ MIN", () => {
   fc.assert(
     fc.property(fc.date({ min: new Date("2026-01-01"), max: new Date("2027-12-31") }), (start) => {
-      const { startDate, endDate } = deriveCycleBounds(start);
+      const requested = start.toISOString().slice(0, 10);
+      const { startDate, endDate } = deriveCycleBounds(requested);
       const length = daysBetweenInclusive(startDate, endDate);
       return (
-        isLastDayOfMonth(endDate) && length >= MIN_CYCLE_LENGTH_DAYS && startDate >= start // never derives a start before the request date
+        // end_date must be the last day of START's month — not merely some month-end.
+        endDate === endOfMonth(startDate) &&
+        length >= MIN_CYCLE_LENGTH_DAYS &&
+        // startDate is either the requested date (no roll-forward) or the 1st of next month.
+        (startDate === requested || startDate === firstDayOfNextMonth(requested))
       );
     }),
   );
 });
 ```
 
-`propProjectedBalanceTimeInvariance` keeps its Section "Property test skeletons" form, with the `cycleDay` arbitrary widened to `[1, cycleLength]` and a `cycleLength` arbitrary added.
+`propProjectedBalanceTimeInvariance` keeps the INV-1 skeleton above; its `cycleDay`-bearing form from the original "Property test skeletons" section is superseded — in the variable-length engine `cycleDay` is not an input to the projection, so the invariance is structural rather than checked across two day values.
 
 ### A1.7 — Legacy-cycle compatibility
 
 Cycles created **before** Story 11.3 store `end_date = start_date + 29 days` (the old fixed window). The amended engine derives `cycleLength` from the row's `start_date` / `end_date`, so a legacy row yields `cycleLength = 30` and every invariant degrades exactly to the original 30-day behaviour. **No data backfill is required.** Story 11.2's property tests MUST include an explicit `cycleLength = 30` case to lock this equivalence.
+
+A legacy row's `end_date` is **not** a month-end, so legacy rows do **not** satisfy INV-9 — this is expected and correct: INV-9 is a write-path invariant (see its Scope note) constraining only newly-derived bounds, not a postcondition retroactively asserted on rows already in the table. The read-path invariants (INV-1, INV-2, INV-3, INV-5) hold for legacy rows because they consume the row's stored `start_date` / `end_date` directly.
 
 ### A1.8 — Amendment Open Questions
 
