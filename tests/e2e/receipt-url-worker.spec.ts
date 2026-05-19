@@ -105,6 +105,18 @@ test.describe("receipt-url worker (Story 6.4 — saver-facing receipt page)", ()
       .eq("collector_id", userId)
       .single();
 
+    // Story 11.3 — create_member_with_cycle now produces a calendar-month-
+    // aligned variable-length cycle (length depends on today's date). Pin
+    // the seeded cycle to a deterministic 30-day window so the assertions
+    // below (e.g. "14 500 FCFA" projected balance = 500 × 29) stay valid
+    // regardless of when CI runs. Same pattern as the Deno contract test
+    // fixtures (supabase/functions/_shared/test-fixtures.ts).
+    const { error: pinErr } = await service
+      .from("cycles")
+      .update({ start_date: "2026-04-01", end_date: "2026-04-30" })
+      .eq("id", cycle!.id);
+    expect(pinErr, pinErr?.message).toBeNull();
+
     const { data: txId, error: txErr } = await userClient.rpc("record_contribution", {
       p_member_id: memberId,
       p_cycle_id: cycle!.id,
