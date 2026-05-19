@@ -1,6 +1,6 @@
 # Story 11.1: ADR-004 amendment — variable-length cycle invariants
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -77,23 +77,23 @@ The Sprint Change Proposal `_bmad-output/planning-artifacts/sprint-change-propos
 
 ## Tasks / Subtasks
 
-- [ ] **Task 0 — Read the inputs (AC #3 #15).** Re-read `docs/ADR/004-cycle-invariants.md` in full, the Sprint Change Proposal `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-19.md` (especially §4.2), `src/domain/cycle/cycleEngine.ts` (the 8 functions + 2 constants the amendment describes), and `epics.md` Epic 11. Confirm the locked decisions before writing.
+- [x] **Task 0 — Read the inputs (AC #3 #15).** Re-read `docs/ADR/004-cycle-invariants.md` in full, the Sprint Change Proposal `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-19.md` (especially §4.2), `src/domain/cycle/cycleEngine.ts` (the 8 functions + 2 constants the amendment describes), and `epics.md` Epic 11. Confirm the locked decisions before writing.
 
-- [ ] **Task 1 — Front-matter (AC #2).** Add the `Amended:` line to ADR-004's front-matter. Leave `Status` / `Supersedes` / `Superseded by` untouched.
+- [x] **Task 1 — Front-matter (AC #2).** Add the `Amended:` line to ADR-004's front-matter. Leave `Status` / `Supersedes` / `Superseded by` untouched.
 
-- [ ] **Task 2 — Append the Amendment A1 section (AC #1 #3).** After `## References`, add `## Amendment A1 — Calendar-Month Variable-Length Cycles (2026-05-19)` with an Amendment-Context sub-section (model table + worked example + Sprint-Change-Proposal pointer).
+- [x] **Task 2 — Append the Amendment A1 section (AC #1 #3).** After `## References`, add `## Amendment A1 — Calendar-Month Variable-Length Cycles (2026-05-19)` with an Amendment-Context sub-section (model table + worked example + Sprint-Change-Proposal pointer).
 
-- [ ] **Task 3 — Re-state INV-1…INV-8 (AC #4-#9).** Under the amendment, a sub-section per invariant: each tagged **AMENDED** (INV-1, 2, 3, 5) or **UNCHANGED** (INV-4, 6, 7, 8). Amended ones get the new formulation; unchanged ones get a one-line confirmation. INV-4 gets the explicit partial-cycle "1 full day, never prorated" note. INV-2 gets the skeleton rename.
+- [x] **Task 3 — Re-state INV-1…INV-8 (AC #4-#9).** Under the amendment, a sub-section per invariant: each tagged **AMENDED** (INV-1, 2, 3, 5) or **UNCHANGED** (INV-4, 6, 7, 8). Amended ones get the new formulation; unchanged ones get a one-line confirmation. INV-4 gets the explicit partial-cycle "1 full day, never prorated" note. INV-2 gets the skeleton rename.
 
-- [ ] **Task 4 — Add INV-9 (AC #10).** New invariant with all 5 fields, including the year-boundary and February boundary conditions.
+- [x] **Task 4 — Add INV-9 (AC #10).** New invariant with all 5 fields, including the year-boundary and February boundary conditions.
 
-- [ ] **Task 5 — `MIN_CYCLE_LENGTH_DAYS` + skeletons (AC #11 #12).** Document the named constant; write the updated property-test skeleton blocks for the 4 changed invariants + INV-9.
+- [x] **Task 5 — `MIN_CYCLE_LENGTH_DAYS` + skeletons (AC #11 #12).** Document the named constant; write the updated property-test skeleton blocks for the 4 changed invariants + INV-9.
 
-- [ ] **Task 6 — Legacy compatibility + Open Questions + References (AC #13 #14 #15).** Write the legacy-cycle note, the 2 carried-forward open questions, and the references sub-section. `grep`-verify every cited path.
+- [x] **Task 6 — Legacy compatibility + Open Questions + References (AC #13 #14 #15).** Write the legacy-cycle note, the 2 carried-forward open questions, and the references sub-section. `grep`-verify every cited path.
 
-- [ ] **Task 7 — Self-review (AC #16).** Re-read the amendment with Story 11.2's developer hat on: every amended invariant has an unambiguous skeleton name; INV-9's roll-forward boundary (`<` vs `≤`) is stated once and unambiguously; the amendment lands in the 120-200 line target.
+- [x] **Task 7 — Self-review (AC #16).** Re-read the amendment with Story 11.2's developer hat on: every amended invariant has an unambiguous skeleton name; INV-9's roll-forward boundary (`<` vs `≤`) is stated once and unambiguously; the amendment lands in the 120-200 line target.
 
-- [ ] **Task 8 — Hygiene + status flip.**
+- [x] **Task 8 — Hygiene + status flip.**
   - Story file: Completion Notes + File List + Change Log.
   - `sprint-status.yaml`: `11-1-adr-004-variable-length-amendment: ready-for-dev` → `review`. (`epic-11` is already `in-progress` — set by create-story.)
 
@@ -169,16 +169,35 @@ The Sprint Change Proposal `_bmad-output/planning-artifacts/sprint-change-propos
 
 ### Agent Model Used
 
-(to be filled by the dev agent)
+claude-opus-4-7 (1M context) — `bmad-dev-story` workflow, 2026-05-19.
 
 ### Debug Log References
 
+(none — docs-only story; no test runs, no CI iterations. `npx prettier --check` flagged formatting on first write; `prettier --write` applied; re-check clean.)
+
 ### Completion Notes List
 
+- All 16 ACs satisfied. `docs/ADR/004-cycle-invariants.md` amended in place — original Sections (the 30-day model) preserved verbatim; new `## Amendment A1 — Calendar-Month Variable-Length Cycles (2026-05-19)` section appended after `## References`.
+- Front-matter gained an `Amended:` line; `Status` / `Supersedes` / `Superseded by` untouched (amended, not superseded — per the founder-approved proposal).
+- Amendment re-states all 8 invariants: INV-1/2/3/5 **AMENDED** (re-parameterized `30`/`29`/`[1,30]` → `cycleLength`/`contributionDays`/`[1,cycleLength]`); INV-4/6/7/8 **UNCHANGED** and re-confirmed. INV-4 carries the explicit founder-decision note: partial cycles take 1 full commission day, never prorated — the property that keeps INV-8 (integer FCFA) true with no division.
+- INV-2 skeleton renamed `propSettledEqualsProjectedAtDay30` → `propSettledEqualsProjectedAtCycleEnd` (Story 11.2 must rename the test).
+- New **INV-9** (cycle-bounds derivation) added with the full 5-field structure: `end_date` = last day of `month(start_date)`; roll-forward when residual `< MIN_CYCLE_LENGTH_DAYS`; year-boundary + February boundary conditions called out.
+- `MIN_CYCLE_LENGTH_DAYS` documented (default 3, flagged product-tunable in Open Questions A1-Q1).
+- 4 updated + 1 new `fast-check` property-test skeletons included as illustrative pseudocode.
+- Legacy-cycle compatibility note (A1.7): pre-Story-11.3 rows yield `cycleLength = 30` and degrade to the original behaviour — no backfill; Story 11.2 must add a `cycleLength = 30` test case.
+- Amendment section lands at 186 lines (target 120-200). References cross-checked: every cited path verified to exist (`ls`/`sed`), PRD FR lines 495-499 + NFR-R3 line 565 confirmed.
+- `npx prettier --check docs/ADR/004-cycle-invariants.md` → clean.
+- Zero `src/` changes, zero migrations, zero new dependencies — strict docs-only as the spec demanded.
+
 ### File List
+
+**Modified (2 files):**
+- `docs/ADR/004-cycle-invariants.md` — front-matter `Amended:` line + `## Amendment A1` section.
+- `_bmad-output/implementation-artifacts/sprint-status.yaml` — `11-1-…` status flips + touched line.
 
 ## Change Log
 
 | Date       | Author              | Change |
 |------------|---------------------|--------|
 | 2026-05-19 | Winston (architect) | Story 11.1 spec generated by `bmad-create-story`. FIRST story of Epic 11 (Calendar-Month Cycle Model) — `epic-11` flipped `backlog` → `in-progress`. Docs-only: amends `docs/ADR/004-cycle-invariants.md` in place with an `## Amendment A1` section — re-parameterizes INV-1/2/3/5 for variable cycle length, confirms INV-4/6/7/8 unchanged (INV-4 gains an explicit "1 full day, never prorated" partial-cycle note), adds INV-9 (cycle-bounds derivation + roll-forward). Gates Stories 11.2-11.4. Source: founder-approved Sprint Change Proposal 2026-05-19. Status → ready-for-dev. |
+| 2026-05-19 | dev agent | Implementation complete via `bmad-dev-story`. ADR-004 amended in place: `Amended:` front-matter line + `## Amendment A1` section (186 lines) — INV-1/2/3/5 re-parameterized, INV-4/6/7/8 confirmed unchanged, INV-9 added, INV-2 skeleton renamed to `propSettledEqualsProjectedAtCycleEnd`, `MIN_CYCLE_LENGTH_DAYS` (default 3) documented, 5 property-test skeletons, legacy-cycle compatibility note. All 16 ACs satisfied, all 8 tasks complete. Prettier clean, references cross-checked. Zero code/migration/dependency change. Status → review. |
