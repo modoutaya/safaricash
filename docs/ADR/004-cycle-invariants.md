@@ -6,6 +6,7 @@
 - **Authors:** dev pairing on Story 3.1
 - **Supersedes:** —
 - **Superseded by:** —
+- **Amended:** 2026-05-19 — Amendment A1 (Story 11.1), calendar-month variable-length cycles. See `## Amendment A1` at the end of this document.
 
 ## Context
 
@@ -353,3 +354,224 @@ Story 3.2 must answer these before coding. Recommended defaults below; Story 3.2
 - **Existing prelude:** `src/features/member/api/computeMemberStats.ts` (FR17 implemented with `TODO(Story 3.2)` marker that this ADR formalises).
 - **ADR template:** `docs/ADR/001-supabase-vault.md` (front-matter + section conventions).
 - **Implementation-readiness report:** `_bmad-output/planning-artifacts/implementation-readiness-report-2026-04-19.md` line 539 (next-step ADR-004).
+
+## Amendment A1 — Calendar-Month Variable-Length Cycles (2026-05-19)
+
+> **Status:** Accepted. **Story:** 11.1. **Amends:** INV-1, INV-2, INV-3, INV-5 (re-parameterized for variable cycle length); adds INV-9. INV-4, INV-6, INV-7, INV-8 are unchanged and re-confirmed below. All Sections above (the fixed 30-day model) are preserved as the record of what Epic 3 shipped; **this amendment takes precedence wherever they conflict.**
+
+### A1.1 — Context
+
+The fixed 30-calendar-day cycle is replaced by a **calendar-month-aligned** cycle. Trigger: founder requirement raised 2026-05-19, processed via `bmad-correct-course`. The canonical decision record is `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-19.md` — this amendment encodes its §4.2 into ADR form.
+
+New model:
+
+| Concept                 | Rule                                                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `start_date`            | Member registration date (first cycle) or restart date (FR12 restart).                                                                                  |
+| `end_date`              | Last calendar day of `month(start_date)`.                                                                                                               |
+| Roll-forward            | If `end_date − start_date + 1 < MIN_CYCLE_LENGTH_DAYS`, the cycle rolls to the next month: `start_date` = 1st of next month, `end_date` = its last day. |
+| `cycleLength`           | `end_date − start_date + 1` (inclusive, 1-based, always `≥ MIN_CYCLE_LENGTH_DAYS`).                                                                     |
+| `contributionDays`      | `cycleLength − 1`.                                                                                                                                      |
+| `commission`            | `1 × dailyAmount` — one full day, always (see INV-4).                                                                                                   |
+| `projectedFinalBalance` | `dailyAmount × (cycleLength − 1) − Σ(advances)`.                                                                                                        |
+
+**Worked example.** A member registered on the 7th of a 30-day month: `start_date` = the 7th, `end_date` = the 30th, `cycleLength = 30 − 7 + 1 = 24`, `contributionDays = 23`, payout with no advances = `dailyAmount × 23`.
+
+**Steady state.** Once a cycle ends on a month's last day and the next is started on the 1st, every subsequent cycle is a full calendar month (28/29/30/31 days). Only a member's first cycle — or a mid-month FR12 restart — is partial.
+
+**Engine generalization.** Every `30` / `29` / `[1, 30]` in the Sections above becomes a per-cycle value: `cycleLength` replaces the constant 30; `contributionDays = cycleLength − 1` replaces 29. The pure-function contract (INV-7), the zero-infrastructure rule, and the 100 % coverage gate are unchanged. Derived helpers generalize the same way: `daysUntilCycleEnd` and the `daysRemaining` field of `computeMemberStats` become `cycleLength − cycleDay` (was `30 − cycleDay`) — both currently hard-code `CYCLE_TOTAL_DAYS` and Story 11.2 must thread `cycleLength` into them.
+
+### A1.2 — Amended invariants
+
+**INV-1 — Projected-balance time invariance — AMENDED (domain only).**
+Still holds: the projected final balance depends only on `dailyAmount` and `Σ(advances)`, never on `cycleDay`. The only change is the `cycleDay` domain — `[1, cycleLength]` instead of `[1, 30]`. The formula is unchanged in shape: `projected = dailyAmount × (cycleLength − 1) − Σ(advances)`, evaluated identically for every `cycleDay`. Skeleton: `propProjectedBalanceTimeInvariance` (name unchanged; arbitraries gain `cycleLength`).
+
+**INV-2 — Settled ≡ projected at cycle end — AMENDED (NFR-R3 gate).**
+"Day 30" becomes "the cycle's last day (`end_date`)". For a fully-paid cycle (all `contributionDays` recorded, no outstanding advances):
+
+```
+settle(...) ≡ projected(...) ≡ dailyAmount × (cycleLength − 1)
+```
+
+NFR-R3 zero-tolerance is reaffirmed for every cycle length. **Skeleton renamed:** `propSettledEqualsProjectedAtDay30` → `propSettledEqualsProjectedAtCycleEnd`. Story 11.2 must rename the test accordingly.
+
+**INV-3 — Advance capacity bound — AMENDED.**
+The capacity ceiling `dailyAmount × 29` becomes `dailyAmount × contributionDays` (= `dailyAmount × (cycleLength − 1)`):
+
+```
+canAcceptAdvance(...) ≡ (Σ(existingAdvances) + a) ≤ dailyAmount × (cycleLength − 1)
+```
+
+The strict `≤` at the equality boundary is preserved (landing at exactly 0 projected balance is allowed). Skeleton: `propAdvanceCapacityBound` (name unchanged; arbitraries gain `cycleLength`).
+
+**INV-5 — Cycle-day clamping — AMENDED.**
+The clamp range `[1, 30]` becomes `[1, cycleLength]`. The function takes the cycle's `start_date` and `end_date` and derives the length internally — `cycleLength` is never a separate parameter:
+
+```
+cycleLength               = end − start + 1
+cycleDay(start, end, now) = min(cycleLength, max(1, floor((now − start) / 1 day) + 1))
+```
+
+Any `now` before `start_date` clamps to 1; any `now` after `end_date` clamps to `cycleLength`. Skeleton: `propCycleDayClamped` (name unchanged; the upper bound becomes the derived `cycleLength`, not the literal 30). The A1.6 skeleton constructs `end` from a generated `cycleLength` so the call site matches the `(start, end, now)` signature.
+
+### A1.3 — Unchanged invariants (re-confirmed)
+
+**INV-4 — Commission invariance — UNCHANGED.**
+Commission is exactly `1 × dailyAmount`, always — regardless of `cycleDay`, regardless of `Σ(advances)`, regardless of settlement state, **and regardless of cycle length**.
+
+> **Partial-cycle note (founder decision, 2026-05-19).** A partial first cycle — or a mid-month restart — still takes exactly **one full commission day**. The commission is **never prorated** to the cycle length: a 24-day cycle and a 31-day cycle both yield `commission = 1 × dailyAmount`.
+>
+> This is load-bearing for INV-8. A whole-day commission keeps the formula a whole multiple of `dailyAmount` — no division, no fractional FCFA. **Counterexample bug-class (extended):** a contributor who "fairly" prorates the commission as `dailyAmount × cycleLength / 30` introduces a division → fractional FCFA → INV-8 violation → NFR-R3 P0.
+
+Skeleton: `propCommissionInvariance` (unchanged).
+
+**INV-6 — Cycle-day monotonicity in real time — UNCHANGED.** `t₁ ≤ t₂ ⇒ cycleDay(t₁) ≤ cycleDay(t₂)` still holds; the variable upper clamp (`cycleLength` vs `30`) does not affect monotonicity. Skeleton: `propCycleDayMonotonic`.
+
+**INV-7 — Settlement determinism — UNCHANGED.** `settle(...)` remains a pure function — no `Date.now()` reads, no ambient state. `cycleLength` is derived from the cycle row's caller-supplied `start_date` / `end_date`, not from a clock read, so referential transparency is preserved. Skeleton: `propSettlementDeterministic`.
+
+**INV-8 — Integer FCFA throughout — UNCHANGED.** Every monetary output stays an integer FCFA. The variable-length model introduces **no division**: `cycleLength` and `contributionDays` are integers, and the commission is a whole `1 × dailyAmount` (INV-4), so `dailyAmount × (cycleLength − 1) − Σ(advances)` is integer by construction. Skeleton: `propIntegerFcfaOutputs`.
+
+### A1.4 — INV-9 — Cycle-bounds derivation — NEW
+
+- **Statement.** For any `start_date`, the cycle's `end_date` is the last calendar day of `month(start_date)`. If the resulting length is below `MIN_CYCLE_LENGTH_DAYS`, the cycle rolls forward to the next month (start = 1st, end = its last day). The derived `cycleLength` is always `≥ MIN_CYCLE_LENGTH_DAYS`.
+- **Scope — write-path only.** INV-9 constrains what `deriveCycleBounds` produces and what Story 11.3's RPCs (`create_member_with_cycle`, `restart_member_cycle`) write. It is **not** a read-path assertion on existing rows: legacy cycles created before Story 11.3 store `end_date = start_date + 29 days` (not a month-end) and are exempt by design — see A1.7. The engine's read-path functions accept any `(start_date, end_date)` pair and derive `cycleLength` from it; they never assume INV-9 holds for the row they are given.
+- **Mathematical formulation.**
+
+  ```
+  endOfMonth(d) = last calendar day of month(d)
+  rawLen(d)     = endOfMonth(d) − d + 1
+
+  if rawLen(start) ≥ MIN_CYCLE_LENGTH_DAYS:
+      (start_date, end_date) = (start, endOfMonth(start))
+  else:
+      next = first day of (month(start) + 1)         // year-aware: Dec → Jan next year
+      (start_date, end_date) = (next, endOfMonth(next))
+
+  cycleLength = end_date − start_date + 1            // always ≥ MIN_CYCLE_LENGTH_DAYS
+  ```
+
+- **Boundary conditions.** Registration on the 1st → full month (length 28/29/30/31, no roll-forward). Registration on the last day → `rawLen = 1 < 3` → roll-forward. Registration with exactly `MIN_CYCLE_LENGTH_DAYS` days remaining → **no** roll-forward (the `≥` boundary is inclusive). February (28 or 29 days). A December registration that rolls forward → January of the **next year** (the year boundary must be handled).
+- **Counterexample bug-class.** An off-by-one in `endOfMonth` returning the 1st of the next month (length inflated by a day); a roll-forward using `<` in one place and `≤` in another, producing a 2-day cycle where `commission ≥ contributions`; a year-boundary bug rolling December into "month 13" instead of January.
+- **Property test skeleton name.** `propCycleBoundsDerivation`.
+
+### A1.5 — `MIN_CYCLE_LENGTH_DAYS` constant
+
+The roll-forward threshold is a single named constant, **`MIN_CYCLE_LENGTH_DAYS`**, default value **3**. Story 11.2 adds it to `src/domain/cycle/cycleEngine.ts` as an exported `const` — a single point of edit, mirroring the existing `DEFAULT_CYCLE_ENDING_WINDOW_DAYS`. It is a **product-tunable** value pending founder sign-off (see A1.8). The engine and every test MUST read the constant, never the literal `3`.
+
+### A1.6 — Property-test skeletons (amended + new)
+
+Illustrative `fast-check` pseudocode — Story 11.2 implements these in `src/domain/cycle/cycleEngine.test.ts`. Function signatures are implementation-defined; the invariant ID, skeleton name, and intent are fixed.
+
+```ts
+// INV-1 — projected balance is invariant in cycleDay (variable-length)
+it("INV-1: projected balance does not depend on cycleDay", () => {
+  fc.assert(
+    fc.property(
+      fc.integer({ min: 100, max: 100_000 }), // dailyAmount
+      fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }), // cycleLength
+      fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 31 }), // advances
+      (dailyAmount, cycleLength, advances) => {
+        const contributionDays = cycleLength - 1;
+        // cycleDay is NOT an input to the projection — invariance is structural.
+        // Any two evaluations on the same cycle yield the same value.
+        const a = computeProjectedFinalBalance(dailyAmount, sum(advances), contributionDays);
+        const b = computeProjectedFinalBalance(dailyAmount, sum(advances), contributionDays);
+        return a === b;
+      },
+    ),
+  );
+});
+
+// INV-2 (renamed) — settled ≡ projected at the cycle's last day
+it("INV-2: settled balance equals projected balance at cycle end (NFR-R3 gate)", () => {
+  fc.assert(
+    fc.property(
+      fc.integer({ min: 100, max: 100_000 }), // dailyAmount
+      fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }), // cycleLength
+      (dailyAmount, cycleLength) => {
+        const contributionDays = cycleLength - 1;
+        // The substance of INV-2: settle() and the projection must agree byte-for-byte.
+        const settled = settle(dailyAmount, [], contributionDays);
+        const projected = computeProjectedFinalBalance(dailyAmount, 0, contributionDays);
+        return settled === projected && settled === dailyAmount * contributionDays;
+      },
+    ),
+  );
+});
+
+// INV-3 — advance capacity bound, parameterized on cycleLength
+it("INV-3: advance accepted iff total advances ≤ dailyAmount × (cycleLength − 1)", () => {
+  fc.assert(
+    fc.property(
+      fc.integer({ min: 100, max: 100_000 }),
+      fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
+      fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 20 }),
+      fc.integer({ min: 1, max: 100_000 }),
+      (dailyAmount, cycleLength, existing, newAdvance) => {
+        const capacity = dailyAmount * (cycleLength - 1);
+        const expected = sum(existing) + newAdvance <= capacity;
+        return canAcceptAdvance(dailyAmount, cycleLength, existing, newAdvance) === expected;
+      },
+    ),
+  );
+});
+
+// INV-5 — cycleDay clamped to [1, cycleLength]
+it("INV-5: cycleDay is clamped to [1, cycleLength]", () => {
+  fc.assert(
+    fc.property(
+      fc.date({ min: new Date("2026-01-01"), max: new Date("2026-12-31") }),
+      fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }), // cycleLength
+      fc.integer({ min: -100, max: 200 }), // day offset from start
+      (start, cycleLength, dayOffset) => {
+        // cycleDay's signature is (startDate: string, endDate: string, now: Date).
+        // Build endDate from the generated cycleLength so the call site matches.
+        const startDate = start.toISOString().slice(0, 10);
+        const endDate = isoDatePlusDays(startDate, cycleLength - 1);
+        const now = new Date(start.getTime() + dayOffset * 86_400_000);
+        const day = cycleDay(startDate, endDate, now);
+        return day >= 1 && day <= cycleLength;
+      },
+    ),
+  );
+});
+
+// INV-9 (new) — cycle-bounds derivation + roll-forward
+it("INV-9: end_date is month-end of start; short residual rolls forward; length ≥ MIN", () => {
+  fc.assert(
+    fc.property(fc.date({ min: new Date("2026-01-01"), max: new Date("2027-12-31") }), (start) => {
+      const requested = start.toISOString().slice(0, 10);
+      const { startDate, endDate } = deriveCycleBounds(requested);
+      const length = daysBetweenInclusive(startDate, endDate);
+      return (
+        // end_date must be the last day of START's month — not merely some month-end.
+        endDate === endOfMonth(startDate) &&
+        length >= MIN_CYCLE_LENGTH_DAYS &&
+        // startDate is either the requested date (no roll-forward) or the 1st of next month.
+        (startDate === requested || startDate === firstDayOfNextMonth(requested))
+      );
+    }),
+  );
+});
+```
+
+`propProjectedBalanceTimeInvariance` keeps the INV-1 skeleton above; its `cycleDay`-bearing form from the original "Property test skeletons" section is superseded — in the variable-length engine `cycleDay` is not an input to the projection, so the invariance is structural rather than checked across two day values.
+
+### A1.7 — Legacy-cycle compatibility
+
+Cycles created **before** Story 11.3 store `end_date = start_date + 29 days` (the old fixed window). The amended engine derives `cycleLength` from the row's `start_date` / `end_date`, so a legacy row yields `cycleLength = 30` and every invariant degrades exactly to the original 30-day behaviour. **No data backfill is required.** Story 11.2's property tests MUST include an explicit `cycleLength = 30` case to lock this equivalence.
+
+A legacy row's `end_date` is **not** a month-end, so legacy rows do **not** satisfy INV-9 — this is expected and correct: INV-9 is a write-path invariant (see its Scope note) constraining only newly-derived bounds, not a postcondition retroactively asserted on rows already in the table. The read-path invariants (INV-1, INV-2, INV-3, INV-5) hold for legacy rows because they consume the row's stored `start_date` / `end_date` directly.
+
+### A1.8 — Amendment Open Questions
+
+- **A1-Q1 — `MIN_CYCLE_LENGTH_DAYS` value.** Default **3**, pending founder sign-off. A higher value (e.g. 5–7) makes more end-of-month registrations roll forward; a lower value permits very short partial cycles. Story 11.3 reads the constant — changing it later is a one-line edit, no migration.
+- **A1-Q2 — Automatic cycle restart.** The new model makes "the next cycle is the full following month" natural, but cycle restart is still the **manual** FR12 action (Story 2.7). Whether to auto-start the next cycle on the 1st of the month is **out of scope for Epic 11** — noted here only so a future story can pick it up deliberately.
+
+### A1.9 — References
+
+- **Canonical decision record:** `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-19.md` (§ "Canonical new model", §4.2).
+- **Epic + story:** `_bmad-output/planning-artifacts/epics.md` — Epic 11, Story 11.1.
+- **PRD (amended under v1.4):** `_bmad-output/planning-artifacts/prd.md` — FR15-FR17, FR19 (lines 495-499), NFR-R3 (line 565).
+- **Engine to refactor (Story 11.2):** `src/domain/cycle/cycleEngine.ts`.
+- **RPCs to refactor (Story 11.3):** `supabase/migrations/*create_member_with_cycle*.sql`, `*restart_member_cycle*.sql`, `*commit_cycle_settlement*.sql`.
