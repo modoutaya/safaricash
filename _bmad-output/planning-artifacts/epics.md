@@ -408,6 +408,18 @@ Ten MVP epics organised around user value. Implementation order: **1 → 2 → 3
 
 **User outcome:** A saver who sees a suspicious transaction on her receipt URL can tap *"Cette transaction n'est pas moi"* and trust that the signal reaches both Ibrahim and the founder within minutes — with a compassionate acknowledgment screen reassuring her that she will be heard. Separately, any saver can request deletion of her personal data, which the system honours via anonymisation while preserving the audit trail for regulatory obligations.
 
+### Epic 11: Calendar-Month Cycle Model
+
+**Goal:** Migrate the cycle model from a fixed 30 calendar days to a calendar-month-aligned cycle. A cycle runs from its start date to the last day of that month; a member enrolled mid-month gets a partial first cycle. The collector's commission stays exactly one full day regardless of cycle length. The cycle engine, its 8 property-based invariants, the settlement RPCs, and all cycle-day consumers are re-parameterized for variable cycle length.
+
+**FRs covered:** FR15, FR16, FR17, FR19, FR21, NFR-R3 (all re-stated for variable cycle length — PRD v1.4)
+
+**Additional coverage:** ADR-004 amendment (variable-length invariants + INV-9)
+
+**Source:** Sprint Change Proposal `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-19.md` (correct-course 2026-05-19, founder-approved).
+
+**User outcome:** Ibrahim's tontine cycles match the calendar month his savers actually think in. A member enrolled on the 7th of a 30-day month contributes 23 days that month; settlement still reconciles to the franc against the SMS receipts the saver has been receiving.
+
 ### Epic Dependency Graph
 
 ```
@@ -1403,5 +1415,72 @@ So that I can respectfully stop notifications without replying "STOP" to an SMS 
 **And** a `sms.opt_out` audit event is recorded,
 **And** a final confirmation SMS is sent (once, acknowledging the opt-out and explaining how to re-subscribe via the collector if desired),
 **And** no further transactional SMS are dispatched for that saver.
+
+## Epic 11: Calendar-Month Cycle Model
+
+The cycle becomes the calendar month. A member enrolled mid-month gets a partial first cycle; subsequent cycles started on the 1st are full months. Commission stays one full day, always. Driven by the founder-approved Sprint Change Proposal of 2026-05-19.
+
+### Story 11.1: ADR-004 amendment — variable-length cycle invariants
+
+As a tech lead,
+I want the cycle-engine invariants in `docs/ADR/004-cycle-invariants.md` amended for variable-length (calendar-month) cycles before the engine is refactored,
+So that Stories 11.2-11.4 implement against explicit, re-parameterized correctness rules (gates the rest of Epic 11).
+
+**Acceptance Criteria:**
+
+**Given** the existing ADR-004 with 8 invariants built on `CYCLE_TOTAL_DAYS = 30`,
+**When** the amendment is written,
+**Then** an amendment section re-parameterizes INV-1, INV-2, INV-3, INV-5 from the constants `30` / `29` to a per-cycle `cycleLength` / `contributionDays` (`contributionDays = cycleLength − 1`),
+**And** INV-4 (commission = exactly `1 × dailyAmount`) is explicitly stated as UNCHANGED, with a note that a partial first cycle still takes one full commission day — never prorated,
+**And** INV-6, INV-7, INV-8 are confirmed to hold unchanged (INV-8 explicitly: no division is introduced, so all amounts stay integer FCFA),
+**And** a new INV-9 defines cycle-bounds derivation: `end_date` = last calendar day of `month(start_date)`; a roll-forward rule when the residual is shorter than `MIN_CYCLE_LENGTH_DAYS` (default 3); `cycleLength = end_date − start_date + 1`,
+**And** each amended/new invariant has a property-test skeleton name for Story 11.2 to consume,
+**And** the ADR front-matter records the amendment (status, date, superseded-by left empty — amended in place).
+
+### Story 11.2: Cycle engine refactor to variable-length cycles
+
+As a developer,
+I want `src/domain/cycle/cycleEngine.ts` refactored to derive cycle length from `start_date`/`end_date` instead of the hardcoded `CYCLE_TOTAL_DAYS = 30`,
+So that projection, advance-capacity, settlement, and day-N math are correct for partial and full-month cycles (FR16, FR17, NFR-R3).
+
+**Acceptance Criteria:**
+
+**Given** the amended ADR-004 (Story 11.1),
+**When** the engine is refactored,
+**Then** `CYCLE_TOTAL_DAYS` and `CONTRIBUTION_DAYS` constants are removed and a `cycleLengthDays(startDate, endDate)` helper is added,
+**And** `computeProjectedFinalBalance`, `canAcceptAdvance`, `settle`, `cycleDay`, `daysUntilCycleEnd`, `isSettlementReady`, and `computeMemberStats` are re-parameterized for variable length,
+**And** `commission()` is unchanged (`1 × dailyAmount`),
+**And** all ADR-004 invariants (including INV-9) are verified via fast-check property tests,
+**And** coverage on `src/domain/cycle/` stays at 100 %.
+
+### Story 11.3: Month-aligned cycle dates in RPCs
+
+As a developer,
+I want `create_member_with_cycle`, `restart_member_cycle`, and `commit_cycle_settlement` to use calendar-month cycle bounds,
+So that new cycles end on the last day of the month and settlement recomputes the payout for the actual cycle length (FR15, FR21, NFR-R3).
+
+**Acceptance Criteria:**
+
+**Given** a new migration created via `npm run db:migrate:new`,
+**When** a member is created or a cycle is restarted,
+**Then** `end_date` = last calendar day of `month(start_date)`, with the roll-forward rule applied when fewer than `MIN_CYCLE_LENGTH_DAYS` remain,
+**And** `commit_cycle_settlement` recomputes the payout as `daily_amount × (cycleLength − 1) − Σ(advances)` derived from the cycle row's `start_date`/`end_date`,
+**And** the server/client payout cross-check (NFR-R3) still holds,
+**And** legacy cycles (rows with the old `start + 29` `end_date`) continue to settle correctly with no backfill.
+
+### Story 11.4: Cycle consumer and SMS copy updates
+
+As a developer,
+I want every cycle-day consumer and the SMS receipt copy updated for variable cycle length,
+So that the UI and saver receipts show the real cycle length instead of a hardcoded `/30` (FR16, FR28).
+
+**Acceptance Criteria:**
+
+**Given** the refactored engine (Story 11.2),
+**When** the consumers are updated,
+**Then** the transaction routes, `AdvanceSimulationPanel`, and `SettlementSummaryCard` derive cycle length from the engine, not a constant,
+**And** `shareReceipt.ts` and the server-side `format_sms_body` render `jour {cycleDay}/{cycleLength}` with the actual length,
+**And** no UI shows a `/30` denominator for a non-30-day cycle,
+**And** all existing tests pass with the variable-length values.
 
 
