@@ -23,7 +23,12 @@
 import { assert, assertEquals, assertExists } from "jsr:@std/assert@1";
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 
-import { cleanup, seedCollector, seedMemberWithCycle } from "./test-fixtures.ts";
+import {
+  cleanup,
+  seedCollector,
+  seedMemberWithCycle,
+  seedMemberWithCycleBounds,
+} from "./test-fixtures.ts";
 
 function envOrSkip(): { url: string; anonKey: string; serviceKey: string } | null {
   const url = Deno.env.get("SUPABASE_URL");
@@ -459,6 +464,61 @@ if (env) {
         assertExists(error);
         assertEquals((error as { code?: string }).code, "28000");
         assert((error as { message: string }).message.includes("auth required"));
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  // -------------------------------------------------------------------------
+  // Story 11.3 AC #10 — partial-cycle settlement.
+  // -------------------------------------------------------------------------
+  Deno.test({
+    name: "11.3 AC #10 — partial cycle (cycleLength 24) → payout = dailyAmount × 23",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "cs113");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        // The worked-example partial cycle: registered on the 7th of a
+        // 30-day month → end 30th → cycleLength 24 → contributionDays 23.
+        const { memberId, cycleId } = await seedMemberWithCycleBounds(
+          userClient,
+          service,
+          c.userId,
+          { startDate: "2026-04-07", endDate: "2026-04-30" },
+        );
+        await markCycleCompleted(service, cycleId);
+
+        // dailyAmount = 500 (default in the seed helper) → payout = 500 × 23 = 11_500.
+        // Call via the JWT-bound user client — commit_cycle_settlement
+        // raises 28000 ('auth required') when auth.uid() is null, which
+        // is the case for the service-role client.
+        const { data, error } = await userClient.rpc("commit_cycle_settlement", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_expected_payout: 11_500,
+        });
+        assertEquals(error, null);
+        assertExists(data);
+        const row = (data as Array<{ settled_payout: number | string }>)[0];
+        assertEquals(Number(row!.settled_payout), 11_500);
+
+        // The synthetic settlement tx must be stamped at cycle_day = cycleLength (24),
+        // not the literal 30 — admitted by the new BETWEEN 1 AND 31 column check.
+        const { data: tx } = await service
+          .from("transactions")
+          .select("cycle_day")
+          .eq("cycle_id", cycleId)
+          .eq("kind", "settlement")
+          .single();
+        assertEquals(tx?.cycle_day, 24);
       } finally {
         await cleanup(service, c);
       }

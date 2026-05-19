@@ -94,6 +94,15 @@ async function seedMemberWithCycle(
     .eq("collector_id", collectorId)
     .single();
   if (!cycle) throw new Error("seedMember: cycle not found");
+  // Story 11.3 — pin the seeded cycle to a deterministic 30-day window
+  // so the existing `× 29` capacity assertions in this file remain valid
+  // regardless of when the test runs (the new RPC produces a variable-
+  // length calendar-month cycle by default).
+  const { error: pinErr } = await service
+    .from("cycles")
+    .update({ start_date: "2026-04-01", end_date: "2026-04-30" })
+    .eq("id", cycle.id);
+  if (pinErr) throw new Error(`seedMember: pin cycle dates — ${pinErr.message}`);
   return { memberId, cycleId: cycle.id };
 }
 
@@ -462,6 +471,117 @@ if (env) {
         assert(insertErr !== null);
         assertEquals(insertErr?.code, "23514");
         assertStringIncludes(insertErr?.message ?? "", "transactions_advance_motive_ack_chk");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  // -------------------------------------------------------------------------
+  // Story 11.3 AC #11 — partial-cycle capacity bound.
+  // -------------------------------------------------------------------------
+  Deno.test({
+    name: "11.3 AC #11 — partial cycle (cycleLength 24) → capacity = dailyAmount × 23 (boundary + over-limit)",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "adv113cap");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        // Seed via the inline helper (pins to 30-day window), then override
+        // to a 24-day partial cycle (the worked example: registered the 7th).
+        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        const { error: pinErr } = await service
+          .from("cycles")
+          .update({ start_date: "2026-04-07", end_date: "2026-04-30" })
+          .eq("id", cycleId);
+        if (pinErr) throw new Error(`pin cycle: ${pinErr.message}`);
+
+        // dailyAmount = 5000 (inline seed default) → capacity = 5000 × 23 = 115_000.
+
+        // Advance of exactly capacity is accepted (≤ boundary inclusive per INV-3).
+        const { data: txId1, error: errAccept } = await userClient.rpc("record_advance", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_amount: 115_000,
+          p_cycle_day: 10,
+          p_motive: "boundary test",
+          p_saver_acknowledged: true,
+        });
+        assertEquals(errAccept, null);
+        assert(typeof txId1 === "string");
+
+        // A second advance of even 1 FCFA now exceeds the remaining capacity.
+        const { error: errOver } = await userClient.rpc("record_advance", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_amount: 1,
+          p_cycle_day: 10,
+          p_motive: "over-limit test",
+          p_saver_acknowledged: true,
+        });
+        assert(errOver !== null);
+        assertEquals(errOver?.code, "22023");
+        assertStringIncludes(errOver?.message ?? "", "over_limit");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  // -------------------------------------------------------------------------
+  // Story 11.3 AC #12 — cycle_day = 31 accepted; cycle_day = 32 rejected.
+  // -------------------------------------------------------------------------
+  Deno.test({
+    name: "11.3 AC #12 — record_advance accepts cycle_day=31; rejects cycle_day=32",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "adv113day31");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        // Seed + override to a 31-day cycle (January 2026 → cycleLength 31).
+        const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        const { error: pinErr } = await service
+          .from("cycles")
+          .update({ start_date: "2026-01-01", end_date: "2026-01-31" })
+          .eq("id", cycleId);
+        if (pinErr) throw new Error(`pin cycle: ${pinErr.message}`);
+
+        // cycle_day = 31 is now accepted (was rejected pre-11.3).
+        const { data: txId, error: errAccept } = await userClient.rpc("record_advance", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_amount: 1_000,
+          p_cycle_day: 31,
+          p_motive: "day 31",
+          p_saver_acknowledged: true,
+        });
+        assertEquals(errAccept, null);
+        assert(typeof txId === "string");
+
+        // cycle_day = 32 still rejected.
+        const { error: err32 } = await userClient.rpc("record_advance", {
+          p_member_id: memberId,
+          p_cycle_id: cycleId,
+          p_amount: 1_000,
+          p_cycle_day: 32,
+          p_motive: "day 32",
+          p_saver_acknowledged: true,
+        });
+        assert(err32 !== null);
+        assertEquals(err32?.code, "22000");
+        assertStringIncludes(err32?.message ?? "", "invalid_cycle_day");
       } finally {
         await cleanup(service, c);
       }

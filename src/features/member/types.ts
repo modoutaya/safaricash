@@ -65,7 +65,11 @@ export const transactionRowSchema = z.object({
   cycle_id: z.string().uuid(),
   kind: transactionKindSchema,
   amount: z.coerce.number().int().positive(), // decrypted from numeric(12,0)
-  cycle_day: z.number().int().min(1).max(30),
+  // Story 11.3 — ceiling raised 30 → 31 to admit the last day of a 31-day
+  // calendar-month cycle. Bumped in lockstep with the DB column check on
+  // public.transactions.cycle_day AND the record_contribution /
+  // record_advance RPC validations (migration 20260519215232).
+  cycle_day: z.number().int().min(1).max(31),
   created_at: z.string(), // ISO-8601
   // Story 6.7 — exposed via transactions_decrypted (migration 0054) for the
   // share button to compose `${VITE_RECEIPT_URL_BASE}/{token}` client-side.
