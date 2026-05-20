@@ -543,11 +543,23 @@ describe("cycleEngine — example tests", () => {
       const stats = computeMemberStats([], { dailyAmount: 500 }, null, NOW);
       expect(stats).toEqual({
         cycleDay: 0,
+        cycleLength: 0,
         daysRemaining: 0,
         contributedTotal: 0,
         outstandingAdvances: 0,
         projectedFinalBalance: 0,
       });
+    });
+
+    it("exposes cycleLength (Story 11.4) — 30-day cycle", () => {
+      const stats = computeMemberStats([], { dailyAmount: 500 }, CYCLE, NOW);
+      expect(stats.cycleLength).toBe(30);
+    });
+
+    it("exposes cycleLength (Story 11.4) — 24-day partial cycle", () => {
+      const partial = { startDate: "2026-04-07", endDate: "2026-04-30" };
+      const stats = computeMemberStats([], { dailyAmount: 500 }, partial, NOW);
+      expect(stats.cycleLength).toBe(24);
     });
 
     it("still aggregates transaction totals even when currentCycle is null", () => {

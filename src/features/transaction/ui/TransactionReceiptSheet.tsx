@@ -28,6 +28,9 @@ export interface TransactionReceiptSheetMember {
 
 export interface TransactionReceiptSheetCycle {
   cycle_number: number;
+  /** Story 11.4 — variable-length cycle: total days = end_date − start_date + 1.
+   *  Used for the "Jour {n} sur {total}" denominator. */
+  cycle_length: number;
 }
 
 export interface TransactionReceiptSheetProps {
@@ -149,6 +152,7 @@ export function TransactionReceiptSheet({
             <dd className="text-text-primary">
               {t("transaction.receipt_sheet.cycle_day_value", {
                 n: transaction.cycle_day,
+                total: cycle.cycle_length,
                 cycle_number: cycle.cycle_number,
               })}
             </dd>

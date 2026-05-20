@@ -31,6 +31,7 @@ const CYCLE: CycleRow = {
 
 const STATS_NO_ADVANCES: MemberStats = {
   cycleDay: 11,
+  cycleLength: 30,
   daysRemaining: 19,
   contributedTotal: 5500,
   outstandingAdvances: 0,
@@ -39,6 +40,7 @@ const STATS_NO_ADVANCES: MemberStats = {
 
 const STATS_WITH_ADVANCES: MemberStats = {
   cycleDay: 11,
+  cycleLength: 30,
   daysRemaining: 19,
   contributedTotal: 5500,
   outstandingAdvances: 3000,

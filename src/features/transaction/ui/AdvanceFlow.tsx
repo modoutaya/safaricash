@@ -181,7 +181,10 @@ export function AdvanceFlow({
             <div className="flex items-center justify-between gap-2">
               <span className="text-caption">{t("advance.flow.situation.day_label")}</span>
               <span className="text-caption font-semibold">
-                {t("advance.flow.situation.day_value", { day: data.stats.cycleDay })}
+                {t("advance.flow.situation.day_value", {
+                  day: data.stats.cycleDay,
+                  total: data.stats.cycleLength,
+                })}
               </span>
             </div>
             <div className="flex items-center justify-between gap-2">

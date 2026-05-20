@@ -77,8 +77,14 @@ if (env) {
             collector_id: c.userId,
             member_id: member?.id,
             cycle_number: 1,
+            // Story 11.4 — pin to a 30-day inclusive window (start + 29 days)
+            // so `format_sms_body` renders the legacy worst-case "jour 30/30"
+            // denominator. Pre-11.4 the seed was `start + 30 days`, which
+            // post-11.4 yielded a 31-day inclusive cycle and silently shifted
+            // the test target to "jour 30/31"; pinning preserves the
+            // historical 160-char worst-case the gate is meant to assert.
             start_date: new Date().toISOString().slice(0, 10),
-            end_date: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+            end_date: new Date(Date.now() + 29 * 86400000).toISOString().slice(0, 10),
             status: "active",
           })
           .select("id")

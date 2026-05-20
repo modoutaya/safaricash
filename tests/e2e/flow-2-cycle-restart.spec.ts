@@ -52,7 +52,8 @@ test.describe("Flow — /members/:id cycle restart (Story 2.7)", () => {
     await expect(
       page.getByRole("heading", { level: 2, name: /redémarrer le cycle ?/i }),
     ).toBeVisible();
-    await expect(page.getByText(/un nouveau cycle de 30 jours va démarrer/i)).toBeVisible();
+    // Story 11.4 — restarted cycle's length follows derive_cycle_bounds(today).
+    await expect(page.getByText(/un nouveau cycle de \d+ jours va démarrer/i)).toBeVisible();
 
     // --- 3. Annuler → dialog closes, cycle count stable (still 1) ---
     await page.getByRole("button", { name: /^annuler$/i }).click();
@@ -70,8 +71,10 @@ test.describe("Flow — /members/:id cycle restart (Story 2.7)", () => {
     await page.getByRole("button", { name: /^redémarrer le cycle$/i }).click();
     await page.getByRole("button", { name: /^redémarrer$/i }).click();
 
-    // Profile re-renders with day 1 of 30 + the just-completed cycle now in history.
-    await expect(page.getByText(/Jour 1 sur 30/i)).toBeVisible();
+    // Profile re-renders with day 1 of the new cycle + the just-completed cycle now in history.
+    // Story 11.4 — calendar-month-aligned cycles are variable-length; the
+    // denominator is whatever today's residual is (28/29/30/31, or partial).
+    await expect(page.getByText(/Jour 1 sur \d+/i)).toBeVisible();
 
     // --- 5. "Cycles précédents" section visible with one row ---
     await expect(page.getByRole("heading", { level: 2, name: /cycles précédents/i })).toBeVisible();

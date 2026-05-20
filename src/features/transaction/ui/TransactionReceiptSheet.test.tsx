@@ -47,7 +47,7 @@ function renderSheet(
         phone_number: overrides.phone === undefined ? "+221770000111" : overrides.phone,
         sms_opt_out: overrides.smsOptOut ?? false,
       }}
-      cycle={{ cycle_number: 7 }}
+      cycle={{ cycle_number: 7, cycle_length: 30 }}
       onShare={onShare}
       onResend={onResend}
     />,

@@ -115,6 +115,7 @@ function buildBase() {
     ],
     stats: {
       cycleDay: 30,
+      cycleLength: 30,
       daysRemaining: 0,
       contributedTotal: 1_000,
       outstandingAdvances: 3_000,
@@ -438,6 +439,7 @@ describe("MemberSettlementRoute", () => {
         ],
         stats: {
           cycleDay: 30,
+          cycleLength: 30,
           daysRemaining: 0,
           contributedTotal: 1_000,
           outstandingAdvances: 6_000,

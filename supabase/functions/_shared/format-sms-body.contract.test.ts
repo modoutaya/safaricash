@@ -13,7 +13,12 @@
 import { assert, assertEquals, assertStringIncludes } from "jsr:@std/assert@1";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-import { cleanup, seedCollector, seedMemberWithCycle } from "./test-fixtures.ts";
+import {
+  cleanup,
+  seedCollector,
+  seedMemberWithCycle,
+  seedMemberWithCycleBounds,
+} from "./test-fixtures.ts";
 
 function envOrSkip(): { url: string; anonKey: string; serviceKey: string } | null {
   const url = Deno.env.get("SUPABASE_URL");
@@ -505,6 +510,86 @@ if (env) {
         body,
         "SafariCash. Vous ne recevrez plus de SMS. Pour les reactiver, contactez votre collecteur.",
       );
+    },
+  });
+
+  // ---- Story 11.4 — dynamic denominator for variable-length cycles ----
+  //
+  // The receipt SMS denominator (`/30`) now follows THIS cycle's actual
+  // length (= end_date − start_date + 1). Pin to a 24-day window (the
+  // worked example for a saver enrolled on the 7th of a 30-day month)
+  // and assert "jour 1/24" / "jour 2/24" rather than the legacy "/30".
+
+  Deno.test({
+    name: "10. first_receipt body — 24-day partial cycle prints jour 1/24 (Story 11.4)",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "fb10");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId, cycleId } = await seedMemberWithCycleBounds(
+          userClient,
+          service,
+          c.userId,
+          { startDate: "2026-04-07", endDate: "2026-04-30" },
+        );
+        const txId = await recordContrib(userClient, memberId, cycleId, 1);
+
+        const { data: body, error } = await service.rpc("format_sms_body", {
+          p_template_key: "first_receipt",
+          p_transaction_id: txId,
+        });
+        assertEquals(error, null);
+        assert(typeof body === "string");
+        assertStringIncludes(body, "jour 1/24");
+        assert(!body.includes("jour 1/30"), "11.4 — denominator must follow cycle length, not 30");
+        // contributionDays = 24 − 1 = 23; projected = 500 × 23 − 0 = 11 500.
+        assertStringIncludes(body, "Solde projete fin de cycle: 11 500 FCFA");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "11. subsequent_receipt body — 24-day partial cycle prints jour 2/24 (Story 11.4)",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "fb11");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+        const { memberId, cycleId } = await seedMemberWithCycleBounds(
+          userClient,
+          service,
+          c.userId,
+          { startDate: "2026-04-07", endDate: "2026-04-30" },
+        );
+        const txId = await recordContrib(userClient, memberId, cycleId, 2);
+
+        const { data: body, error } = await service.rpc("format_sms_body", {
+          p_template_key: "subsequent_receipt",
+          p_transaction_id: txId,
+        });
+        assertEquals(error, null);
+        assert(typeof body === "string");
+        assertStringIncludes(body, "SafariCash. 500 FCFA recu, jour 2/24");
+        assert(!body.includes("jour 2/30"), "11.4 — denominator must follow cycle length, not 30");
+        assertStringIncludes(body, "Solde projete: 11 500 FCFA");
+      } finally {
+        await cleanup(service, c);
+      }
     },
   });
 }

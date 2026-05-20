@@ -195,6 +195,11 @@ export function MemberForm({
   const errorBannerKey = errorCode !== null ? errorCopyKey(mode, errorCode) : null;
   const titleKey: TranslationKey = mode === "edit" ? "members.edit.title" : "members.create.title";
   const subtitleKey: TranslationKey | null = mode === "edit" ? null : "members.create.subtitle";
+  // Story 11.4 — preview the first cycle's actual length (calendar-month
+  // aligned via deriveCycleBounds) so the subtitle reflects the variable
+  // cycle the new saver will actually get, not a hardcoded "30 jours".
+  const firstCycleBounds = deriveCycleBounds(new Date().toISOString().slice(0, 10));
+  const firstCycleLength = cycleLengthDays(firstCycleBounds.startDate, firstCycleBounds.endDate);
   const submitKey: TranslationKey = isPending
     ? mode === "edit"
       ? "members.edit.cta_submitting"
@@ -236,7 +241,9 @@ export function MemberForm({
           {t(titleKey)}
         </h1>
         {subtitleKey ? (
-          <p className="text-body-2 text-primary-foreground/90">{t(subtitleKey)}</p>
+          <p className="text-body-2 text-primary-foreground/90">
+            {t(subtitleKey, { total: firstCycleLength })}
+          </p>
         ) : null}
       </header>
 

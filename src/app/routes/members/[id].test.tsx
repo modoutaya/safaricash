@@ -113,6 +113,7 @@ describe("MemberProfileRoute", () => {
         totalTransactionsCount: 0,
         stats: {
           cycleDay: 11,
+          cycleLength: 30,
           daysRemaining: 19,
           contributedTotal: 0,
           outstandingAdvances: 0,
@@ -143,6 +144,7 @@ describe("MemberProfileRoute", () => {
         totalTransactionsCount: 0,
         stats: {
           cycleDay: 11,
+          cycleLength: 30,
           daysRemaining: 19,
           contributedTotal: 0,
           outstandingAdvances: 0,
@@ -291,6 +293,7 @@ describe("MemberProfileRoute", () => {
         totalTransactionsCount: 0,
         stats: {
           cycleDay: 11,
+          cycleLength: 30,
           daysRemaining: 19,
           contributedTotal: 0,
           outstandingAdvances: 0,

@@ -97,6 +97,19 @@ function formatCycleDate(iso: string): string {
   return fmt.format(date);
 }
 
+/** Story 11.4 — derive variable-length cycle total from payload dates.
+ *  Falls back to 30 when either bound is missing (legacy pre-Story-7.5
+ *  payloads predate calendar-month cycles, when length was fixed at 30). */
+function cycleLengthDenominator(payload: ReceiptPayload): number {
+  const { cycle_start_date, cycle_end_date } = payload;
+  if (!cycle_start_date || !cycle_end_date) return 30;
+  const start = new Date(`${cycle_start_date}T00:00:00Z`).getTime();
+  const end = new Date(`${cycle_end_date}T00:00:00Z`).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return 30;
+  const MS_PER_DAY = 86_400_000;
+  return Math.round((end - start) / MS_PER_DAY) + 1;
+}
+
 const STYLE_BLOCK = `
   *, *::before, *::after { box-sizing: border-box; }
   body {
@@ -347,7 +360,7 @@ export function renderReceiptHtml(token: string, payload: ReceiptPayload): strin
     </div>
     <div>
       <dt>Jour du cycle</dt>
-      <dd>${payload.cycle_day} / 30</dd>
+      <dd>${payload.cycle_day} / ${cycleLengthDenominator(payload)}</dd>
     </div>
     <div>
       <dt>Type d'opération</dt>

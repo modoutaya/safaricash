@@ -138,7 +138,7 @@
     "status_badge_termine": "Terminé",
     "amount_per_day": "{amount} F CFA / jour",
     "card": {
-      "cycle_day": "Jour {day}/30",
+      "cycle_day": "Jour {day}/{total}",
       "advance_inline": "Avance : {amount} F CFA",
       "days_remaining_one": "1 jour restant",
       "days_remaining_many": "{days} jours restants",
@@ -150,7 +150,7 @@
     "add_cta": "Ajouter un membre",
     "create": {
       "title": "Nouveau membre",
-      "subtitle": "Saisissez les coordonnées du nouveau saver pour démarrer son cycle de 30 jours.",
+      "subtitle": "Saisissez les coordonnées du nouveau saver pour démarrer son cycle de {total} jours.",
       "back_label": "Retour aux membres",
       "section_title": "Informations personnelles",
       "recap": {
@@ -244,7 +244,7 @@
       "action_disabled_tooltip": "Disponible bientôt",
       "field": {
         "daily_amount": "{amount} FCFA / jour",
-        "cycle_day": "Jour {n} sur 30",
+        "cycle_day": "Jour {n} sur {total}",
         "contributed_total": "Versé : {amount} FCFA",
         "outstanding_advances": "Avances en cours : {amount} FCFA",
         "projected_balance": "Solde prévu fin cycle : {amount} FCFA"
@@ -264,7 +264,7 @@
       },
       "restart": {
         "dialog_title": "Redémarrer le cycle ?",
-        "dialog_body": "Un nouveau cycle de 30 jours va démarrer pour {name}. Le cycle précédent reste visible dans l'historique.",
+        "dialog_body": "Un nouveau cycle de {total} jours va démarrer pour {name}. Le cycle précédent reste visible dans l'historique.",
         "dialog_confirm": "Redémarrer",
         "dialog_cancel": "Annuler",
         "cta_submitting": "Redémarrage…",
@@ -385,7 +385,7 @@
       "situation": {
         "title": "📊 Situation actuelle",
         "day_label": "Jour du cycle",
-        "day_value": "{day}/30",
+        "day_value": "{day}/{total}",
         "contributed_label": "Déjà cotisé",
         "advances_label": "Avances existantes",
         "amount_value": "{amount} FCFA"
@@ -559,7 +559,7 @@
       "amount_row_label": "Montant",
       "date_row_label": "Date",
       "cycle_day_row_label": "Cycle",
-      "cycle_day_value": "Jour {n} sur 30 — Cycle {cycle_number}",
+      "cycle_day_value": "Jour {n} sur {total} — Cycle {cycle_number}",
       "share_label": "Partager le reçu",
       "resend_sms_label": "Renvoyer par SMS",
       "resend_disabled_no_phone": "Aucun téléphone enregistré pour ce saver.",

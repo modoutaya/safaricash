@@ -241,6 +241,7 @@ export function isCycleInUpcomingEndWindow(
  *  src/features/member/api/computeMemberStats.ts helper. */
 export interface MemberStats {
   cycleDay: number;
+  cycleLength: number;
   daysRemaining: number;
   contributedTotal: number;
   outstandingAdvances: number;
@@ -271,6 +272,7 @@ export function computeMemberStats(
   if (currentCycle === null) {
     return {
       cycleDay: 0,
+      cycleLength: 0,
       daysRemaining: 0,
       contributedTotal,
       outstandingAdvances,
@@ -283,6 +285,7 @@ export function computeMemberStats(
 
   return {
     cycleDay: day,
+    cycleLength,
     daysRemaining: daysUntilCycleEnd(day, cycleLength),
     contributedTotal,
     outstandingAdvances,

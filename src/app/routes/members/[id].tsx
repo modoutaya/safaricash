@@ -188,103 +188,118 @@ export default function MemberProfileRoute() {
         />
       ) : null}
 
-      {query.data && selectedTx && query.data.currentCycle ? (
-        <TransactionReceiptSheet
-          open={!!selectedTx}
-          onOpenChange={(next) => {
-            if (!next) setSelectedTx(null);
-          }}
-          transaction={selectedTx}
-          member={{
-            phone_number: query.data.member.phone_number,
-            sms_opt_out: query.data.member.sms_opt_out ?? false,
-          }}
-          cycle={{ cycle_number: query.data.currentCycle.cycle_number }}
-          onShare={async () => {
-            if (!selectedTx.receipt_token) {
-              toast.error(t("transaction.receipt_sheet.share_toast_error"));
-              return;
-            }
-            // Code-review patch (P7): `shareReceipt` can throw if
-            // VITE_RECEIPT_URL_BASE is unset in a production build (the
-            // helper throws by design — see shareReceipt.ts:34). Catch +
-            // surface a generic error toast rather than leaking an
-            // unhandled promise rejection to the React event loop.
-            try {
-              const result = await shareReceipt({
-                amount: selectedTx.amount,
-                cycleDay: selectedTx.cycle_day,
-                receiptToken: selectedTx.receipt_token,
-              });
-              if (result.ok) {
-                const key =
-                  result.via === "native"
-                    ? "transaction.receipt_sheet.share_toast_native_success"
-                    : "transaction.receipt_sheet.share_toast_clipboard_success";
-                toast.success(t(key));
+      {(() => {
+        // Story 11.4 code-review patch — capture `data` + `cycleLength` in
+        // local consts so the async `onShare` closure sees narrowed,
+        // non-nullable values. The prior `query.data?.stats.cycleLength ?? 0`
+        // fallback could leak a "jour N/0" denominator into the OS share
+        // sheet if the closure fired after a refetch nulled `query.data`.
+        const data = query.data;
+        if (!data || !selectedTx || !data.currentCycle) return null;
+        const cycleLength = data.stats.cycleLength;
+        const currentCycle = data.currentCycle;
+        return (
+          <TransactionReceiptSheet
+            open={!!selectedTx}
+            onOpenChange={(next) => {
+              if (!next) setSelectedTx(null);
+            }}
+            transaction={selectedTx}
+            member={{
+              phone_number: data.member.phone_number,
+              sms_opt_out: data.member.sms_opt_out ?? false,
+            }}
+            cycle={{
+              cycle_number: currentCycle.cycle_number,
+              cycle_length: cycleLength,
+            }}
+            onShare={async () => {
+              if (!selectedTx.receipt_token) {
+                toast.error(t("transaction.receipt_sheet.share_toast_error"));
                 return;
               }
-              switch (result.reason) {
-                case "aborted":
-                  toast.info(t("transaction.receipt_sheet.share_toast_aborted"));
+              // Code-review patch (P7): `shareReceipt` can throw if
+              // VITE_RECEIPT_URL_BASE is unset in a production build (the
+              // helper throws by design — see shareReceipt.ts:34). Catch +
+              // surface a generic error toast rather than leaking an
+              // unhandled promise rejection to the React event loop.
+              try {
+                const result = await shareReceipt({
+                  amount: selectedTx.amount,
+                  cycleDay: selectedTx.cycle_day,
+                  cycleLength,
+                  receiptToken: selectedTx.receipt_token,
+                });
+                if (result.ok) {
+                  const key =
+                    result.via === "native"
+                      ? "transaction.receipt_sheet.share_toast_native_success"
+                      : "transaction.receipt_sheet.share_toast_clipboard_success";
+                  toast.success(t(key));
                   return;
-                case "unsupported":
-                  toast.error(
-                    t("transaction.receipt_sheet.share_toast_unsupported", { url: result.url }),
+                }
+                switch (result.reason) {
+                  case "aborted":
+                    toast.info(t("transaction.receipt_sheet.share_toast_aborted"));
+                    return;
+                  case "unsupported":
+                    toast.error(
+                      t("transaction.receipt_sheet.share_toast_unsupported", { url: result.url }),
+                    );
+                    return;
+                  default:
+                    toast.error(t("transaction.receipt_sheet.share_toast_error"));
+                }
+              } catch {
+                toast.error(t("transaction.receipt_sheet.share_toast_error"));
+              }
+            }}
+            onResend={async () => {
+              // Capture the member name at handler-creation time so TS narrowing
+              // survives the async boundary.
+              const memberName = query.data?.member.name ?? "";
+              try {
+                const result: ResendTransactionResult = await resendTx.mutateAsync({
+                  transactionId: selectedTx.id,
+                  memberId: id,
+                });
+                if (result.enqueued > 0) {
+                  toast.success(
+                    t("transaction.receipt_sheet.resend_toast_success", {
+                      memberFirstName: memberName.split(" ")[0] ?? memberName,
+                    }),
                   );
+                  setSelectedTx(null);
                   return;
-                default:
-                  toast.error(t("transaction.receipt_sheet.share_toast_error"));
-              }
-            } catch {
-              toast.error(t("transaction.receipt_sheet.share_toast_error"));
-            }
-          }}
-          onResend={async () => {
-            // Capture the member name at handler-creation time so TS narrowing
-            // survives the async boundary.
-            const memberName = query.data?.member.name ?? "";
-            try {
-              const result: ResendTransactionResult = await resendTx.mutateAsync({
-                transactionId: selectedTx.id,
-                memberId: id,
-              });
-              if (result.enqueued > 0) {
-                toast.success(
-                  t("transaction.receipt_sheet.resend_toast_success", {
-                    memberFirstName: memberName.split(" ")[0] ?? memberName,
-                  }),
-                );
-                setSelectedTx(null);
-                return;
-              }
-              switch (result.reason) {
-                case "opt_out":
-                  toast.info(t("transaction.receipt_sheet.resend_toast_opt_out"));
-                  return;
-                case "no_phone":
-                  toast.info(t("transaction.receipt_sheet.resend_toast_no_phone"));
-                  return;
-                case "undone":
-                  toast.error(t("transaction.receipt_sheet.resend_toast_undone"));
-                  return;
-                case "unsupported_kind":
-                  toast.error(t("transaction.receipt_sheet.resend_toast_unsupported_kind"));
-                  return;
-                default:
+                }
+                switch (result.reason) {
+                  case "opt_out":
+                    toast.info(t("transaction.receipt_sheet.resend_toast_opt_out"));
+                    return;
+                  case "no_phone":
+                    toast.info(t("transaction.receipt_sheet.resend_toast_no_phone"));
+                    return;
+                  case "undone":
+                    toast.error(t("transaction.receipt_sheet.resend_toast_undone"));
+                    return;
+                  case "unsupported_kind":
+                    toast.error(t("transaction.receipt_sheet.resend_toast_unsupported_kind"));
+                    return;
+                  default:
+                    toast.error(t("transaction.receipt_sheet.resend_toast_error"));
+                }
+              } catch (err) {
+                const code = (err as { code?: string })?.code;
+                if (code === "not_found") {
+                  toast.error(t("transaction.receipt_sheet.resend_toast_not_found"));
+                } else {
                   toast.error(t("transaction.receipt_sheet.resend_toast_error"));
+                }
               }
-            } catch (err) {
-              const code = (err as { code?: string })?.code;
-              if (code === "not_found") {
-                toast.error(t("transaction.receipt_sheet.resend_toast_not_found"));
-              } else {
-                toast.error(t("transaction.receipt_sheet.resend_toast_error"));
-              }
-            }
-          }}
-        />
-      ) : null}
+            }}
+          />
+        );
+      })()}
 
       {query.data && canRestart ? (
         <RestartCycleDialog

@@ -56,8 +56,19 @@ describe("renderReceiptHtml — contribution", () => {
     expect(html).toContain("14 500 FCFA");
   });
 
-  it("renders cycle day as N / 30", () => {
+  it("renders cycle day as N / 30 (legacy payload — no dates → falls back to 30)", () => {
     expect(html).toContain("1 / 30");
+  });
+
+  it("renders cycle day with dynamic denominator when payload has cycle bounds (Story 11.4)", () => {
+    const partial: ReceiptPayload = {
+      ...PAYLOAD_CONTRIBUTION,
+      cycle_start_date: "2026-04-07",
+      cycle_end_date: "2026-04-30",
+    };
+    const partialHtml = renderReceiptHtml(TOKEN, partial);
+    expect(partialHtml).toContain("1 / 24");
+    expect(partialHtml).not.toContain("1 / 30");
   });
 
   it("includes the dispute CTA linking to /r/{token}/dispute", () => {
