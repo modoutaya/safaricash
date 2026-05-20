@@ -7,6 +7,7 @@
 - **Supersedes:** —
 - **Superseded by:** —
 - **Amended:** 2026-05-19 — Amendment A1 (Story 11.1), calendar-month variable-length cycles. See `## Amendment A1` at the end of this document.
+- **Amended:** 2026-05-20 — Amendment A1.8 (Story 11.5), `MAX_CYCLE_END_DAY = 30` cap (collectors don't work the 31st).
 
 ## Context
 
@@ -456,7 +457,7 @@ Skeleton: `propCommissionInvariance` (unchanged).
 
 ### A1.5 — `MIN_CYCLE_LENGTH_DAYS` constant
 
-The roll-forward threshold is a single named constant, **`MIN_CYCLE_LENGTH_DAYS`**, default value **3**. Story 11.2 adds it to `src/domain/cycle/cycleEngine.ts` as an exported `const` — a single point of edit, mirroring the existing `DEFAULT_CYCLE_ENDING_WINDOW_DAYS`. It is a **product-tunable** value pending founder sign-off (see A1.8). The engine and every test MUST read the constant, never the literal `3`.
+The roll-forward threshold is a single named constant, **`MIN_CYCLE_LENGTH_DAYS`**, default value **3**. Story 11.2 adds it to `src/domain/cycle/cycleEngine.ts` as an exported `const` — a single point of edit, mirroring the existing `DEFAULT_CYCLE_ENDING_WINDOW_DAYS`. It is a **product-tunable** value pending founder sign-off (see A1.9 — A1-Q1). The engine and every test MUST read the constant, never the literal `3`.
 
 ### A1.6 — Property-test skeletons (amended + new)
 
@@ -563,12 +564,30 @@ Cycles created **before** Story 11.3 store `end_date = start_date + 29 days` (th
 
 A legacy row's `end_date` is **not** a month-end, so legacy rows do **not** satisfy INV-9 — this is expected and correct: INV-9 is a write-path invariant (see its Scope note) constraining only newly-derived bounds, not a postcondition retroactively asserted on rows already in the table. The read-path invariants (INV-1, INV-2, INV-3, INV-5) hold for legacy rows because they consume the row's stored `start_date` / `end_date` directly.
 
-### A1.8 — Amendment Open Questions
+### A1.8 — `MAX_CYCLE_END_DAY` cap (Story 11.5)
+
+- **Statement.** A cycle's `end_date` is capped at the **30th** of its month, even when the calendar month has 31 days. The cap is inert for 28/29/30-day months. The amended INV-9 formula (see A1.4) becomes:
+
+  ```text
+  monthEnd(start_date) = min(lastCalendarDay(month(start_date)), MAX_CYCLE_END_DAY)
+  ```
+
+  Both branches of `deriveCycleBounds` use the capped value: the "stay" branch's `end_date`, and the roll-forward branch's `end_date` for the _next_ month.
+
+- **Operational rationale.** The pilot collector does not work the 31st. The cap removes the 31st as a possible cycle-end day so the daily contribution / settlement workflow always lands on a working day. Pre-Epic 11 (fixed 30-day windows) implicitly satisfied this; the amended calendar-month model re-opens it, so the cap restores the operator's invariant.
+
+- **Boundary impact.** For 31-day months (Jan, Mar, May, Jul, Aug, Oct, Dec) the cap shifts the rollover boundary by exactly 1 day: registration on `lastDay − 1` of a 31-day month was previously the inclusive-MIN boundary (length 3, stayed), but is now `rawLen = 2 < MIN` and rolls forward. Operationally inert — pilot collector adds members before the 25th (well below either boundary) — but the rule is encoded in the math so defensive callers (CSV imports, fixture seeds) stay consistent.
+
+- **Constant.** Exported as `MAX_CYCLE_END_DAY` from `src/domain/cycle/cycleEngine.ts`. Mirrored by Story 11.5's migration `20260520183325_cap_cycle_end_day_30.sql` (`LEAST((month_first + interval '1 month - 1 day'), month_first + 29)`). Single point of edit; if raised here, raise the SQL `+ 29` in lockstep.
+
+- **No constraint tightening.** Migration 11.3's `transactions.cycle_day BETWEEN 1 AND 31` check is **kept** at 31 (not narrowed to 30). Reason: legacy 30-day rows from before Story 11.3 had `end_date = start_date + 29 days` → `cycleLength = 30` → max `cycle_day = 30`, but defensive headroom for any operator hand-edit + the legacy-compat principle (A1.7) argue for keeping the wider bound.
+
+### A1.9 — Amendment Open Questions
 
 - **A1-Q1 — `MIN_CYCLE_LENGTH_DAYS` value.** Default **3**, pending founder sign-off. A higher value (e.g. 5–7) makes more end-of-month registrations roll forward; a lower value permits very short partial cycles. Story 11.3 reads the constant — changing it later is a one-line edit, no migration.
 - **A1-Q2 — Automatic cycle restart.** The new model makes "the next cycle is the full following month" natural, but cycle restart is still the **manual** FR12 action (Story 2.7). Whether to auto-start the next cycle on the 1st of the month is **out of scope for Epic 11** — noted here only so a future story can pick it up deliberately.
 
-### A1.9 — References
+### A1.10 — References
 
 - **Canonical decision record:** `_bmad-output/planning-artifacts/sprint-change-proposal-2026-05-19.md` (§ "Canonical new model", §4.2).
 - **Epic + story:** `_bmad-output/planning-artifacts/epics.md` — Epic 11, Story 11.1.

@@ -27,6 +27,19 @@ export const COMMISSION_DAYS = 1;
  */
 export const MIN_CYCLE_LENGTH_DAYS = 3;
 
+/**
+ * ADR-004 § Amendment A1.8 — cycle-end cap. Collectors don't work the
+ * 31st of the month, so a cycle's end_date is capped at day 30 even when
+ * the calendar month has 31 days. Inert for 28/29/30-day months. Single
+ * point of edit; SQL mirror lives in derive_cycle_bounds (Story 11.5).
+ */
+export const MAX_CYCLE_END_DAY = 30;
+
+/** Internal — last-day-of-month clamped by MAX_CYCLE_END_DAY. */
+function cappedMonthEnd(year: number, month0: number): number {
+  return Math.min(lastDayOfMonth(year, month0), MAX_CYCLE_END_DAY);
+}
+
 function sum(xs: ReadonlyArray<number>): number {
   let total = 0;
   for (const x of xs) total += x;
@@ -62,11 +75,13 @@ export function cycleLengthDays(startDate: string, endDate: string): number {
 /**
  * INV-9 — cycle-bounds derivation (write-path invariant).
  *
- * For a requested start date, the cycle's `end_date` is the last calendar
- * day of that month. If the residual length is below
- * `MIN_CYCLE_LENGTH_DAYS`, the cycle rolls forward to the next month
- * (start = 1st, end = its last day — year-aware: Dec → Jan next year).
- * The derived `cycleLength` is always `≥ MIN_CYCLE_LENGTH_DAYS`.
+ * For a requested start date, the cycle's `end_date` is `min(last calendar
+ * day of that month, MAX_CYCLE_END_DAY)` — the cap (ADR-004 § A1.8)
+ * shortens 31-day months by 1 day; 28/29/30-day months are unaffected. If
+ * the residual length is below `MIN_CYCLE_LENGTH_DAYS`, the cycle rolls
+ * forward to the next month (start = 1st, end = the same capped value —
+ * year-aware: Dec → Jan next year). The derived `cycleLength` is always
+ * `≥ MIN_CYCLE_LENGTH_DAYS`.
  *
  * This is the canonical reference implementation; Story 11.3's SQL RPCs
  * mirror it and cross-check against it.
@@ -80,7 +95,7 @@ export function deriveCycleBounds(requestedDate: string): {
   const month0 = d.getUTCMonth();
   const day = d.getUTCDate();
 
-  const monthEnd = lastDayOfMonth(year, month0);
+  const monthEnd = cappedMonthEnd(year, month0);
   const rawLen = monthEnd - day + 1;
 
   if (rawLen >= MIN_CYCLE_LENGTH_DAYS) {
@@ -95,7 +110,7 @@ export function deriveCycleBounds(requestedDate: string): {
   const nextMonth0 = (month0 + 1) % 12;
   return {
     startDate: isoDate(nextYear, nextMonth0, 1),
-    endDate: isoDate(nextYear, nextMonth0, lastDayOfMonth(nextYear, nextMonth0)),
+    endDate: isoDate(nextYear, nextMonth0, cappedMonthEnd(nextYear, nextMonth0)),
   };
 }
 
