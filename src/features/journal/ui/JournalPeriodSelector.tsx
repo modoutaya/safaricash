@@ -1,7 +1,8 @@
 // Story 12.1 — segmented control for the Journal period filter.
 // Three exclusive options: "Cycle précédent" (default), "Cycle en cours",
 // "2 derniers jours". Implemented as a row of pill-buttons with the
-// active option carrying primary-500 background.
+// active option carrying primary-700 background (white-on-primary-700
+// clears WCAG AA 4.5:1 — primary-500 was only 3.38:1).
 
 import type { TranslationKey } from "@/i18n/keys";
 import { useT } from "@/i18n/useT";
@@ -42,8 +43,11 @@ export function JournalPeriodSelector({
             onClick={() => onChange(period)}
             className={cn(
               "min-w-fit shrink-0 rounded-full border px-4 py-2 text-body-2 font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              // Active state uses primary-700 (not primary-500) to clear the
+              // WCAG AA 4.5:1 contrast ratio with text-primary-foreground.
+              // primary-500 + white was only 3.38:1 (axe-flagged 2026-05-20).
               active
-                ? "border-primary-500 bg-primary-500 text-white"
+                ? "border-primary-700 bg-primary-700 text-primary-foreground"
                 : "border-hairline bg-card text-text-primary",
             )}
           >
