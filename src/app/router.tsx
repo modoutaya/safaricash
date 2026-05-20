@@ -22,6 +22,7 @@ import AppLayout from "@/App";
 import { ProtectedRoute } from "@/app/guards";
 import { RouterRoot } from "@/app/providers";
 import DashboardRoute from "@/app/routes/dashboard";
+import JournalRoute from "@/app/routes/journal";
 import LoginRoute from "@/app/routes/login";
 import MembersRoute from "@/app/routes/members";
 import MemberProfileRoute from "@/app/routes/members/[id]";
@@ -61,6 +62,8 @@ export const router = createBrowserRouter([
               { path: "members/:id/settlement", element: <MemberSettlementRoute /> },
               // Story 4.6 — full-page transaction flow (replaces MemberActionSheet).
               { path: "members/:id/transaction", element: <MemberTransactionRoute /> },
+              // Story 12.1 — Journal tab (4th BottomNav item).
+              { path: "journal", element: <JournalRoute /> },
               { path: "settings", element: <SettingsRoute /> },
             ],
           },

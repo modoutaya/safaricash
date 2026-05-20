@@ -49,5 +49,10 @@ export type {
   TransactionRow,
   TransactionTimestamp,
 } from "./types";
+// Zod schemas — exposed so adjacent features (Story 12.1 Journal, future
+// cross-feature reports) can re-parse PostgREST rows without redefining
+// the row shape. Type re-exports above remain the primary surface for
+// callers that don't need runtime validation.
+export { cycleRowSchema, memberRowSchema, transactionKindSchema } from "./types";
 export type { ImportRow, ImportRowResult, ImportSummary } from "./api/useImportMembers";
 export type { MemberProfileData } from "./api/useMemberProfile";
