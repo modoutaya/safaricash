@@ -1,6 +1,6 @@
 # Story 12.3: Cycle auto-restart on the 1st of each month + advance carry-over
 
-Status: draft (spec only — pre-implementation review required)
+Status: ready for implementation (Q1-Q4 resolved 2026-05-20)
 
 ## Story
 
@@ -26,73 +26,68 @@ Decision #2 is the heavy one — it introduces a new "opening_balance" concept t
 | Outstanding advances treatment | **Carry-over to new cycle as opening debt** (`opening_balance` field) |
 | Restart trigger | All members with `status='active'` on the 1st of each month |
 
-## Open product questions (need user input BEFORE implementation)
+## Resolved product questions (2026-05-20)
 
-### Q1 — Opening balance and settlement interaction (CRITICAL)
+### Q1 — Opening balance: dynamic computation (no stored column) ✅
 
-The carry-over creates a double-counting risk. Concrete trace:
+**Resolved: Path A — dynamic computation.**
 
-> Previous cycle: contributions=10×500=5000, advances=7000.
-> Final balance = 5000 − 7000 − 500(commission) = **−2500** (saver owes collector 2500).
-> Auto-restart on 1st → new cycle's `opening_balance = 2500`.
-> New cycle's projected payout = 500×29 − 0 − **2500** = 12 000 (was 14 000 without carry-over).
->
-> Later, collector manually settles the previous cycle: saver pays back 2500 F CFA cash → settlement transaction records this.
-> Previous cycle is now "settled" (balance=0).
->
-> But new cycle's `opening_balance` is still 2500 → new cycle projected payout still subtracts 2500 → **saver is charged twice for the same debt**.
+`opening_balance` is NOT stored. It's a derived quantity computed at query time:
 
-Two viable paths to resolve:
+```
+opening_balance(member) =
+  IF previous_cycle EXISTS AND previous_cycle.status IN ('completed', 'active', 'with_advance')
+    THEN max(0, previous_cycle.outstanding_balance)
+  ELSE
+    0
+```
 
-**Path A — Dynamic computation (no stored opening_balance)**
-- `opening_balance` is **computed at query time** as `previous_cycle.unpaid_balance IF previous_cycle.status IN ('completed', 'active', 'with_advance') ELSE 0`. Once previous cycle is `settled`, opening_balance for the next cycle becomes 0.
-- ✅ No double-counting by construction.
-- ❌ Every projected-balance computation requires joining the previous cycle row.
-- ❌ Adds an SQL JOIN in every RPC that touches cycle math (record_advance, commit_cycle_settlement, format_sms_body, get_receipt_payload).
+Where `previous_cycle.outstanding_balance = Σ(advances) + previous.opening_balance − daily × actual_contribution_days` (recursive definition — see § "Math model" for the closed form).
 
-**Path B — Stored opening_balance, cleared on previous-cycle settlement**
-- Add `cycles.opening_balance int default 0` column. Set at restart-time. Cleared via trigger when previous cycle flips to `settled`.
-- ✅ Simple read path (no JOIN).
-- ❌ Adds a trigger; harder to audit; settlement RPC must know "which cycle is the next one".
-- ❌ Existing cycles (legacy data) don't get a backfill — but opening_balance defaults to 0, so they stay correct.
+**Rationale**: no double-counting risk by construction. When the previous cycle flips to `settled`, the dynamic read naturally returns 0 going forward — no trigger needed, no stored state to drift.
 
-**Recommendation**: Path B is simpler operationally but adds a trigger. Path A is purer but slower. **Need user direction before implementation.**
+**Cost**: every RPC that computes projected balance now reads the previous-cycle row in addition to the current cycle. One extra SQL fetch per balance read. Acceptable at MVP scale.
 
-### Q2 — What if `opening_balance > daily × contributionDays`?
+### Q2 — Carry-over exceeding capacity: no cap, debt accumulates ✅
 
-If a saver had a huge advance + few contributions in cycle N, their carry-over could exceed the new cycle's max possible payout. In that case:
-- The new cycle's projected balance is **negative even with full contributions**.
-- `record_advance` capacity check would reject any new advance.
-- `commit_cycle_settlement` payout could be negative (collector should collect from saver, not pay them).
+**Resolved: Option C — no cap, debt stacks across cycles until fully repaid.**
 
-Options:
-- **A**: Block auto-restart for that member; require manual handling.
-- **B**: Cap carry-over at `daily × contributionDays`; the excess is "forgiven" (recorded as an audit event).
-- **C**: Allow negative projected balance; the saver pays the collector at end of cycle to clear it.
+If `opening_balance > daily × contributionDays`, the new cycle's projected balance stays negative even with full contributions. The saver continues to repay across multiple cycles until the debt is cleared. The auto-restart on the 1st rolls forward the *remaining* debt each month.
 
-**Recommendation**: B (cap with audit) for safety. Excess is rare and should be flagged for operator review.
+**Rationale**: matches the real-world workflow — pilot collector reports they keep tracking debt across months until full repayment ("jusqu'à épuisement complet de la dette").
 
-### Q3 — Members whose first cycle is mid-month — do they participate in the 1st-of-month restart?
+### Q2bis — Advances while in debt: blocked ✅
 
-A member added on May 15 has cycle May 15-30 (cap-30, length 16). On June 1, do we restart them too?
+`record_advance` keeps its current capacity check: `Σ(existing) + new ≤ daily × contributionDays − opening_balance`.
 
-**Recommendation**: Yes — uniform behavior. June 1 → close May 15-30 cycle (status='completed'), open June 1-30 cycle (length 30). This means a saver added mid-month has one "partial" cycle, then full months thereafter.
+When `opening_balance ≥ daily × contributionDays`, the right-hand side is ≤ 0 and ALL new advances are rejected. The saver must first repay the carry-over via contributions. Consistent with the "repay before borrow more" semantic locked in Q2.
 
-### Q4 — Members on `paused` status?
+### Q3 — Mid-month-onboarded members: yes, they participate ✅
 
-`paused` means the collector temporarily disabled the member. Should they get a new cycle on the 1st?
+**Resolved: uniform behavior.** A member added on May 15 (cycle May 15-30, length 16) will see that cycle closed on June 1 and a fresh June 1-30 cycle opened. All `status='active'` members traverse the same monthly transition; no carve-out for "freshly added".
 
-**Recommendation**: No — skip `paused`. Only `active` members participate in auto-restart. When they're un-paused, a manual restart is required (existing Story 2.7 flow).
+### Q4 — Members on `paused` status: skipped ✅
+
+**Resolved: paused members are NOT restarted.** Only `members.status='active'` participates in the cron. Paused members keep their current cycle frozen. Reactivation flow (un-pause → manual restart) remains the Story 2.7 path.
 
 ## Acceptance Criteria
 
-> The 12 ACs below are the FROZEN contract for the implementation PR. The 4 open questions (Q1-Q4) above must be resolved before this section is locked.
+> The 12 ACs below are the FROZEN contract for the implementation PR. Q1-Q4 are resolved (see above); Q1 = Path A (dynamic) means there is **no `opening_balance` column** — it's a computed quantity.
 
-1. **Schema migration — `cycles.opening_balance`.**
-   New column `opening_balance int not null default 0` on `public.cycles`. CHECK constraint: `opening_balance >= 0` (carry-over is always positive — the COLLECTOR is owed). Default 0 keeps legacy rows valid without backfill (per ADR-004 A1.7 legacy-compat principle).
+1. **NO schema migration for `opening_balance`.**
+   Per Q1 (Path A — dynamic), `opening_balance` is NOT stored as a column. The math layer derives it from the previous cycle's state. This is a deliberate simplification vs the earlier draft: no migration, no view re-projection, no backfill, no trigger.
 
-2. **Schema migration — update `cycles_decrypted` view.**
-   Per memory `project_views_after_columns`: explicit projection views are NOT auto-extended when new columns appear on the underlying table. The view must be re-issued to include `opening_balance`.
+2. **New SQL helper — `compute_opening_balance(p_member_id uuid, p_cycle_id uuid)`.**
+   Returns `int` (the opening_balance for the cycle identified by `p_cycle_id`, owned by `p_member_id`). Algorithm:
+   ```
+   IF p_cycle_id IS THE FIRST CYCLE OF THE MEMBER → return 0
+   prev := the cycle immediately preceding p_cycle_id (cycle_number − 1)
+   IF prev.status = 'settled' → return 0
+   prev_balance := daily × (cycle_length(prev) − 1) − Σ(prev.advances) − compute_opening_balance(p_member_id, prev.id)
+   IF prev_balance >= 0 → return 0      -- no debt to carry over
+   return −prev_balance                  -- positive carry-over (debt amount)
+   ```
+   STABLE, SECURITY DEFINER, RLS-scoped via member ownership check. Cached per call chain (Postgres will memoize the recursion within a single query).
 
 3. **TS engine — `cycleEngine.ts` update.**
    - `computeProjectedFinalBalance(dailyAmount, outstandingAdvances, contributionDays, openingBalance = 0)` — new optional last param.
@@ -108,7 +103,7 @@ A member added on May 15 has cycle May 15-30 (cap-30, length 16). On June 1, do 
 
 5. **RPC — `record_advance` capacity check update.**
    New capacity formula: `Σ(existing advances) + new_advance ≤ daily_amount × (cycle_length − 1) − opening_balance`.
-   The cycle row's `opening_balance` is read alongside `start_date`/`end_date` in the existing SELECT (no new round-trip).
+   `opening_balance` is fetched via `compute_opening_balance(p_member_id, p_cycle_id)` (Q1 Path A) — one extra SELECT in the RPC body. When `opening_balance ≥ daily × (cycle_length − 1)`, the right-hand side is ≤ 0 and any positive new_advance is rejected (Q2bis).
 
 6. **RPC — `commit_cycle_settlement` payout update.**
    `v_payout := daily_amount × (cycle_length − 1) − Σ(advances) − opening_balance`. Synthetic settlement transaction's amount stays `v_payout` (signed: positive = collector owes saver; negative = saver owes collector — already supported by the current settlement infrastructure per Story 7.4).
@@ -121,23 +116,17 @@ A member added on May 15 has cycle May 15-30 (cap-30, length 16). On June 1, do 
 
 9. **NEW RPC — `restart_active_cycles_for_month(p_today date)`.**
    - SECURITY DEFINER, callable by `service_role` only (pg_cron uses service role).
-   - For each member with `members.status='active'`:
+   - For each member with `members.status='active'` (Q4 — paused/deleted are SKIPPED):
      - Find the most recent cycle (`active` / `with_advance` / `completed`).
      - Skip if no cycle exists (defensive — shouldn't happen but possible).
      - Mark it `status='completed'` if not already.
-     - Compute the unpaid balance: `daily × (cycle_length − 1) − Σ(contributions excluding undone) − Σ(rattrapages excluding undone) + Σ(advances excluding undone)`.
-       Wait — that math is wrong. Let me redo:
-       `unpaid = Σ(advances) − Σ(contributions) − Σ(rattrapages) − daily × 0 (commission accounted via final balance)`.
-       Actually: cycle's final balance = `daily × contribDays − Σ(advances) − previous opening_balance`. The "unpaid" is `max(0, −final_balance)` = how much the saver still owes.
-       Cleanest formula: `unpaid = max(0, Σ(advances) + previous_opening_balance − Σ(actual_contributions_value))`.
-       Where `Σ(actual_contributions_value) = (Σ contributions kind + Σ rattrapage daily-equivalents) excluding undone`.
-     - Cap carry-over at `daily × (cycle_length − 1)` if Q2 = option B.
-     - Create new cycle:
-       - `start_date = p_today` (must be 1st of month)
-       - `end_date = LEAST(last day of month, day 30)` — re-using `derive_cycle_bounds(p_today)`
-       - `opening_balance = unpaid` (capped per Q2)
+     - Create the next cycle:
+       - `start_date = p_today` (cron passes the 1st of the current month)
+       - `end_date = (derive_cycle_bounds(p_today)).end_date` — re-uses the existing cap-30 helper (Story 11.5)
        - `cycle_number = previous.cycle_number + 1`
        - `status = 'active'`
+       - **No `opening_balance` column written** — Q1 Path A computes it dynamically from the previous cycle whenever needed.
+     - Q3 — mid-month-onboarded members are NOT excluded; the previous (partial) cycle is closed and a new full-month cycle opens.
    - Idempotent: re-running on the same day for the same member produces no duplicate cycles (check existing cycle on `start_date`).
    - Returns: `(members_processed int, cycles_restarted int, cycles_skipped int)` for observability.
 
@@ -173,15 +162,39 @@ capacity              = dailyAmount × contributionDays            (INV-3)
 settlementPayout      = dailyAmount × contributionDays − Σ(advances)
 ```
 
-### Amended (Story 12.3)
+### Amended (Story 12.3 — Q1 Path A: dynamic opening_balance)
 
 ```
-projectedFinalBalance = dailyAmount × contributionDays − Σ(advances) − opening_balance
-capacity              = dailyAmount × contributionDays − opening_balance
-settlementPayout      = dailyAmount × contributionDays − Σ(advances) − opening_balance
+opening_balance(cycle) =
+  IF cycle is FIRST cycle → 0
+  ELSE
+    prev_cycle = cycle.previous (cycle_number − 1, same member)
+    IF prev_cycle.status = 'settled' → 0
+    ELSE
+      prev_final_balance = daily × (cycleLength(prev_cycle) − 1)
+                           − Σ(prev_cycle.advances excluding undone)
+                           − opening_balance(prev_cycle)
+      IF prev_final_balance >= 0 → 0     (no debt to carry)
+      ELSE → −prev_final_balance         (positive carry-over)
+
+projectedFinalBalance(cycle) = daily × contribDays
+                               − Σ(cycle.advances)
+                               − opening_balance(cycle)
+
+capacity(cycle)              = daily × contribDays − opening_balance(cycle)
+
+settlementPayout(cycle)      = daily × contribDays
+                               − Σ(cycle.advances)
+                               − opening_balance(cycle)
 ```
 
-`opening_balance` defaults to 0 → legacy cycles are mathematically unchanged. New cycles created by auto-restart get a non-zero `opening_balance` IFF the previous cycle ended with an unpaid debt.
+- **Recursion** is bounded by the chain of unsettled cycles (typically 1, sometimes 2-3, never deep in practice).
+- **Settlement of a cycle** terminates the recursion: once `cycle_k.status='settled'`, the cycles after k see `opening_balance = 0` for cycle k+1 onward (the chain restarts).
+- **First cycle**: no predecessor → `opening_balance = 0` always. Legacy cycles (from before this story) are unaffected.
+
+### Q2bis enforcement in record_advance
+
+If `opening_balance ≥ daily × contribDays`, the capacity check becomes `Σ(existing) + new ≤ 0`. Since `new > 0` (advances are positive), every advance is rejected. The RPC emits `errcode='22000'` with message `invalid_amount: cycle capacity exhausted by carry-over (opening_balance=…)`.
 
 ## Migration strategy
 
@@ -213,10 +226,10 @@ This split is a NFR-R3 safety measure: the math is the highest-risk change; the 
 
 ## Open work item before implementation
 
-- [ ] Resolve Q1 (Path A vs Path B) with user
-- [ ] Resolve Q2 (cap policy) with user
-- [ ] Confirm Q3 (mid-month members auto-restart) with user
-- [ ] Confirm Q4 (paused members skipped) with user
-- [ ] Confirm Phase A / Phase B split
+- [x] Resolve Q1 → Path A (dynamic computation)
+- [x] Resolve Q2 → Option C (no cap, debt stacks) + Q2bis (record_advance blocks while in debt)
+- [x] Resolve Q3 → uniform: mid-month members do participate
+- [x] Resolve Q4 → paused members skipped
+- [ ] Confirm Phase A / Phase B split (next step before coding)
 
 Once all checkboxes are ticked, the AC section is locked and implementation begins.
