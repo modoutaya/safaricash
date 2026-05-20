@@ -88,6 +88,17 @@ async function seedMemberWithCycle(
     .eq("collector_id", collectorId)
     .single();
   if (!cycle) throw new Error("seedMember: cycle not found");
+  // Story 11.5 — pin to a deterministic 30-day window so this file's tests
+  // (p_cycle_day=10 + p_days_covered=3 = 12 ≤ cycleLength) survive
+  // variable-length cycles. Without the pin, today's calendar-derived cycle
+  // can be as short as 11 days (e.g. 2026-05-20 → cap-30 end_date 2026-05-30)
+  // and the happy-path test fails. Mirrors the shared `test-fixtures.ts`
+  // helper's pin pattern; the local copy here pre-existed it.
+  const { error: pinErr } = await service
+    .from("cycles")
+    .update({ start_date: "2026-04-01", end_date: "2026-04-30" })
+    .eq("id", cycle.id);
+  if (pinErr) throw new Error(`seedMember: pin cycle dates — ${pinErr.message}`);
   return { memberId, cycleId: cycle.id };
 }
 
