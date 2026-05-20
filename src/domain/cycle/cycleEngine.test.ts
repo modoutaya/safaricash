@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import {
   COMMISSION_DAYS,
   DEFAULT_CYCLE_ENDING_WINDOW_DAYS,
+  MAX_CYCLE_END_DAY,
   MIN_CYCLE_LENGTH_DAYS,
   RATTRAPAGE_DAY_OPTIONS,
   canAcceptAdvance,
@@ -46,6 +47,16 @@ function isoDatePlusDays(startDate: string, days: number): string {
  *  be hidden by a mirroring test helper. */
 function isLastDayOfMonth(isoDate: string): boolean {
   return isoDatePlusDays(isoDate, 1).endsWith("-01");
+}
+
+/** Test-only oracle: an endDate is a VALID cap-aware month boundary iff it
+ *  is either day MAX_CYCLE_END_DAY (cap clamp hit) OR the actual last day
+ *  of its month (cap was inert because the month was already ≤ 30 days).
+ *  Story 11.5 § A1.8. */
+function isCappedMonthBoundary(isoDate: string): boolean {
+  return (
+    isoDate.endsWith(`-${String(MAX_CYCLE_END_DAY).padStart(2, "0")}`) || isLastDayOfMonth(isoDate)
+  );
 }
 
 /** Test-only: 1st of the calendar month AFTER the given date (year-aware
@@ -218,9 +229,10 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
           const { startDate, endDate } = deriveCycleBounds(requested);
           const length = cycleLengthDays(startDate, endDate);
 
-          // (a) endDate is a month-end (oracle: day-after is the 1st — uses
-          //     setUTCDate arithmetic, NOT the production Date.UTC(y,m+1,0)).
-          if (!isLastDayOfMonth(endDate)) return false;
+          // (a) endDate is a cap-aware month boundary: either the cap day
+          //     (30) or the actual month-end for ≤30-day months. Story 11.5
+          //     § A1.8.
+          if (!isCappedMonthBoundary(endDate)) return false;
           // (b) endDate sits in startDate's year-month (same YYYY-MM prefix).
           if (endDate.slice(0, 7) !== startDate.slice(0, 7)) return false;
           // (c) length respects the MIN floor.
@@ -283,26 +295,29 @@ describe("cycleEngine — example tests", () => {
       });
     });
 
-    it("residual below MIN → roll-forward to the next month", () => {
-      // 2026-04-29 → rawLen = 2 < 3 → roll to May.
+    it("residual below MIN → roll-forward to the next month (capped at day 30)", () => {
+      // 2026-04-29 → rawLen = 2 < 3 → roll to May. May has 31 days but the
+      // cap (§ A1.8) clamps end to the 30th, length 30.
       expect(deriveCycleBounds("2026-04-29")).toEqual({
         startDate: "2026-05-01",
-        endDate: "2026-05-31",
+        endDate: "2026-05-30",
       });
     });
 
-    it("roll-forward across the year boundary — December → January next year", () => {
-      // 2026-12-30 → rawLen = 2 < 3 → roll to January 2027.
+    it("roll-forward across the year boundary — December → January next year (capped)", () => {
+      // 2026-12-30 → rawLen = 1 < 3 (cap clamps Dec end to the 30th too) →
+      // roll to January 2027, capped end on the 30th.
       expect(deriveCycleBounds("2026-12-30")).toEqual({
         startDate: "2027-01-01",
-        endDate: "2027-01-31",
+        endDate: "2027-01-30",
       });
     });
 
-    it("registration on the last day rolls forward (rawLen = 1)", () => {
+    it("registration on the last day of a 30-day month rolls forward (rawLen = 1)", () => {
+      // June has 30 days; cap is inert there. Roll to July, capped on the 30th.
       expect(deriveCycleBounds("2026-06-30")).toEqual({
         startDate: "2026-07-01",
-        endDate: "2026-07-31",
+        endDate: "2026-07-30",
       });
     });
 
@@ -325,10 +340,62 @@ describe("cycleEngine — example tests", () => {
     });
 
     it("leap-year February — registration on the 28th rolls forward (rawLen = 2 < 3)", () => {
-      // 2028-02-28 → rawLen = 29 − 28 + 1 = 2 < 3 → roll to March 2028.
+      // 2028-02-28 → rawLen = 29 − 28 + 1 = 2 < 3 → roll to March 2028
+      // (31-day month, cap clamps end to the 30th).
       expect(deriveCycleBounds("2028-02-28")).toEqual({
         startDate: "2028-03-01",
-        endDate: "2028-03-31",
+        endDate: "2028-03-30",
+      });
+    });
+
+    // Story 11.5 § A1.8 — cap-rule example tests (31-day months only;
+    // 28/29/30-day months are unaffected by the cap and covered above).
+    it("31-day month, registration on the 1st → cycle ends day 30, length 30 (cap clamps)", () => {
+      expect(deriveCycleBounds("2026-05-01")).toEqual({
+        startDate: "2026-05-01",
+        endDate: "2026-05-30",
+      });
+      expect(cycleLengthDays("2026-05-01", "2026-05-30")).toBe(30);
+    });
+
+    it("31-day month, registration on the 25th (operator threshold) → length 6", () => {
+      // The pilot collector reports members are always added before the
+      // 25th. Worked example confirming the cap shortens by exactly 1 day
+      // vs. the pre-11.5 behaviour (was: May 31, length 7).
+      expect(deriveCycleBounds("2026-05-25")).toEqual({
+        startDate: "2026-05-25",
+        endDate: "2026-05-30",
+      });
+      expect(cycleLengthDays("2026-05-25", "2026-05-30")).toBe(6);
+    });
+
+    it("31-day month, registration on (lastDay − 2) → exactly MIN_CYCLE_LENGTH_DAYS, no roll", () => {
+      // 2026-05-28 → cap-end = May 30 → rawLen = 30 − 28 + 1 = 3 = MIN
+      // → stays in May. Boundary of the inclusive ≥ comparison after the
+      // cap shifts the threshold by 1 vs. pre-11.5.
+      expect(deriveCycleBounds("2026-05-28")).toEqual({
+        startDate: "2026-05-28",
+        endDate: "2026-05-30",
+      });
+    });
+
+    it("31-day month, registration on (lastDay − 1) rolls (cap-shifted boundary)", () => {
+      // 2026-05-29 → cap-end = May 30 → rawLen = 30 − 29 + 1 = 2 < MIN
+      // → roll to June (30-day month, cap inert, length 30).
+      // Pre-11.5 this case would have stayed in May (length 3); the cap
+      // shifts the rollover boundary by exactly 1 day for 31-day months.
+      expect(deriveCycleBounds("2026-05-29")).toEqual({
+        startDate: "2026-06-01",
+        endDate: "2026-06-30",
+      });
+    });
+
+    it("31-day December, registration on (lastDay − 2) rolls to next-year January (cap-shifted)", () => {
+      // 2026-12-29 → cap-end = Dec 30 → rawLen = 2 < MIN → roll to Jan 2027
+      // (also 31-day, capped). Pre-11.5 this would have stayed in Dec.
+      expect(deriveCycleBounds("2026-12-29")).toEqual({
+        startDate: "2027-01-01",
+        endDate: "2027-01-30",
       });
     });
   });
@@ -469,6 +536,10 @@ describe("cycleEngine — example tests", () => {
 
     it("MIN_CYCLE_LENGTH_DAYS is 3 (ADR-004 Amendment A1.5 default)", () => {
       expect(MIN_CYCLE_LENGTH_DAYS).toBe(3);
+    });
+
+    it("MAX_CYCLE_END_DAY is 30 (ADR-004 Amendment A1.8 cap rule)", () => {
+      expect(MAX_CYCLE_END_DAY).toBe(30);
     });
   });
 

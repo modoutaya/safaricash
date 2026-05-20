@@ -19,7 +19,7 @@ function envOrSkip(): { url: string; serviceKey: string } | null {
 }
 
 // Representative dates exercising every branch of INV-9:
-//   1. Full month, registered on the 1st (length = month length).
+//   1. Full 30-day month, registered on the 1st (length = month length, cap inert).
 //   2. Worked example — 7th of a 30-day month → length 24.
 //   3. rawLen = MIN_CYCLE_LENGTH_DAYS exactly (no roll-forward — the
 //      "≥ boundary inclusive" case from ADR A1.4).
@@ -30,6 +30,13 @@ function envOrSkip(): { url: string; serviceKey: string } | null {
 //   8. Leap-year February — exactly MIN remaining (no roll).
 //   9. Leap-year February — rawLen 2 < MIN → roll to March.
 //  10. Non-leap February (2026, 28 days).
+//
+//  Story 11.5 § A1.8 — cap-rule cases (31-day months where cap shifts output):
+//  11. 31-day May, registered on the 1st → end = day 30 (was day 31).
+//  12. 31-day May, registered on the 25th (operator threshold worked example).
+//  13. 31-day May, registered on day 28 = post-cap MIN boundary (no roll).
+//  14. 31-day May, registered on day 29 = post-cap rolls (was: stayed).
+//  15. 31-day December, registered on day 29 = post-cap rolls + year boundary.
 const REPRESENTATIVE_DATES: ReadonlyArray<string> = [
   "2026-04-01",
   "2026-04-07",
@@ -41,6 +48,11 @@ const REPRESENTATIVE_DATES: ReadonlyArray<string> = [
   "2028-02-27",
   "2028-02-28",
   "2026-02-01",
+  "2026-05-01",
+  "2026-05-25",
+  "2026-05-28",
+  "2026-05-29",
+  "2026-12-29",
 ];
 
 const env = envOrSkip();
