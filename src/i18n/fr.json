@@ -128,7 +128,7 @@
     "period": {
       "previous_cycle": "Cycle précédent",
       "current_cycle": "Cycle en cours",
-      "last_two_days": "2 derniers jours"
+      "last_seven_days": "7 derniers jours"
     },
     "loading_members": "Chargement…",
     "loading_transactions": "Chargement des transactions…",

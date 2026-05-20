@@ -43,7 +43,7 @@ test.describe("Flow 12 — Journal tab", () => {
       "true",
     );
     await expect(page.getByRole("radio", { name: "Cycle en cours" })).toBeVisible();
-    await expect(page.getByRole("radio", { name: "2 derniers jours" })).toBeVisible();
+    await expect(page.getByRole("radio", { name: "7 derniers jours" })).toBeVisible();
     await expect(page.getByPlaceholder(/rechercher un membre/i)).toBeVisible();
 
     // Seeded collector has no members yet → empty-state copy renders.
@@ -54,15 +54,15 @@ test.describe("Flow 12 — Journal tab", () => {
     await expectNoA11yViolations(page, "/journal empty-state");
   });
 
-  test("switching period to '2 derniers jours' updates aria-checked", async ({
+  test("switching period to '7 derniers jours' updates aria-checked", async ({
     page,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     seededCollector: _seededCollector,
   }) => {
     await page.goto("/journal");
-    const lastTwoDays = page.getByRole("radio", { name: "2 derniers jours" });
-    await lastTwoDays.click();
-    await expect(lastTwoDays).toHaveAttribute("aria-checked", "true");
+    const lastSevenDays = page.getByRole("radio", { name: "7 derniers jours" });
+    await lastSevenDays.click();
+    await expect(lastSevenDays).toHaveAttribute("aria-checked", "true");
     await expect(page.getByRole("radio", { name: "Cycle précédent" })).toHaveAttribute(
       "aria-checked",
       "false",

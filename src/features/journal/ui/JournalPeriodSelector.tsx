@@ -1,6 +1,6 @@
 // Story 12.1 — segmented control for the Journal period filter.
 // Three exclusive options: "Cycle précédent" (default), "Cycle en cours",
-// "2 derniers jours". Implemented as a row of pill-buttons with the
+// "7 derniers jours". Implemented as a row of pill-buttons with the
 // active option carrying primary-700 background (white-on-primary-700
 // clears WCAG AA 4.5:1 — primary-500 was only 3.38:1).
 
@@ -13,7 +13,7 @@ import { JOURNAL_PERIODS, type JournalPeriod } from "../api/period";
 const LABEL_KEY: Record<JournalPeriod, TranslationKey> = {
   cycle_previous: "journal.period.previous_cycle",
   cycle_current: "journal.period.current_cycle",
-  last_two_days: "journal.period.last_two_days",
+  last_seven_days: "journal.period.last_seven_days",
 };
 
 export interface JournalPeriodSelectorProps {

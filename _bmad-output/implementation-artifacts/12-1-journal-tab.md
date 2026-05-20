@@ -27,7 +27,7 @@ The underlying data already exists: `transactions_decrypted` is RLS-scoped to th
 3. **Period selector — 3 options, default cycle précédent.** **Given** the Journal page header, **Then** a segmented control offers three options in order:
    - `Cycle précédent` (default — per-member previous cycle)
    - `Cycle en cours` (per-member current cycle)
-   - `2 derniers jours` (rolling window: `created_at >= now() − 2 days`)
+   - `7 derniers jours` (rolling window: `created_at >= now() − 7 days`)
    The selected period drives the transaction queries below. Selection persists for the current session only (no URL param, no localStorage at MVP).
 
 4. **Member list — 20 default, "Voir plus" pagination.** **Given** the collector has N members (1 ≤ N ≤ 500+ realistic), **When** the Journal page first renders, **Then** the first **20** members appear (sections collapsed), sorted by **most recent activity descending** (most recently transacted member at top). Members with no transaction at all sort last (NULLS LAST). A "Voir plus" button at the bottom loads the next 20. Same client-side pattern as `MemberList` — fetch all members once, sort + slice in JS.
@@ -42,7 +42,7 @@ The underlying data already exists: `transactions_decrypted` is RLS-scoped to th
 
 9. **i18n strings — French.** All new strings live under `journal.*` in `src/i18n/fr.json`. Keys:
    - `journal.title`, `journal.search_placeholder`
-   - `journal.period.previous_cycle`, `journal.period.current_cycle`, `journal.period.last_two_days`
+   - `journal.period.previous_cycle`, `journal.period.current_cycle`, `journal.period.last_seven_days`
    - `journal.empty_no_members`, `journal.empty_no_transactions`, `journal.empty_no_previous_cycle`
    - `journal.transaction_count_one`, `journal.transaction_count_many`
    - `journal.show_more`, `journal.loading_transactions`
@@ -59,7 +59,7 @@ The underlying data already exists: `transactions_decrypted` is RLS-scoped to th
 | Tab name | **Journal** |
 | Grouping | Sections **per member** |
 | Default period | **Cycle précédent** (per-member) |
-| Period options | 2 derniers jours / cycle en cours / cycle précédent |
+| Period options | 7 derniers jours / cycle en cours / cycle précédent |
 | Sections default state | **Collapsed** |
 | Page size | **20** members; "Voir plus" for next 20 |
 | Sort | **Activité récente** descending |

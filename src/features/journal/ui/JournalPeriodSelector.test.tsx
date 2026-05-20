@@ -18,7 +18,7 @@ describe("JournalPeriodSelector", () => {
       "aria-checked",
       "false",
     );
-    expect(screen.getByRole("radio", { name: "2 derniers jours" })).toHaveAttribute(
+    expect(screen.getByRole("radio", { name: "7 derniers jours" })).toHaveAttribute(
       "aria-checked",
       "false",
     );
@@ -27,8 +27,8 @@ describe("JournalPeriodSelector", () => {
   it("fires onChange with the selected period when a non-active option is tapped", () => {
     const onChange = vi.fn();
     render(<JournalPeriodSelector value="cycle_previous" onChange={onChange} />);
-    fireEvent.click(screen.getByRole("radio", { name: "2 derniers jours" }));
-    expect(onChange).toHaveBeenCalledWith("last_two_days");
+    fireEvent.click(screen.getByRole("radio", { name: "7 derniers jours" }));
+    expect(onChange).toHaveBeenCalledWith("last_seven_days");
   });
 
   it("group has the radiogroup role + accessible label", () => {

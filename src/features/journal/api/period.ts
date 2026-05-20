@@ -1,17 +1,17 @@
 // Story 12.1 — Journal period model.
 //
 // Three exhaustive options. "cycle_previous" / "cycle_current" are
-// per-member (each member has its own cycle bounds); "last_two_days" is
+// per-member (each member has its own cycle bounds); "last_seven_days" is
 // a rolling time window common to all members.
 
 import type { JournalCycleBounds } from "./useJournalMembers";
 
-export type JournalPeriod = "cycle_previous" | "cycle_current" | "last_two_days";
+export type JournalPeriod = "cycle_previous" | "cycle_current" | "last_seven_days";
 
 export const JOURNAL_PERIODS: ReadonlyArray<JournalPeriod> = [
   "cycle_previous",
   "cycle_current",
-  "last_two_days",
+  "last_seven_days",
 ];
 
 export const DEFAULT_JOURNAL_PERIOD: JournalPeriod = "cycle_previous";
@@ -24,9 +24,9 @@ export function resolveJournalPeriodBounds(
   member: { currentCycle: JournalCycleBounds | null; previousCycle: JournalCycleBounds | null },
   now: Date = new Date(),
 ): { fromIso: string; toIso: string } | null {
-  if (period === "last_two_days") {
-    // 2 days = the rolling 48-hour window ending now. Inclusive lower bound.
-    const fromMs = now.getTime() - 2 * 24 * 60 * 60 * 1000;
+  if (period === "last_seven_days") {
+    // 7 days = the rolling 7×24h window ending now. Inclusive lower bound.
+    const fromMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
     return { fromIso: new Date(fromMs).toISOString(), toIso: now.toISOString() };
   }
   if (period === "cycle_current") {
