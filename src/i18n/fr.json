@@ -1,5 +1,6 @@
 {
   "_notes": {
+    "deploy.netlify_relink_test": "2026-05-20 — empty-effect commit to verify Netlify's GitHub App link rebuilds on merge to main (no user-facing change).",
     "errors.rate_limited": "TODO Story 7.4/2.6/9.3 — wire {seconds} from the 429 RFC 7807 body's retry_after_seconds field on the consumer side.",
     "login.forgot_password_help": "Story 1.5b — static copy points the user to the founder support line for R-OP1 recovery.",
     "envelope_handover.body_amount_prefix+body_recipient": "Story 7.2 — these two keys are sentence fragments assembled in JSX around a styled <span> that renders the amount in primary-green bold. Concatenation order: body_amount_prefix · [styled amount + ' FCFA'] · body_recipient. Do NOT translate either fragment standalone — read EnvelopeHandoverScreen.tsx for the full sentence structure when localising to Wolof / Bambara (Story 1.5)."
