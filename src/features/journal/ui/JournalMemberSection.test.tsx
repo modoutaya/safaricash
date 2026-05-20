@@ -37,7 +37,7 @@ const baseMember: JournalMember = {
 function renderSection(
   props: Partial<{
     member: JournalMember;
-    period: "cycle_previous" | "cycle_current" | "last_two_days";
+    period: "cycle_previous" | "cycle_current" | "last_seven_days";
   }> = {},
 ) {
   const queryClient = new QueryClient({

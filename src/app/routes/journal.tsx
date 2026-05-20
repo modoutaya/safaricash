@@ -1,5 +1,5 @@
 // Story 12.1 — /journal route. Per-member transaction history with a
-// period selector (2 derniers jours / cycle en cours / cycle précédent),
+// period selector (7 derniers jours / cycle en cours / cycle précédent),
 // name search, lazy-loaded sections, and 20-per-page pagination.
 //
 // Spec: _bmad-output/implementation-artifacts/12-1-journal-tab.md

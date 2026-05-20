@@ -34,7 +34,7 @@ export function journalTransactionsQueryKey(
   fromIso: string,
   toIso: string,
 ): ReadonlyArray<string> {
-  // Include `fromIso` so a "last_two_days" window that crosses midnight
+  // Include `fromIso` so a "last_seven_days" window that crosses midnight
   // doesn't stale-cache. cycle periods have stable bounds → reusing keys
   // is fine.
   return ["journal", "transactions", memberId, period, fromIso, toIso];

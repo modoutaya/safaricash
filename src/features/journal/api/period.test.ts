@@ -36,11 +36,11 @@ describe("resolveJournalPeriodBounds", () => {
     });
   });
 
-  it("last_two_days → rolling 48h window ending at `now`", () => {
+  it("last_seven_days → rolling 7-day window ending at `now`", () => {
     const now = new Date("2026-05-20T18:00:00Z");
-    const bounds = resolveJournalPeriodBounds("last_two_days", memberWithBoth, now);
+    const bounds = resolveJournalPeriodBounds("last_seven_days", memberWithBoth, now);
     expect(bounds).toEqual({
-      fromIso: "2026-05-18T18:00:00.000Z",
+      fromIso: "2026-05-13T18:00:00.000Z",
       toIso: "2026-05-20T18:00:00.000Z",
     });
   });
@@ -61,8 +61,8 @@ describe("resolveJournalPeriodBounds", () => {
     expect(bounds).toBeNull();
   });
 
-  it("last_two_days never returns null (no member-state dependency)", () => {
-    const bounds = resolveJournalPeriodBounds("last_two_days", {
+  it("last_seven_days never returns null (no member-state dependency)", () => {
+    const bounds = resolveJournalPeriodBounds("last_seven_days", {
       currentCycle: null,
       previousCycle: null,
     });
