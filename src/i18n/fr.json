@@ -141,7 +141,10 @@
     "show_more": "Voir plus",
     "kind_contribution": "Cotisation",
     "kind_advance": "Avance",
-    "kind_rattrapage": "Rattrapage"
+    "kind_rattrapage": "Rattrapage",
+    "kind_rattrapage_days_suffix": "· {n} jours",
+    "day_missing_headline": "Jour manqué",
+    "day_missing_sublabel": "Aucune cotisation enregistrée"
   },
   "members": {
     "title": "Membres",
