@@ -1,6 +1,6 @@
 # Story 11.4: Cycle-day denominator display copy (`/30` → `/N`)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -190,11 +190,71 @@ Story 11.3 cost three CI iterations because I skipped the psql smoke-test of the
 
 ### Agent Model Used
 
+Claude Opus 4.7 (1M context) — implementation; Claude Sonnet 4.6 — three parallel adversarial review layers (Blind Hunter, Edge Case Hunter, Acceptance Auditor) on commit `80aeda5`.
+
 ### Debug Log References
+
+AC #13 psql smoke-test (2026-05-20, local Supabase Postgres 17 — `supabase_db_safaricash`):
+
+```
+[seed] member + cycle pinned to 2026-04-07..2026-04-30 (cycleLength = 24)
+[seed] contribution cycle_day=1, amount=500
+
+format_sms_body('first_receipt',  tx) →
+  "Bonjour Test. Recu SafariCash: 500 FCFA, jour 1/24.
+   Solde projete fin de cycle: 11 500 FCFA. Detail: …
+   SafariCash est un journal d'epargne et non une banque.
+   Repondez STOP pour ne plus recevoir."
+
+format_sms_body('subsequent_receipt', tx) →
+  "SafariCash. 500 FCFA recu, jour 1/24. Solde projete: 11 500 FCFA. Detail: …"
+
+assert position('jour 1/24' in first)  > 0  ✓
+assert position('jour 1/30' in first)  = 0  ✓
+assert position('jour 1/24' in subseq) > 0  ✓
+→ AC #13 PASSED
+```
+
+Verbatim projection: `500 × (24 − 1) − 0 = 11 500 FCFA` matches `computeProjectedFinalBalance` for a partial cycle.
 
 ### Completion Notes List
 
+- All 14 ACs satisfied. 2 of them (#13, #14) flagged ⚠️ by the Acceptance Auditor for evidence-strength rather than gap; resolved by recording the verbatim smoke-test in the Debug Log above and confirming the 30-day pinned seed in `seedMemberWithCycle` still exercises the new `format_sms_body` for the existing length-budget contract test (worst-case char width unchanged: `/30` and `/31` are both 3 chars, ≤ 160 budget preserved).
+- The `?? 0` fallback at `src/app/routes/members/[id].tsx:220` is a TypeScript-narrowing accommodation, not a runtime risk: the closure is created strictly inside `query.data && selectedTx && query.data.currentCycle` and TanStack Query's default `keepPreviousData` behaviour means `query.data` remains the prior non-null payload across refetches. Refactored on review to capture `stats.cycleLength` in a const above the JSX so the `?? 0` path is eliminated entirely.
+
 ### File List
+
+- src/domain/cycle/cycleEngine.ts (+ test)
+- src/i18n/fr.json
+- src/features/member/ui/MemberCard.tsx (+ test fixture)
+- src/features/member/ui/MemberProfile.tsx (+ test fixture)
+- src/features/transaction/ui/AdvanceFlow.tsx (+ test fixture)
+- src/features/transaction/ui/TransactionReceiptSheet.tsx (+ test)
+- src/features/transaction/api/shareReceipt.ts (+ test)
+- src/app/routes/members/[id].tsx (+ 3 test fixture files)
+- workers/receipt-url/src/render.ts (+ test)
+- supabase/migrations/20260520015808_sms_body_dynamic_cycle_length.sql
+- supabase/functions/_shared/format-sms-body.contract.test.ts
+- tests/e2e/flow-2-cycle-restart.spec.ts
+
+### Review Findings
+
+Code review against commit `80aeda5` (2026-05-20). 3 parallel adversarial reviewers (Sonnet) on Opus implementation. **11 findings → 2 patch, 2 decision-needed, 7 dismissed.**
+
+- [x] [Review][Decision→Patch] sms-templates-length seed pinned to 30 days inclusive (`start + 29`) — `cycle_day=30 → "jour 30/30"` worst-case restored [supabase/functions/_shared/sms-templates-length.contract.test.ts:80]
+- [x] [Review][Decision→Patch] RestartCycleDialog + member-create i18n now interpolate `{total}` from `deriveCycleBounds(today)` — 8e/9e surface threaded; E2E line 55 made denominator-agnostic [src/i18n/fr.json:153, 267 + src/features/member/ui/MemberForm.tsx + src/features/member/ui/RestartCycleDialog.tsx + tests/e2e/flow-2-cycle-restart.spec.ts:55]
+- [x] [Review][Patch] `?? 0` fallback eliminated — IIFE captures `query.data` + `stats.cycleLength` into local consts so the async `onShare` closure sees a narrowed, never-zero `cycleLength` [src/app/routes/members/[id].tsx]
+- [x] [Review][Patch] AC #13 smoke-test PASSED transcribed in story file Debug Log + Completion Notes
+
+#### Dismissed (false positives or out-of-scope)
+
+- ~~TransactionReceiptSheet wrong cycle for past tx~~ — `useMemberProfile.ts:108` filtre tx à `currentCycle.id`
+- ~~Worker `cycleLengthDenominator` silent inverted-range~~ — defensive code, no log appropriate in render path
+- ~~Subsequent_receipt Deno test "11 500 FCFA" vacuous~~ — discrimine bien sur cycle_day=2 + denominator
+- ~~CycleProgressBar.test.tsx non touché~~ — déjà props-driven, test passe `totalDays={30}` explicite
+- ~~`computeMemberStats` cycleLength=0 sentinel~~ — 3/3 consumers guard `currentCycle === null` upstream
+- ~~`Math.round` Worker time-component fragility~~ — Postgres `date` columns serialize YYYY-MM-DD, théorique
+- ~~Worker 1-day cycle non testé~~ — `MIN_CYCLE_LENGTH_DAYS=3` empêche prod
 
 ## Change Log
 

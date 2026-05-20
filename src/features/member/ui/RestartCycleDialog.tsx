@@ -17,6 +17,7 @@
 import { useEffect, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
+import { cycleLengthDays, deriveCycleBounds } from "@/domain/cycle";
 import { useT } from "@/i18n/useT";
 import type { TranslationKey } from "@/i18n/keys";
 
@@ -87,6 +88,13 @@ export function RestartCycleDialog({
 
   const errorBannerKey = restart.error !== null ? errorCopyKey(restart.error.code) : null;
 
+  // Story 11.4 — preview the restarted cycle's actual length (calendar-month
+  // aligned). `restart_member_cycle` server-side calls `derive_cycle_bounds`
+  // with today's date — mirror that here so the dialog body never promises
+  // a 30-day cycle when the saver will actually get e.g. 24 days.
+  const nextBounds = deriveCycleBounds(new Date().toISOString().slice(0, 10));
+  const nextCycleLength = cycleLengthDays(nextBounds.startDate, nextBounds.endDate);
+
   return (
     <dialog
       ref={dialogRef}
@@ -105,7 +113,7 @@ export function RestartCycleDialog({
           {t("members.profile.restart.dialog_title")}
         </h2>
         <p id="restart-cycle-dialog-body" className="text-body-1 text-text-secondary">
-          {t("members.profile.restart.dialog_body", { name: memberName })}
+          {t("members.profile.restart.dialog_body", { name: memberName, total: nextCycleLength })}
         </p>
 
         {errorBannerKey !== null ? (

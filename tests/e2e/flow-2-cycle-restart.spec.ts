@@ -52,7 +52,8 @@ test.describe("Flow — /members/:id cycle restart (Story 2.7)", () => {
     await expect(
       page.getByRole("heading", { level: 2, name: /redémarrer le cycle ?/i }),
     ).toBeVisible();
-    await expect(page.getByText(/un nouveau cycle de 30 jours va démarrer/i)).toBeVisible();
+    // Story 11.4 — restarted cycle's length follows derive_cycle_bounds(today).
+    await expect(page.getByText(/un nouveau cycle de \d+ jours va démarrer/i)).toBeVisible();
 
     // --- 3. Annuler → dialog closes, cycle count stable (still 1) ---
     await page.getByRole("button", { name: /^annuler$/i }).click();
