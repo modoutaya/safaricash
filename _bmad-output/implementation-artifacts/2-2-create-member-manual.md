@@ -202,7 +202,7 @@ This story is the **first time** the codebase wires react-hook-form (per `packag
 
 - All 13 ACs satisfied + all 9 tasks ticked
 - Migration applied successfully via `npm run db:reset` (local)
-- Manual smoke test: log in (using the Story 1.5b `+221777915898` / `safaricash2026` collector), navigate to `/members` → click "Ajouter un membre" → fill form → submit → land on `/members` with the new member visible
+- Manual smoke test: log in as a pilot collector (credentials are provisioned out-of-band — see Supabase Studio or `npm run provision-collector`; never recorded in docs), navigate to `/members` → click "Ajouter un membre" → fill form → submit → land on `/members` with the new member visible
 - Test counts: ≥ 6 new Vitest cases for `useCreateMember`, ≥ 5 for `MemberForm`, ≥ 3 for `MembersNewRoute`, 1 Playwright E2E
 - `npm run typecheck` / `npm run lint` / `npm run test` / `npm run build` all green
 - Story status set to `review`; sprint-status.yaml updated; Change Log entry added
