@@ -120,7 +120,10 @@ export function MemberProfile({
           {currentCycle ? (
             <div className="flex items-center justify-between">
               <dt className="text-text-secondary">
-                {t("members.profile.field.cycle_day", { n: stats.cycleDay })}
+                {t("members.profile.field.cycle_day", {
+                  n: stats.cycleDay,
+                  total: stats.cycleLength,
+                })}
               </dt>
             </div>
           ) : null}

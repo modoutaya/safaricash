@@ -86,6 +86,7 @@ const mkData = (
     totalTransactionsCount: 0,
     stats: {
       cycleDay: overrides.cycleDay ?? 10,
+      cycleLength: 30,
       // Fixture cycle is 30 days → daysRemaining = cycleLength − cycleDay.
       daysRemaining: 30 - (overrides.cycleDay ?? 10),
       contributedTotal: overrides.contributedTotal ?? 0,

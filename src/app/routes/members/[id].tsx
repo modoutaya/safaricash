@@ -199,7 +199,10 @@ export default function MemberProfileRoute() {
             phone_number: query.data.member.phone_number,
             sms_opt_out: query.data.member.sms_opt_out ?? false,
           }}
-          cycle={{ cycle_number: query.data.currentCycle.cycle_number }}
+          cycle={{
+            cycle_number: query.data.currentCycle.cycle_number,
+            cycle_length: query.data.stats.cycleLength,
+          }}
           onShare={async () => {
             if (!selectedTx.receipt_token) {
               toast.error(t("transaction.receipt_sheet.share_toast_error"));
@@ -214,6 +217,7 @@ export default function MemberProfileRoute() {
               const result = await shareReceipt({
                 amount: selectedTx.amount,
                 cycleDay: selectedTx.cycle_day,
+                cycleLength: query.data?.stats.cycleLength ?? 0,
                 receiptToken: selectedTx.receipt_token,
               });
               if (result.ok) {

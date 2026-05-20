@@ -20,6 +20,9 @@ export interface ShareReceiptInput {
   amount: number;
   /** 1-based cycle day for the transaction. */
   cycleDay: number;
+  /** Story 11.4 — variable-length cycle total (end_date − start_date + 1).
+   *  Used as the share-text denominator (`jour {cycleDay}/{cycleLength}`). */
+  cycleLength: number;
   /** 32-hex-char receipt token (Story 6.4 surface). */
   receiptToken: string;
 }
@@ -40,14 +43,14 @@ export function getReceiptUrlBase(): string {
 }
 
 export async function shareReceipt(input: ShareReceiptInput): Promise<ShareReceiptResult> {
-  const { amount, cycleDay, receiptToken } = input;
+  const { amount, cycleDay, cycleLength, receiptToken } = input;
   const url = `${getReceiptUrlBase()}/${receiptToken}`;
   // Short summary kept well under 280 chars so any share target (SMS,
   // WhatsApp, Notes) accepts it cleanly. NOTE: `formatFcfaAmount` emits
   // NBSP (U+00A0) as the thousands separator — Web Share API accepts
   // unicode, so this is intentional. NFR-A6 (7-bit ASCII / GSM-7) applies
   // ONLY to the server-side SMS body; the share text is a separate surface.
-  const text = `${formatFcfaAmount(amount)} FCFA — jour ${cycleDay}/30 — détail: ${url}`;
+  const text = `${formatFcfaAmount(amount)} FCFA — jour ${cycleDay}/${cycleLength} — détail: ${url}`;
   const title = "Reçu SafariCash";
   const payload = { title, text, url };
 

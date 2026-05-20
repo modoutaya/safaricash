@@ -72,14 +72,18 @@ export function MemberCard({ member, onSelect, className }: MemberCardProps): JS
               className="text-caption text-text-secondary"
               style={{ fontVariantNumeric: "tabular-nums" }}
             >
-              {t("members.card.cycle_day", { day: cycle.dayNumber })}
+              {t("members.card.cycle_day", { day: cycle.dayNumber, total: cycle.cycleLength })}
               {member.cycleAdvancesTotal > 0
                 ? ` • ${t("members.card.advance_inline", {
                     amount: formatFcfaAmount(member.cycleAdvancesTotal),
                   })}`
                 : ""}
             </p>
-            <CycleProgressBar dayNumber={cycle.dayNumber} className="mt-1" />
+            <CycleProgressBar
+              dayNumber={cycle.dayNumber}
+              totalDays={cycle.cycleLength}
+              className="mt-1"
+            />
             <div className="mt-1 flex items-center justify-between gap-2">
               <span className="min-w-0 truncate text-caption font-medium text-primary-700">
                 {countdownLabel()}

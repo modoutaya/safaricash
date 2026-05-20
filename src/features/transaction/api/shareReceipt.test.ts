@@ -42,7 +42,12 @@ describe("getReceiptUrlBase", () => {
 });
 
 const RECEIPT_TOKEN = "a".repeat(32);
-const INPUT = { amount: 500, cycleDay: 1, receiptToken: RECEIPT_TOKEN } as const;
+const INPUT = {
+  amount: 500,
+  cycleDay: 1,
+  cycleLength: 30,
+  receiptToken: RECEIPT_TOKEN,
+} as const;
 const EXPECTED_URL = `https://safaricash.app/r/${RECEIPT_TOKEN}`;
 
 describe("shareReceipt", () => {
@@ -63,6 +68,20 @@ describe("shareReceipt", () => {
     if (result.ok) expect(result.via).toBe("native");
     expect(shareMock).toHaveBeenCalledWith(
       expect.objectContaining({ url: EXPECTED_URL, title: "Reçu SafariCash" }),
+    );
+  });
+
+  it("share text denominator follows the cycleLength input (Story 11.4)", async () => {
+    const shareMock = vi.fn().mockResolvedValue(undefined);
+    setNavigator({ share: shareMock, canShare: () => true });
+    setWindow({ isSecureContext: true });
+
+    await shareReceipt({ ...INPUT, cycleLength: 24 });
+    expect(shareMock).toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.stringContaining("jour 1/24") }),
+    );
+    expect(shareMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.stringContaining("jour 1/30") }),
     );
   });
 

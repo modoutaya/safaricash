@@ -1,6 +1,6 @@
 # Story 11.4: Cycle-day denominator display copy (`/30` → `/N`)
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
