@@ -139,7 +139,7 @@
     "status_badge_termine": "Terminé",
     "amount_per_day": "{amount} F CFA / jour",
     "card": {
-      "cycle_day": "Jour {day}/{total}",
+      "cycle_day": "Jour {day} — cycle de {total} jours",
       "advance_inline": "Avance : {amount} F CFA",
       "days_remaining_one": "1 jour restant",
       "days_remaining_many": "{days} jours restants",
