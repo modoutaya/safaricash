@@ -2,27 +2,41 @@
 // expansion triggers the lazy fetch of that member's transactions for the
 // selected period (useJournalTransactions, enabled gating).
 //
+// Story 12.2 — render a calendar view: one row per applicable cycle-day,
+// `missing` rows for days without a contribution (warning marker), and
+// rattrapage rows that absorb their forward-covered days. The legacy
+// "one row per transaction" shape was replaced by DayRow[] from
+// buildJournalDayRows.
+//
 // Implemented with native `<details>` for accessibility (zero JS for
 // focus management; screen readers announce expansion automatically) and
 // to avoid pulling in a 3rd-party collapsible.
 
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
 
+import { buildJournalDayRows } from "../api/buildJournalDayRows";
 import { resolveJournalPeriodBounds, type JournalPeriod } from "../api/period";
 import type { JournalMember } from "../api/useJournalMembers";
 import { useJournalTransactions } from "../api/useJournalTransactions";
-import { JournalTransactionRow } from "./JournalTransactionRow";
+import { JournalDayRow } from "./JournalDayRow";
 
 export interface JournalMemberSectionProps {
   member: JournalMember;
   period: JournalPeriod;
+  /** Pinnable "today" — defaults to `new Date()`. Tests pass an explicit
+   *  date so the calendar output is deterministic. */
+  now?: Date;
 }
 
-export function JournalMemberSection({ member, period }: JournalMemberSectionProps): JSX.Element {
+export function JournalMemberSection({
+  member,
+  period,
+  now,
+}: JournalMemberSectionProps): JSX.Element {
   // The lazy-fetch gate. Flips on first expand and stays true so toggling
   // closed→open→closed doesn't refetch (TanStack Query's cache also covers
   // this, but `enabled` removes the request entirely on first close).
@@ -36,6 +50,17 @@ export function JournalMemberSection({ member, period }: JournalMemberSectionPro
     bounds,
     enabled: hasEverOpened,
   });
+
+  const todayIso = useMemo(() => (now ?? new Date()).toISOString().slice(0, 10), [now]);
+  const dayRows = useMemo(() => {
+    if (!query.data) return [];
+    return buildJournalDayRows({
+      transactions: query.data,
+      period,
+      member,
+      todayIso,
+    });
+  }, [query.data, period, member, todayIso]);
 
   return (
     <details
@@ -69,10 +94,10 @@ export function JournalMemberSection({ member, period }: JournalMemberSectionPro
           </p>
         ) : query.error ? (
           <p className="py-4 text-body-2 text-warning-text">{t("journal.error_transactions")}</p>
-        ) : query.data && query.data.length > 0 ? (
+        ) : dayRows.length > 0 ? (
           <ul className="py-1">
-            {query.data.map((tx) => (
-              <JournalTransactionRow key={tx.id} tx={tx} />
+            {dayRows.map((row) => (
+              <JournalDayRow key={`${row.cycleId}#${row.cycleDay}`} row={row} />
             ))}
           </ul>
         ) : (
