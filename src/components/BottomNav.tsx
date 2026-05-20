@@ -7,7 +7,7 @@
 //
 // Visual reference: 03-mockups.html .bnav / .bt.
 
-import { LayoutGrid, MoreHorizontal, Users } from "lucide-react";
+import { ClipboardList, LayoutGrid, MoreHorizontal, Users } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { NavLink } from "react-router-dom";
 
@@ -24,6 +24,7 @@ type NavItem = {
 const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { to: "/dashboard", labelKey: "nav.dashboard", Icon: LayoutGrid },
   { to: "/members", labelKey: "nav.members", Icon: Users },
+  { to: "/journal", labelKey: "nav.journal", Icon: ClipboardList },
   { to: "/settings", labelKey: "nav.more", Icon: MoreHorizontal },
 ];
 

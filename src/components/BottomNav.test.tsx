@@ -18,10 +18,11 @@ function renderAt(path: string) {
 }
 
 describe("BottomNav", () => {
-  it("renders the three tabs pointing at their routes", () => {
+  it("renders the four tabs pointing at their routes", () => {
     renderAt("/dashboard");
     expect(screen.getByRole("link", { name: "Accueil" })).toHaveAttribute("href", "/dashboard");
     expect(screen.getByRole("link", { name: "Membres" })).toHaveAttribute("href", "/members");
+    expect(screen.getByRole("link", { name: "Journal" })).toHaveAttribute("href", "/journal");
     expect(screen.getByRole("link", { name: "Plus" })).toHaveAttribute("href", "/settings");
   });
 

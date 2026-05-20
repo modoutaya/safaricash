@@ -78,6 +78,7 @@
     "label": "Navigation principale",
     "dashboard": "Accueil",
     "members": "Membres",
+    "journal": "Journal",
     "more": "Plus"
   },
   "dashboard": {
@@ -119,6 +120,28 @@
       "time_hours": "il y a {hours} h",
       "time_days": "il y a {days} j"
     }
+  },
+  "journal": {
+    "title": "Journal",
+    "search_placeholder": "Rechercher un membre…",
+    "period_aria_label": "Période affichée",
+    "period": {
+      "previous_cycle": "Cycle précédent",
+      "current_cycle": "Cycle en cours",
+      "last_two_days": "2 derniers jours"
+    },
+    "loading_members": "Chargement…",
+    "loading_transactions": "Chargement des transactions…",
+    "error_members": "Impossible de charger les membres. Réessayez dans un instant.",
+    "error_transactions": "Impossible de charger les transactions de ce membre.",
+    "empty_no_members": "Aucun membre — ajoutez-en un depuis l'onglet Membres.",
+    "empty_no_transactions": "Aucune transaction sur cette période.",
+    "empty_no_previous_cycle": "Aucun cycle précédent pour ce membre.",
+    "no_search_match": "Aucun résultat. Vérifiez l'orthographe ou effacez la recherche.",
+    "show_more": "Voir plus",
+    "kind_contribution": "Cotisation",
+    "kind_advance": "Avance",
+    "kind_rattrapage": "Rattrapage"
   },
   "members": {
     "title": "Membres",
