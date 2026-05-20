@@ -55,7 +55,7 @@ describe("MemberCard", () => {
         })}
       />,
     );
-    expect(screen.getByText("Jour 25/30")).toBeInTheDocument();
+    expect(screen.getByText("Jour 25 — cycle de 30 jours")).toBeInTheDocument();
     expect(screen.getByText("5 jours restants")).toBeInTheDocument();
     expect(screen.getByText(/145\s?000 F CFA/)).toBeInTheDocument();
   });
