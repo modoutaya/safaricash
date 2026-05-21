@@ -144,25 +144,30 @@ export function computeProjectedFinalBalance(
 }
 
 /**
- * INV-3 — accept iff Σ(existing) + new ≤ dailyAmount × contributionDays
- *                                                   − openingBalance
- * (i.e., the new advance does not push the projected balance below 0).
- * Strict ≤ at the equality boundary — landing exactly at 0 is allowed.
+ * Story 12.5 — advance capacity (NEW MODEL, PR B).
  *
- * Story 12.3 Q2bis: when openingBalance ≥ dailyAmount × contributionDays,
- * the right-hand side is ≤ 0 and every positive newAdvanceAmount is
- * rejected — the saver must repay the carry-over via contributions first.
+ * The collector never advances more than the saver has versed so far —
+ * no lending against the daily-amount "contract" (which doesn't exist
+ * under the cotisation-libre model). Capacity is bounded by actual
+ * contributions held by the collector, minus advances already disbursed.
+ *
+ *     allowed iff Σ(existing) + new ≤ contributedTotal
+ *
+ * Where `contributedTotal` is the sum of (contribution + rattrapage)
+ * booked in this cycle so far (undone excluded), i.e. the cash the
+ * collector physically holds for this saver.
+ *
+ * Pre-12.5 signature `canAcceptAdvance(dailyAmount, existing, new,
+ * contributionDays, openingBalance)` capped by the projected daily ×
+ * contributionDays which over-credited savers who hadn't paid every
+ * day yet (the model corrected by Story 12.5 PR A).
  */
 export function canAcceptAdvance(
-  dailyAmount: number,
+  contributedTotal: number,
   existingAdvances: ReadonlyArray<number>,
   newAdvanceAmount: number,
-  contributionDays: number,
-  openingBalance: number = 0,
 ): boolean {
-  return (
-    sum(existingAdvances) + newAdvanceAmount <= dailyAmount * contributionDays - openingBalance
-  );
+  return sum(existingAdvances) + newAdvanceAmount <= contributedTotal;
 }
 
 /**

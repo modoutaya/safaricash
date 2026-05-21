@@ -36,6 +36,23 @@ test.describe("Flow 2 — record advance online (Story 5.4)", () => {
     const target = members[0]!;
     const targetName = "Member ADV-1";
 
+    // Story 12.5 PR B — advance cap = contributedTotal. seedMembers
+    // only inserts 1 contrib of 500; we need ≥ 10_000 versé so the
+    // 10_000 advance below clears the cap. Insert 28 more contribs of
+    // 500 (cycle_days 2..29) via service-role → contributedTotal = 14_500.
+    const { data: amountSecret } = await service.rpc("vault_encrypt", { plaintext: "500" });
+    for (let d = 2; d <= 29; d++) {
+      await service.from("transactions").insert({
+        collector_id: seededCollector.userId,
+        member_id: target.memberId,
+        cycle_id: target.cycleId,
+        kind: "contribution",
+        amount_encrypted: amountSecret,
+        cycle_day: d,
+        source: "online",
+      });
+    }
+
     await page.goto("/members");
     await expect(page.getByRole("heading", { level: 1, name: /membres/i })).toBeVisible();
 
@@ -49,9 +66,9 @@ test.describe("Flow 2 — record advance online (Story 5.4)", () => {
     await expect(page).toHaveURL(/\/advance$/);
     await expect(page.getByRole("heading", { level: 1, name: /prêt express/i })).toBeVisible();
 
-    // The seed fixture uses dailyAmount=500 → capacity = 500 × 29 = 14 500.
-    // Suggested chips (50k / 100k / 150k) all over-limit; type a small
-    // valid amount directly into the input instead.
+    // Story 12.5 PR B — advance cap = contributedTotal (14 500 after
+    // the inline seed above). Suggested chips (50k / 100k / 150k) are
+    // all over-limit; type a small valid amount directly into the input.
     await page.getByLabel(/montant du prêt/i).fill("10000");
 
     // Type the (optional) motive.
