@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { MemberProfile, useMemberProfile } from "@/features/member";
 import { DeleteMemberDialog } from "@/features/member/ui/DeleteMemberDialog";
 import { ResendHistoryDialog } from "@/features/member/ui/ResendHistoryDialog";
-import { RestartCycleDialog } from "@/features/member/ui/RestartCycleDialog";
 import type {
   ResendHistoryError,
   ResendHistoryResult,
@@ -47,7 +46,6 @@ export default function MemberProfileRoute() {
   const navigate = useNavigate();
   const t = useT();
   const goBack = () => navigate("/members");
-  const [restartOpen, setRestartOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resendOpen, setResendOpen] = useState(false);
   // Story 6.7 — selected transaction drives the per-receipt sheet.
@@ -66,10 +64,14 @@ export default function MemberProfileRoute() {
   );
   const disputedTransactionIds = new Set(openDisputes.map((d) => d.transaction_id));
 
-  // Story 2.7 — restart action shows only when the current cycle is
-  // completed/settled. Hidden (not disabled) per AC #1.
+  // Story 12.4 — Story 2.7's "Redémarrer le cycle" button removed because
+  // the Phase B cron (Story 12.3) auto-restarts every active member's
+  // cycle on the 1st of each month. The manual restart was a duplicate
+  // entry point that confused operators ("the cycle is the calendar
+  // month, how can I restart it?" — pilot feedback 2026-05-21). The
+  // restart_member_cycle SQL RPC stays in place as an ops fallback if
+  // the cron ever fails — service-role callable via Supabase Studio.
   const currentCycleStatus = query.data?.currentCycle?.status;
-  const canRestart = currentCycleStatus === "completed" || currentCycleStatus === "settled";
   // Story 7.3 — "Clôturer le cycle" is visible iff at least one cycle is
   // awaiting settlement (status='completed' not yet 'settled'). Tap
   // navigates to /members/:id/settlement.
@@ -110,11 +112,6 @@ export default function MemberProfileRoute() {
           <Button asChild variant="outline" size="sm" disabled={!isUuid}>
             <Link to={`/members/${id}/edit`}>{t("members.profile.action_edit")}</Link>
           </Button>
-          {canRestart ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => setRestartOpen(true)}>
-              {t("members.profile.action_restart_cycle")}
-            </Button>
-          ) : null}
           {canSettle ? (
             <Button asChild variant="outline" size="sm">
               <Link to={`/members/${id}/settlement`}>{t("members.profile.action_settle")}</Link>
@@ -313,16 +310,6 @@ export default function MemberProfileRoute() {
           />
         );
       })()}
-
-      {query.data && canRestart ? (
-        <RestartCycleDialog
-          open={restartOpen}
-          onOpenChange={setRestartOpen}
-          memberId={id}
-          memberName={query.data.member.name}
-          onSuccess={() => toast.success(t("members.profile.restart.toast_success"))}
-        />
-      ) : null}
 
       {query.data && canResendHistory && query.data.currentCycle ? (
         <ResendHistoryDialog
