@@ -34,6 +34,23 @@ test.describe("Flow 3 — cycle settlement (Story 7.4)", () => {
     const members = await seedMembersForCollector(service, seededCollector, 1, "SETTLE");
     const target = members[0]!;
 
+    // Story 12.5 — settle() now uses actual contributedTotal. seedMembers
+    // creates 1 contrib of 500 (cycle_day=1) → contributedTotal=500. To
+    // get a meaningful payout, seed 28 more contribs of 500 (cycle_days
+    // 2..29) so total = 14_500. Then payout = 14_500 − 500(daily) − 0 = 14_000.
+    const { data: amountSecret } = await service.rpc("vault_encrypt", { plaintext: "500" });
+    for (let d = 2; d <= 29; d++) {
+      await service.from("transactions").insert({
+        collector_id: seededCollector.userId,
+        member_id: target.memberId,
+        cycle_id: target.cycleId,
+        kind: "contribution",
+        amount_encrypted: amountSecret,
+        cycle_day: d,
+        source: "online",
+      });
+    }
+
     // Flip the cycle to 'completed' so settlement is available. The seed
     // helper creates the cycle in 'active'.
     await service.from("cycles").update({ status: "completed" }).eq("id", target.cycleId);
@@ -54,8 +71,8 @@ test.describe("Flow 3 — cycle settlement (Story 7.4)", () => {
       page.getByRole("heading", { level: 1, name: /paiement du membre/i }),
     ).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: /member settle-1/i })).toBeVisible();
-    // Final payout = 500 × 29 − 0 (no advances seeded) = 14 500 FCFA.
-    await expect(page.getByText(/14[\s\u00a0]500 FCFA/)).toBeVisible();
+    // Story 12.5 — payout = contributedTotal(14 500) − daily(500) − 0 = 14 000.
+    await expect(page.getByText(/14[\s\u00a0]000 FCFA/)).toBeVisible();
 
     // --- 3. Tap "Confirmer le paiement" → dialog opens ---
     await page.getByRole("button", { name: /^confirmer le paiement$/i }).click();
@@ -88,7 +105,7 @@ test.describe("Flow 3 — cycle settlement (Story 7.4)", () => {
         timeout: 10_000,
       },
     );
-    await expect(page.getByText(/14[\s\u00a0]500 FCFA/)).toBeVisible();
+    await expect(page.getByText(/14[\s\u00a0]000 FCFA/)).toBeVisible();
     await expect(page.getByRole("button", { name: /^retour aux membres$/i })).toBeVisible();
 
     // --- 6. Service-role checks ---

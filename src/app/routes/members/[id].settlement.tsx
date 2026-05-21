@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { EnvelopeHandoverScreen } from "@/components/domain/EnvelopeHandoverScreen";
 import { ProfileError, ProfileSkeleton } from "@/components/domain/MemberProfileStates";
 import { SettlementSummaryCard } from "@/components/domain/SettlementSummaryCard";
-import { computeOpeningBalance, cycleLengthDays, settle } from "@/domain/cycle";
+import { computeOpeningBalance, settle } from "@/domain/cycle";
 import { useMemberProfile } from "@/features/member";
 import type { CommitSettlementError } from "@/features/settlement/api/commitSettlementError";
 import type { CommitSettlementResult } from "@/features/settlement/api/useCommitSettlement";
@@ -150,16 +150,22 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
     settleCycle.id,
   );
 
-  // NFR-R3 cross-check value — Story 7.1's card already calls settle()
-  // internally to render the final payout row. We re-call it here to pass
-  // the SAME value to the Edge Function (the server recomputes independently
-  // and rejects on mismatch).
-  const settlementContributionDays =
-    cycleLengthDays(settleCycle.start_date, settleCycle.end_date) - 1;
+  // Story 12.5 — settle() new formula: actual contributedTotal of the
+  // cycle being settled. The pre-12.5 formula assumed the saver paid
+  // daily × contribDays every cycle, which doesn't match the real
+  // SafariCash model (cotisation libre). cycleLengthDays is now unused
+  // for settlement math; it stays only as a reference value for the SMS
+  // template (Story 11.4) and the cycle_day INSERT (= cycleLength).
+  const settleContributedTotal = data.allTransactions
+    .filter(
+      (tx) =>
+        tx.cycle_id === settleCycle.id && (tx.kind === "contribution" || tx.kind === "rattrapage"),
+    )
+    .reduce((sum, tx) => sum + tx.amount, 0);
   const expectedPayout = settle(
+    settleContributedTotal,
     data.member.daily_amount,
     advances,
-    settlementContributionDays,
     settleOpeningBalance,
   );
 
