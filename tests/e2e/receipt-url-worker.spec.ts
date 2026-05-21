@@ -188,7 +188,10 @@ test.describe("receipt-url worker (Story 6.4 — saver-facing receipt page)", ()
       const body = await res.text();
       expect(body).toContain("Fatou");
       expect(body).toContain("500 FCFA");
-      expect(body).toContain("14 500 FCFA");
+      // Story 12.5 — projected_balance now reflects actual cumul:
+      // contributedTotal(500) − daily(500) − 0 − 0 = 0. The receipt page
+      // formats 0 as "0 FCFA" (no NBSP grouping).
+      expect(body).toContain("0 FCFA");
       expect(body).toContain("Cette transaction n'est pas moi");
       expect(body).not.toContain("<script");
 
