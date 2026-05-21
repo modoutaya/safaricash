@@ -20,6 +20,7 @@ import {
   computeProjectedFinalBalance,
   cycleDay,
   cycleLengthDays,
+  settle,
   type OpeningBalanceCycle,
 } from "@/domain/cycle";
 import { supabase } from "@/infrastructure/supabase/client";
@@ -85,6 +86,31 @@ export function deriveMembersWithMeta(
           currentCycle.id,
         )
       : 0;
+
+    // Story 12.4 — oldest cycle with status='completed' across all this
+    // member's cycles. FIFO drain — see useMemberProfile for the same
+    // logic on the per-member surface. Returns null when none.
+    const awaitingCycle =
+      memberCycles
+        .filter((c) => c.status === "completed")
+        .sort((a, b) => a.cycle_number - b.cycle_number)[0] ?? null;
+    const awaitingSettlement: { cycleId: string; payout: number } | null = awaitingCycle
+      ? {
+          cycleId: awaitingCycle.id,
+          payout: settle(
+            row.daily_amount,
+            [data.advancesByCycle.get(awaitingCycle.id) ?? 0],
+            cycleLengthDays(awaitingCycle.start_date, awaitingCycle.end_date) - 1,
+            computeOpeningBalance(
+              openingBalanceCycles,
+              data.advancesByCycle,
+              row.daily_amount,
+              awaitingCycle.id,
+            ),
+          ),
+        }
+      : null;
+
     return {
       id: row.id,
       name: row.name,
@@ -103,6 +129,7 @@ export function deriveMembersWithMeta(
         : null,
       latestInteractionAt: latestTxAt ?? row.created_at,
       cycleAdvancesTotal,
+      awaitingSettlement,
       projectedBalance: currentCycle
         ? computeProjectedFinalBalance(
             row.daily_amount,

@@ -250,6 +250,7 @@ describe("useMembers — offline serves the cached/persisted data", () => {
           latestInteractionAt: "2026-05-15T00:00:00.000Z",
           cycleAdvancesTotal: 0,
           projectedBalance: null,
+          awaitingSettlement: null,
         },
       ];
       client.setQueryData(MEMBERS_QUERY_KEY, seeded);

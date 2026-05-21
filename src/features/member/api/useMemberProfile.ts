@@ -33,7 +33,26 @@ export interface MemberProfileData {
   /** Story 2.7 — completed/settled cycles older than `currentCycle`,
    *  newest first. Drives the "Cycles précédents" read-only section. */
   previousCycles: CycleRow[];
+  /** Story 12.4 — the oldest cycle of THIS member that is still in
+   *  `status='completed'` (= awaiting manual settlement). null when
+   *  none. Drives the "Clôturer le cycle" CTA gate AND the settlement
+   *  route's cycle target.
+   *
+   *  Why oldest first: a collector who skipped a month's settlement
+   *  ends up with multiple 'completed' cycles; we drain them FIFO so
+   *  the oldest owed is paid first.
+   *
+   *  Pre-Phase-B (Story 12.3): could be equal to currentCycle (cycle
+   *  reached end_date but wasn't restarted yet).
+   *  Post-Phase-B: typically lives in previousCycles, because the cron
+   *  always creates a new 'active' cycle on the 1st. */
+  cycleAwaitingSettlement: CycleRow | null;
   transactions: TransactionRow[];
+  /** Story 12.4 — every transaction across ALL of this member's cycles
+   *  (no filter). Story 7.4's settlement route needs the awaiting-cycle's
+   *  advances which are NOT in `transactions` (filtered to currentCycle).
+   *  Existing consumers stay on `transactions` for back-compat. */
+  allTransactions: TransactionRow[];
   /** Story 2.6 — count of transactions across ALL cycles (current +
    *  previous). Drives the delete dialog summary copy. */
   totalTransactionsCount: number;
@@ -146,11 +165,23 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
     openingBalance,
   );
 
+  // Story 12.4 — oldest cycle in status='completed' across ALL of this
+  // member's cycles (current + history). FIFO: a collector who skipped
+  // a month settles the older debt first. Returns null when no cycle
+  // awaits settlement (every cycle is 'active' / 'with_advance' /
+  // 'settled').
+  const cycleAwaitingSettlement: CycleRow | null =
+    cleanedCycles
+      .filter((c) => c.status === "completed")
+      .sort((a, b) => a.cycle_number - b.cycle_number)[0] ?? null;
+
   return {
     member,
     currentCycle,
     previousCycles,
+    cycleAwaitingSettlement,
     transactions,
+    allTransactions,
     totalTransactionsCount: allTransactions.length,
     stats,
   };

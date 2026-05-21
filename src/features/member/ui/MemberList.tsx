@@ -31,27 +31,45 @@ import { MemberCard } from "./MemberCard";
 
 const CYCLES_ENDING_FILTER = "cycles-ending";
 
-const ALL_CHIPS: readonly DisplayStatus[] = ["actif", "avance", "termine"] as const;
+/** Story 12.4 — virtual chip value for "À régler". Not a DisplayStatus
+ *  (a member can simultaneously be 'actif' AND have a cycle awaiting
+ *  settlement post-Phase-B cron). Treated as an additional OR term in
+ *  the chip filter. */
+const TO_SETTLE_CHIP = "a_regler" as const;
+type ChipValue = DisplayStatus | typeof TO_SETTLE_CHIP;
+
+const ALL_CHIPS: readonly ChipValue[] = ["actif", "avance", TO_SETTLE_CHIP, "termine"] as const;
 
 const CHIP_I18N_KEY: Record<
-  DisplayStatus,
-  "members.filter_actif" | "members.filter_avance" | "members.filter_termine"
+  ChipValue,
+  | "members.filter_actif"
+  | "members.filter_avance"
+  | "members.filter_termine"
+  | "members.filter_a_regler"
 > = {
   actif: "members.filter_actif",
   avance: "members.filter_avance",
   termine: "members.filter_termine",
+  [TO_SETTLE_CHIP]: "members.filter_a_regler",
 };
 
 function useFilteredMembers(
   members: readonly MemberWithMeta[],
   query: string,
-  selectedChips: ReadonlySet<DisplayStatus>,
+  selectedChips: ReadonlySet<ChipValue>,
   cyclesEndingFilterActive: boolean,
 ): MemberWithMeta[] {
   return useMemo(() => {
     const normalizedQuery = normalizeForSearch(query.trim());
     return members.filter((m) => {
-      if (selectedChips.size > 0 && !selectedChips.has(m.displayStatus)) return false;
+      if (selectedChips.size > 0) {
+        // OR-logic across chips. "À régler" matches awaitingSettlement!=null;
+        // the others match displayStatus equality.
+        const matches =
+          (selectedChips.has(TO_SETTLE_CHIP) && m.awaitingSettlement !== null) ||
+          selectedChips.has(m.displayStatus);
+        if (!matches) return false;
+      }
       if (cyclesEndingFilterActive) {
         // Story 3.5 — keep only members whose cycle is in the upcoming-end
         // window. Members without an active cycle are excluded.
@@ -78,8 +96,8 @@ export function MemberList(): JSX.Element {
   const { data: members, isLoading, isError } = useMembers();
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
-  const [selectedChips, setSelectedChips] = useState<ReadonlySet<DisplayStatus>>(
-    () => new Set<DisplayStatus>(),
+  const [selectedChips, setSelectedChips] = useState<ReadonlySet<ChipValue>>(
+    () => new Set<ChipValue>(),
   );
   // Story 3.5 — URL-driven cycles-ending filter (entry point: dashboard alert
   // CTA). When set, filters the list to members whose cycle ends within the
@@ -124,7 +142,7 @@ export function MemberList(): JSX.Element {
     );
   }
 
-  const toggleChip = (chip: DisplayStatus) => {
+  const toggleChip = (chip: ChipValue) => {
     setSelectedChips((prev) => {
       const next = new Set(prev);
       if (next.has(chip)) next.delete(chip);

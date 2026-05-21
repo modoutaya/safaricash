@@ -24,6 +24,7 @@ const makeMember = (overrides: Partial<MemberWithMeta> = {}): MemberWithMeta => 
   latestInteractionAt: "2026-04-20T10:00:00Z",
   cycleAdvancesTotal: 0,
   projectedBalance: 14500,
+  awaitingSettlement: null,
   ...overrides,
 });
 
@@ -54,6 +55,7 @@ describe("MemberCard", () => {
             openingBalance: 0,
           },
           projectedBalance: 145000,
+          awaitingSettlement: null,
         })}
       />,
     );
@@ -89,6 +91,7 @@ describe("MemberCard", () => {
           currentCycle: null,
           displayStatus: "termine",
           projectedBalance: null,
+          awaitingSettlement: null,
         })}
       />,
     );

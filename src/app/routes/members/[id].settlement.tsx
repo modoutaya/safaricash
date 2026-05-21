@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { EnvelopeHandoverScreen } from "@/components/domain/EnvelopeHandoverScreen";
 import { ProfileError, ProfileSkeleton } from "@/components/domain/MemberProfileStates";
 import { SettlementSummaryCard } from "@/components/domain/SettlementSummaryCard";
-import { cycleLengthDays, settle } from "@/domain/cycle";
+import { computeOpeningBalance, cycleLengthDays, settle } from "@/domain/cycle";
 import { useMemberProfile } from "@/features/member";
 import type { CommitSettlementError } from "@/features/settlement/api/commitSettlementError";
 import type { CommitSettlementResult } from "@/features/settlement/api/useCommitSettlement";
@@ -78,15 +78,18 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
   }
 
   const data = profileQuery.data;
-  // Precondition guards — only `completed` cycles are settleable.
-  // Once Story 7.4 fires the commit and the cache invalidates, the cycle
-  // flips to 'settled' and this guard would force a redirect. That's why
-  // we capture `committedResult` BEFORE the cache refresh and short-circuit
-  // the EnvelopeHandover view above any redirect.
-  if (
-    !committedResult &&
-    (!data || !data.currentCycle || data.currentCycle.status !== "completed")
-  ) {
+  // Precondition guards — at least one cycle must be awaiting settlement.
+  // Story 12.4 — switched from `data.currentCycle.status === 'completed'`
+  // to `data.cycleAwaitingSettlement != null`. Post-Phase-B cron the
+  // currentCycle is the newly-opened 'active' one; the cycle to settle
+  // lives in previousCycles. cycleAwaitingSettlement picks the oldest
+  // 'completed' across both.
+  //
+  // Once Story 7.4 fires the commit and the cache invalidates, that
+  // cycle flips to 'settled' and this guard would force a redirect.
+  // We capture `committedResult` BEFORE the cache refresh and short-
+  // circuit the EnvelopeHandover view above any redirect.
+  if (!committedResult && (!data || data.cycleAwaitingSettlement == null)) {
     return <Navigate to={`/members/${memberId}`} replace />;
   }
 
@@ -103,36 +106,61 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
     );
   }
 
-  // `data` and `data.currentCycle` are non-null here (preconditions passed).
-  // TS doesn't narrow through the `!committedResult` branch above, so assert.
-  if (!data || !data.currentCycle) {
+  // `data` and `data.cycleAwaitingSettlement` are non-null here
+  // (preconditions passed). TS doesn't narrow through the
+  // `!committedResult` branch above, so assert.
+  if (!data || data.cycleAwaitingSettlement == null) {
     // Defensive — should be unreachable given the guard above.
     return <Navigate to={`/members/${memberId}`} replace />;
   }
+  const settleCycle = data.cycleAwaitingSettlement;
 
-  // Derive the advances array — newest-first per UX line 1107. The caller
-  // owns ordering per Story 7.1 AC #1.3; the card renders array order as-is.
-  const advances = data.transactions
-    .filter((tx) => tx.kind === "advance")
+  // Derive the advances array of THE CYCLE BEING SETTLED — newest-first
+  // per UX line 1107. Story 12.4: scope on settleCycle.id, NOT
+  // currentCycle (data.transactions is filtered to currentCycle and
+  // would miss the awaiting-settlement cycle's advances post-Phase-B).
+  const advances = data.allTransactions
+    .filter((tx) => tx.cycle_id === settleCycle.id && tx.kind === "advance")
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
     .map((tx) => tx.amount);
+
+  // Story 12.3 — opening_balance for the cycle being settled is
+  // recomputed from THIS cycle (not from currentCycle as data.stats
+  // exposes). Identical TS↔SQL helper as the rest of the math.
+  const settleCycleAdvancesByCycleId = new Map<string, number>();
+  for (const tx of data.allTransactions) {
+    if (tx.kind !== "advance") continue;
+    settleCycleAdvancesByCycleId.set(
+      tx.cycle_id,
+      (settleCycleAdvancesByCycleId.get(tx.cycle_id) ?? 0) + tx.amount,
+    );
+  }
+  const settleOpeningBalance = computeOpeningBalance(
+    [...data.previousCycles, ...(data.currentCycle ? [data.currentCycle] : []), settleCycle].map(
+      (c) => ({
+        id: c.id,
+        cycleNumber: c.cycle_number,
+        startDate: c.start_date,
+        endDate: c.end_date,
+        status: c.status,
+      }),
+    ),
+    settleCycleAdvancesByCycleId,
+    data.member.daily_amount,
+    settleCycle.id,
+  );
 
   // NFR-R3 cross-check value — Story 7.1's card already calls settle()
   // internally to render the final payout row. We re-call it here to pass
   // the SAME value to the Edge Function (the server recomputes independently
-  // and rejects on mismatch). Story 11.2 — contributionDays is derived from
-  // THIS cycle's calendar-month length, not a fixed 30.
-  // Story 12.3 — settlement subtracts opening_balance (carry-over from
-  // the previous unsettled cycle). The SQL commit_cycle_settlement
-  // recomputes this server-side via compute_opening_balance; the TS
-  // mirror MUST agree or the cross-check fires.
+  // and rejects on mismatch).
   const settlementContributionDays =
-    cycleLengthDays(data.currentCycle.start_date, data.currentCycle.end_date) - 1;
+    cycleLengthDays(settleCycle.start_date, settleCycle.end_date) - 1;
   const expectedPayout = settle(
     data.member.daily_amount,
     advances,
     settlementContributionDays,
-    data.stats.openingBalance,
+    settleOpeningBalance,
   );
 
   const handleVerifyTransactions = () => {
@@ -191,11 +219,17 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
         memberId={memberId}
         memberName={data.member.name}
         dailyAmount={data.member.daily_amount}
-        contributedTotal={data.stats.contributedTotal}
+        contributedTotal={data.allTransactions
+          .filter(
+            (tx) =>
+              tx.cycle_id === settleCycle.id &&
+              (tx.kind === "contribution" || tx.kind === "rattrapage"),
+          )
+          .reduce((sum, tx) => sum + tx.amount, 0)}
         advances={advances}
-        cycleId={data.currentCycle.id}
-        cycleStartDate={data.currentCycle.start_date}
-        cycleEndDate={data.currentCycle.end_date}
+        cycleId={settleCycle.id}
+        cycleStartDate={settleCycle.start_date}
+        cycleEndDate={settleCycle.end_date}
         isSubmitting={isCommitting}
         onVerifyTransactions={handleVerifyTransactions}
         onConfirm={handleConfirm}
@@ -205,7 +239,7 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
         open={reauthOpen}
         onOpenChange={setReauthOpen}
         memberId={memberId}
-        cycleId={data.currentCycle.id}
+        cycleId={settleCycle.id}
         memberName={data.member.name}
         expectedPayout={expectedPayout}
         onSuccess={handleReauthSuccess}

@@ -41,6 +41,7 @@ const makeMember = (overrides: Partial<MemberWithMeta>): MemberWithMeta => ({
   latestInteractionAt: overrides.latestInteractionAt ?? "2026-04-20T10:00:00Z",
   cycleAdvancesTotal: 0,
   projectedBalance: null,
+  awaitingSettlement: null,
   ...overrides,
 });
 

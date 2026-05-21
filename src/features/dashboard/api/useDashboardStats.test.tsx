@@ -34,6 +34,7 @@ const MEMBER: MemberWithMeta = {
   latestInteractionAt: "2026-05-15T00:00:00.000Z",
   cycleAdvancesTotal: 0,
   projectedBalance: null,
+  awaitingSettlement: null,
 };
 
 const COLLECTED_TX: DashboardTxRow = {

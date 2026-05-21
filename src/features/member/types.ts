@@ -123,6 +123,11 @@ export interface MemberWithMeta {
    *  — Story 12.3 added the openingBalance term). null when no current
    *  cycle. */
   projectedBalance: number | null;
+  /** Story 12.4 — the oldest cycle still awaiting manual settlement
+   *  (status='completed' not yet 'settled'), with its computed payout.
+   *  null when nothing to settle for this member.
+   *  Drives the "À régler" filter chip + the per-card inline badge. */
+  awaitingSettlement: { cycleId: string; payout: number } | null;
 }
 
 /** TanStack Query key — exported for downstream stories to invalidate. */
