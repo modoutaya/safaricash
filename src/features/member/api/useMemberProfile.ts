@@ -12,6 +12,8 @@ import { z } from "zod";
 import {
   computeMemberStats,
   computeOpeningBalance,
+  cycleLengthDays,
+  settle,
   type OpeningBalanceCycle,
 } from "@/domain/cycle";
 import { supabase } from "@/infrastructure/supabase/client";
@@ -47,6 +49,10 @@ export interface MemberProfileData {
    *  Post-Phase-B: typically lives in previousCycles, because the cron
    *  always creates a new 'active' cycle on the 1st. */
   cycleAwaitingSettlement: CycleRow | null;
+  /** Story 12.4 — payout amount for the awaiting-settlement cycle, or
+   *  null when there's no such cycle. Drives the inline "À régler" row
+   *  on MemberProfile + the SettlementSummaryCard payout. */
+  awaitingSettlementPayout: number | null;
   transactions: TransactionRow[];
   /** Story 12.4 — every transaction across ALL of this member's cycles
    *  (no filter). Story 7.4's settlement route needs the awaiting-cycle's
@@ -175,11 +181,31 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
       .filter((c) => c.status === "completed")
       .sort((a, b) => a.cycle_number - b.cycle_number)[0] ?? null;
 
+  // Pre-compute the payout for the awaiting-settlement cycle so the
+  // profile surface can display "À régler : X F CFA" without re-deriving
+  // the math. Uses the cycle's OWN advances + its OWN opening_balance
+  // (computed recursively from previous cycles), mirroring the SQL
+  // commit_cycle_settlement formula.
+  const awaitingSettlementPayout: number | null = cycleAwaitingSettlement
+    ? settle(
+        member.daily_amount,
+        [advancesByCycleId.get(cycleAwaitingSettlement.id) ?? 0],
+        cycleLengthDays(cycleAwaitingSettlement.start_date, cycleAwaitingSettlement.end_date) - 1,
+        computeOpeningBalance(
+          openingBalanceCycles,
+          advancesByCycleId,
+          member.daily_amount,
+          cycleAwaitingSettlement.id,
+        ),
+      )
+    : null;
+
   return {
     member,
     currentCycle,
     previousCycles,
     cycleAwaitingSettlement,
+    awaitingSettlementPayout,
     transactions,
     allTransactions,
     totalTransactionsCount: allTransactions.length,

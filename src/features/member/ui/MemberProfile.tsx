@@ -21,6 +21,12 @@ export interface MemberProfileProps {
   currentCycle: CycleRow | null;
   /** Story 2.7 — completed/settled cycles to render as a read-only history. */
   previousCycles?: CycleRow[];
+  /** Story 12.4 — payout amount for the oldest cycle awaiting manual
+   *  settlement, or null when none. When present, the profile surfaces
+   *  an inline "À régler : X F CFA" row next to the settlement CTA so
+   *  the collector sees the amount before navigating into the settle
+   *  flow. */
+  awaitingSettlementPayout?: number | null;
   transactions: TransactionRow[];
   stats: MemberStats;
   /** Story 6.7 — tap a transaction row to open the per-receipt sheet.
@@ -64,6 +70,7 @@ export function MemberProfile({
   member,
   currentCycle,
   previousCycles = [],
+  awaitingSettlementPayout = null,
   transactions,
   stats,
   onTransactionTap,
@@ -84,6 +91,11 @@ export function MemberProfile({
   // Story 12.3 — surface the carry-over of unpaid debt from the previous
   // unsettled cycle. Hidden when 0 (most members, especially first cycles).
   const showOpeningBalanceRow = stats.openingBalance > 0;
+  // Story 12.4 — surface the payout amount of the oldest cycle awaiting
+  // manual settlement. Hidden when no cycle to settle (the most common
+  // case during a healthy cycle's daily contributions).
+  const showAwaitingSettlementRow =
+    awaitingSettlementPayout != null && awaitingSettlementPayout > 0;
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">
@@ -151,6 +163,15 @@ export function MemberProfile({
               <dt className="text-warning-text">
                 {t("members.profile.field.opening_balance", {
                   amount: formatFcfaAmount(stats.openingBalance),
+                })}
+              </dt>
+            </div>
+          ) : null}
+          {showAwaitingSettlementRow && awaitingSettlementPayout != null ? (
+            <div className="flex items-center justify-between">
+              <dt className="font-semibold text-warning-text">
+                {t("members.profile.field.awaiting_settlement", {
+                  amount: formatFcfaAmount(awaitingSettlementPayout),
                 })}
               </dt>
             </div>

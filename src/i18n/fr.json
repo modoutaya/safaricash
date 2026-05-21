@@ -278,6 +278,7 @@
         "contributed_total": "Versé : {amount} FCFA",
         "outstanding_advances": "Avances en cours : {amount} FCFA",
         "opening_balance": "Solde reporté du cycle précédent : {amount} FCFA",
+        "awaiting_settlement": "À régler au membre : {amount} FCFA",
         "projected_balance": "Solde prévu fin cycle : {amount} FCFA"
       },
       "transactions": {
