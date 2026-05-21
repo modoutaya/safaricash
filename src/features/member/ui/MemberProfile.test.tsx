@@ -36,7 +36,7 @@ const STATS_NO_ADVANCES: MemberStats = {
   contributedTotal: 5500,
   outstandingAdvances: 0,
   openingBalance: 0,
-  projectedFinalBalance: 14500,
+  currentBalance: 14500,
 };
 
 const STATS_WITH_ADVANCES: MemberStats = {
@@ -46,7 +46,7 @@ const STATS_WITH_ADVANCES: MemberStats = {
   contributedTotal: 5500,
   outstandingAdvances: 3000,
   openingBalance: 0,
-  projectedFinalBalance: 11500,
+  currentBalance: 11500,
 };
 
 const txContrib: TransactionRow = {
@@ -84,7 +84,7 @@ describe("MemberProfile", () => {
     expect(screen.getByText(/Jour 11 sur 30/)).toBeInTheDocument();
     expect(screen.getByText(/Versé/)).toBeInTheDocument();
     expect(screen.queryByText(/Avances en cours/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Solde prévu fin cycle/)).toBeInTheDocument();
+    expect(screen.getByText(/Solde à reverser/)).toBeInTheDocument();
   });
 
   it("renders the advances row when outstandingAdvances > 0", () => {

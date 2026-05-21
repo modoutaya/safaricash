@@ -184,7 +184,7 @@ export function MemberProfile({
             style={{ fontVariantNumeric: "tabular-nums" }}
           >
             {t("members.profile.field.projected_balance", {
-              amount: formatFcfaAmount(stats.projectedFinalBalance),
+              amount: formatFcfaAmount(stats.currentBalance),
             })}
           </p>
         ) : null}

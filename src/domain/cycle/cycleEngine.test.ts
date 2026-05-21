@@ -21,7 +21,7 @@ import {
   commission,
   computeMemberStats,
   computeOpeningBalance,
-  computeProjectedFinalBalance,
+  computeCurrentBalance,
   cycleDay,
   cycleLengthDays,
   daysUntilCycleEnd,
@@ -78,18 +78,34 @@ function firstDayOfNextMonth(isoDate: string): string {
 // ---------------------------------------------------------------------------
 
 describe("cycleEngine — property tests (ADR-004 invariants)", () => {
-  it("INV-1: projected balance depends only on dailyAmount, Σ(advances), contributionDays — not cycleDay (propProjectedBalanceTimeInvariance)", () => {
+  it("INV-1 (12.5 PR C rewrite): currentBalance depends only on its 4 inputs — not on cycleDay/now", () => {
+    // The pre-12.5 invariant was structural to the engine API: the
+    // projection had no time input. Story 12.5 PR C keeps that property
+    // (computeCurrentBalance still has no `now` argument) but the
+    // formula itself moves from daily×contribDays to contributedTotal −
+    // daily − Σ(advances) − openingBalance.
     fc.assert(
       fc.property(
-        fc.integer({ min: 100, max: 100_000 }),
-        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
-        fc.array(fc.integer({ min: 1, max: 10_000 }), { minLength: 0, maxLength: 31 }),
-        (dailyAmount, cycleLength, advances) => {
-          const contributionDays = cycleLength - 1;
-          // cycleDay is not an input — invariance is structural.
-          const a = computeProjectedFinalBalance(dailyAmount, sum(advances), contributionDays);
-          const b = computeProjectedFinalBalance(dailyAmount, sum(advances), contributionDays);
-          return a === b && a === dailyAmount * contributionDays - sum(advances);
+        fc.record({
+          contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
+          dailyAmount: fc.integer({ min: 100, max: 100_000 }),
+          advances: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 31 }),
+          openingBalance: fc.integer({ min: 0, max: 1_000_000 }),
+        }),
+        ({ contributedTotal, dailyAmount, advances, openingBalance }) => {
+          const a = computeCurrentBalance(
+            contributedTotal,
+            dailyAmount,
+            sum(advances),
+            openingBalance,
+          );
+          const b = computeCurrentBalance(
+            contributedTotal,
+            dailyAmount,
+            sum(advances),
+            openingBalance,
+          );
+          return a === b && a === contributedTotal - dailyAmount - sum(advances) - openingBalance;
         },
       ),
     );
@@ -214,14 +230,10 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
           contributionDays: fc.integer({ min: MIN_CYCLE_LENGTH_DAYS - 1, max: 30 }),
         }),
         (s) => {
-          const projected = computeProjectedFinalBalance(
-            s.dailyAmount,
-            sum(s.advances),
-            s.contributionDays,
-          );
+          const current = computeCurrentBalance(s.contributedTotal, s.dailyAmount, sum(s.advances));
           const settled = settle(s.contributedTotal, s.dailyAmount, s.advances);
           const comm = commission(s.dailyAmount);
-          return [projected, settled, comm].every(Number.isInteger);
+          return [current, settled, comm].every(Number.isInteger);
         },
       ),
     );
@@ -263,22 +275,23 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
   // Story 12.3 — opening_balance carry-over property tests.
   // -------------------------------------------------------------------------
 
-  it("INV-1 (extended): projected balance = daily × contribDays − Σ(advances) − openingBalance (propProjectedBalanceWithOpeningBalanceInvariant)", () => {
+  it("INV-1 (extended, 12.5 PR C): currentBalance = contributedTotal − daily − Σ(advances) − openingBalance", () => {
     fc.assert(
       fc.property(
-        fc.integer({ min: 100, max: 100_000 }),
-        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
-        fc.array(fc.integer({ min: 1, max: 10_000 }), { minLength: 0, maxLength: 31 }),
-        fc.integer({ min: 0, max: 1_000_000 }),
-        (dailyAmount, cycleLength, advances, openingBalance) => {
-          const contributionDays = cycleLength - 1;
-          const projected = computeProjectedFinalBalance(
+        fc.record({
+          contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
+          dailyAmount: fc.integer({ min: 100, max: 100_000 }),
+          advances: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 31 }),
+          openingBalance: fc.integer({ min: 0, max: 1_000_000 }),
+        }),
+        ({ contributedTotal, dailyAmount, advances, openingBalance }) => {
+          const current = computeCurrentBalance(
+            contributedTotal,
             dailyAmount,
             sum(advances),
-            contributionDays,
             openingBalance,
           );
-          return projected === dailyAmount * contributionDays - sum(advances) - openingBalance;
+          return current === contributedTotal - dailyAmount - sum(advances) - openingBalance;
         },
       ),
     );
@@ -299,30 +312,29 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
     );
   });
 
-  it("propOpeningBalanceMonotonic: ∀ ob₁ ≤ ob₂ ⇒ projected(ob₂) ≤ projected(ob₁)", () => {
+  it("propOpeningBalanceMonotonic: ∀ ob₁ ≤ ob₂ ⇒ currentBalance(ob₂) ≤ currentBalance(ob₁)", () => {
     fc.assert(
       fc.property(
+        fc.integer({ min: 0, max: 10_000_000 }),
         fc.integer({ min: 100, max: 100_000 }),
-        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
-        fc.array(fc.integer({ min: 1, max: 10_000 }), { minLength: 0, maxLength: 31 }),
+        fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 31 }),
         fc.integer({ min: 0, max: 500_000 }),
         fc.integer({ min: 0, max: 500_000 }),
-        (dailyAmount, cycleLength, advances, ob1, ob2) => {
-          const contributionDays = cycleLength - 1;
+        (contributedTotal, dailyAmount, advances, ob1, ob2) => {
           const [low, high] = ob1 <= ob2 ? [ob1, ob2] : [ob2, ob1];
-          const projectedLow = computeProjectedFinalBalance(
+          const currentLow = computeCurrentBalance(
+            contributedTotal,
             dailyAmount,
             sum(advances),
-            contributionDays,
             low,
           );
-          const projectedHigh = computeProjectedFinalBalance(
+          const currentHigh = computeCurrentBalance(
+            contributedTotal,
             dailyAmount,
             sum(advances),
-            contributionDays,
             high,
           );
-          return projectedHigh <= projectedLow;
+          return currentHigh <= currentLow;
         },
       ),
     );
@@ -599,21 +611,21 @@ describe("cycleEngine — example tests", () => {
     });
   });
 
-  describe("computeProjectedFinalBalance", () => {
-    it("dailyAmount=500, no advances, 29 contribution days → 14_500 (legacy 30-day cycle)", () => {
-      expect(computeProjectedFinalBalance(500, 0, 29)).toBe(14_500);
+  describe("computeCurrentBalance (Story 12.5 PR C — replaces computeProjectedFinalBalance)", () => {
+    it("contributedTotal=15_000, daily=500, no advances → 14_500 (collector owes the saver this much)", () => {
+      expect(computeCurrentBalance(15_000, 500, 0)).toBe(14_500);
     });
 
-    it("dailyAmount=500, advances=3000, 29 contribution days → 11_500", () => {
-      expect(computeProjectedFinalBalance(500, 3000, 29)).toBe(11_500);
+    it("contributedTotal=14_500, daily=500, advances=3000 → 11_000", () => {
+      expect(computeCurrentBalance(14_500, 500, 3000)).toBe(11_000);
     });
 
-    it("worked example — dailyAmount=500, no advances, 23 contribution days → 11_500", () => {
-      expect(computeProjectedFinalBalance(500, 0, 23)).toBe(11_500);
+    it("openingBalance argument is subtracted (carry-over from previous cycle)", () => {
+      expect(computeCurrentBalance(15_000, 500, 0, 5_000)).toBe(9_500);
     });
 
-    it("returns a negative value when advances exceed capacity (Q1 — raw value)", () => {
-      expect(computeProjectedFinalBalance(500, 20_000, 29)).toBe(-5_500);
+    it("returns a negative value when advances + commission > contributedTotal (saver owes — carry-over candidate)", () => {
+      expect(computeCurrentBalance(5_000, 1_000, 5_000)).toBe(-1_000);
     });
   });
 
@@ -840,7 +852,7 @@ describe("cycleEngine — example tests", () => {
         contributedTotal: 0,
         outstandingAdvances: 0,
         openingBalance: 0,
-        projectedFinalBalance: 0,
+        currentBalance: 0,
       });
     });
 
@@ -884,14 +896,16 @@ describe("cycleEngine — example tests", () => {
       expect(stats.outstandingAdvances).toBe(3000);
       expect(stats.cycleDay).toBe(15);
       expect(stats.daysRemaining).toBe(15); // 30-day cycle, day 15
-      expect(stats.projectedFinalBalance).toBe(14_500 - 3000); // 500 × 29 − 3000
+      // Story 12.5 PR C — currentBalance = contributedTotal − daily − advances − opening.
+      //                                  = 1500 − 500 − 3000 − 0 = −2000 (saver owes).
+      expect(stats.currentBalance).toBe(1500 - 500 - 3000);
     });
 
-    it("a 24-day partial cycle yields the partial-cycle projection", () => {
+    it("a 24-day partial cycle with 0 contribs gives negative currentBalance (saver owes daily commission)", () => {
       const partial = { startDate: "2026-04-07", endDate: "2026-04-30" };
       const stats = computeMemberStats([], { dailyAmount: 500 }, partial, NOW);
-      // cycleLength 24 → contributionDays 23 → 500 × 23 = 11_500.
-      expect(stats.projectedFinalBalance).toBe(11_500);
+      // Story 12.5 PR C — no contribs yet → currentBalance = 0 − 500 − 0 − 0 = −500.
+      expect(stats.currentBalance).toBe(-500);
     });
 
     it("uses the parameter default for `now` when omitted (boundary safety)", () => {

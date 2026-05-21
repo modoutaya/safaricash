@@ -175,7 +175,7 @@
       "days_remaining_many": "{days} jours restants",
       "last_day": "Dernier jour du cycle",
       "balance_value": "{amount} F CFA",
-      "balance_aria": "Solde prévu : {amount} F CFA"
+      "balance_aria": "Solde à reverser : {amount} F CFA"
     },
     "load_error": "Impossible de charger la liste des membres. Réessayez dans un instant.",
     "add_cta": "Ajouter un membre",
@@ -279,7 +279,7 @@
         "outstanding_advances": "Avances en cours : {amount} FCFA",
         "opening_balance": "Solde reporté du cycle précédent : {amount} FCFA",
         "awaiting_settlement": "À régler au membre : {amount} FCFA",
-        "projected_balance": "Solde prévu fin cycle : {amount} FCFA"
+        "projected_balance": "Solde à reverser : {amount} FCFA"
       },
       "transactions": {
         "title": "Historique du cycle",

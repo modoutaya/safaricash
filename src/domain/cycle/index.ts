@@ -11,7 +11,7 @@ export {
   commission,
   computeMemberStats,
   computeOpeningBalance,
-  computeProjectedFinalBalance,
+  computeCurrentBalance,
   cycleDay,
   cycleLengthDays,
   daysUntilCycleEnd,

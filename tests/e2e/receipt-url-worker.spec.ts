@@ -188,10 +188,10 @@ test.describe("receipt-url worker (Story 6.4 — saver-facing receipt page)", ()
       const body = await res.text();
       expect(body).toContain("Fatou");
       expect(body).toContain("500 FCFA");
-      // Note: get_receipt_payload still uses the pre-12.5 projected
-      // formula (daily × contribDays). PR C of 12.5 will align it with
-      // the actual cumul shown elsewhere.
-      expect(body).toContain("14 500 FCFA");
+      // Story 12.5 PR C — get_receipt_payload's projected_balance now
+      // reflects actual cumul: 1 contrib of 500 − 500 commission = 0.
+      // Worker renders "0 FCFA" for the "Solde projeté en fin de cycle" row.
+      expect(body).toContain("0 FCFA");
       expect(body).toContain("Cette transaction n'est pas moi");
       expect(body).not.toContain("<script");
 

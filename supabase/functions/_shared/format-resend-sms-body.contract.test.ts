@@ -85,7 +85,8 @@ if (env) {
         assertStringIncludes(body as string, "SafariCash. 500 FCFA recu, jour 1/30.");
         // Note: format_sms_body still uses the pre-12.5 projected formula
         // (daily × contribDays). PR C of 12.5 will align it.
-        assertStringIncludes(body as string, "Solde projete: 14 500 FCFA.");
+        // Story 12.5 PR C — cumul actuel = 500 (contrib) − 500 (daily) = 0.
+        assertStringIncludes(body as string, "Solde projete: 0 FCFA.");
         assertStringIncludes(body as string, "https://safaricash.app/r/");
       } finally {
         await cleanup(service, c);

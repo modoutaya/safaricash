@@ -22,7 +22,7 @@ describe("AdvanceSimulationPanel", () => {
     expect(screen.getByText(/— FCFA/)).toBeInTheDocument();
   });
 
-  it("valid state — dailyAmount=5000, no existing, candidate=20_000 → final balance = 125 000", () => {
+  it("valid state — dailyAmount=5000, no existing, candidate=20_000 → final balance = 120 000 (Story 12.5 PR C)", () => {
     const { container } = render(
       <AdvanceSimulationPanel
         dailyAmount={5000}
@@ -36,7 +36,7 @@ describe("AdvanceSimulationPanel", () => {
     expect(screen.getByText(/150[\s\u00a0]000 FCFA/)).toBeInTheDocument();
     expect(screen.getByText(/− 5[\s\u00a0]000 FCFA/)).toBeInTheDocument();
     expect(screen.getByText(/− 20[\s\u00a0]000 FCFA/)).toBeInTheDocument();
-    expect(screen.getByText(/125[\s\u00a0]000 FCFA/)).toBeInTheDocument();
+    expect(screen.getByText(/120[\s\u00a0]000 FCFA/)).toBeInTheDocument();
   });
 
   it("valid state with existing advances — final = dailyAmount × contributionDays − (existing + candidate)", () => {
@@ -50,7 +50,7 @@ describe("AdvanceSimulationPanel", () => {
       />,
     );
     expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "valid");
-    expect(screen.getByText(/115[\s\u00a0]000 FCFA/)).toBeInTheDocument();
+    expect(screen.getByText(/110[\s\u00a0]000 FCFA/)).toBeInTheDocument();
   });
 
   it("boundary — candidate hits exactly capacity (dailyAmount × contributionDays = 5000 × 29 = 145 000 for cycleLength=30) → final = 0; state=valid", () => {

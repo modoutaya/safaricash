@@ -87,7 +87,8 @@ if (env) {
         assertStringIncludes(body, "Bonjour ");
         assertStringIncludes(body, "Recu SafariCash: 500 FCFA");
         assertStringIncludes(body, "jour 1/30");
-        assertStringIncludes(body, "Solde projete fin de cycle: 14 500 FCFA");
+        // Story 12.5 PR C — "Solde projete" now reflects actual cumul: 1 contrib of 500 − 500 commission = 0.
+        assertStringIncludes(body, "Solde projete fin de cycle: 0 FCFA");
         assertStringIncludes(body, "https://safaricash.app/r/");
         assertStringIncludes(body, "SafariCash est un journal d'epargne et non une banque.");
         assertStringIncludes(body, "Repondez STOP pour ne plus recevoir.");
@@ -126,7 +127,8 @@ if (env) {
         );
         assert(!body.includes("STOP"), "subsequent_receipt should NOT include opt-out instruction");
         assertStringIncludes(body, "SafariCash. 500 FCFA recu, jour 2/30");
-        assertStringIncludes(body, "Solde projete: 14 500 FCFA");
+        // Story 12.5 PR C — cumul actuel = 500 (contrib) − 500 (daily) = 0.
+        assertStringIncludes(body, "Solde projete: 0 FCFA");
         assertStringIncludes(body, "https://safaricash.app/r/");
       } finally {
         await cleanup(service, c);
@@ -549,8 +551,8 @@ if (env) {
         assert(typeof body === "string");
         assertStringIncludes(body, "jour 1/24");
         assert(!body.includes("jour 1/30"), "11.4 — denominator must follow cycle length, not 30");
-        // contributionDays = 24 − 1 = 23; projected = 500 × 23 − 0 = 11 500.
-        assertStringIncludes(body, "Solde projete fin de cycle: 11 500 FCFA");
+        // Story 12.5 PR C — projected = actual cumul = 500 (contrib) − 500 (daily) = 0.
+        assertStringIncludes(body, "Solde projete fin de cycle: 0 FCFA");
       } finally {
         await cleanup(service, c);
       }
@@ -586,7 +588,8 @@ if (env) {
         assert(typeof body === "string");
         assertStringIncludes(body, "SafariCash. 500 FCFA recu, jour 2/24");
         assert(!body.includes("jour 2/30"), "11.4 — denominator must follow cycle length, not 30");
-        assertStringIncludes(body, "Solde projete: 11 500 FCFA");
+        // Story 12.5 PR C — cumul actuel = 500 − 500 = 0.
+        assertStringIncludes(body, "Solde projete: 0 FCFA");
       } finally {
         await cleanup(service, c);
       }

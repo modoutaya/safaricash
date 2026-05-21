@@ -1,14 +1,13 @@
 // Story 9.3 / FR37 — pure derivation of the two CSV export datasets.
 //
 // Kept pure + caller-fed (no network) so the per-cycle aggregation is
-// unit-tested on its own. `commission` / `computeProjectedFinalBalance`
+// unit-tested on its own. `commission` / `computeCurrentBalance`
 // come from the cycle-engine domain — never re-derived inline.
 
 import {
   commission,
   computeOpeningBalance,
-  computeProjectedFinalBalance,
-  cycleLengthDays,
+  computeCurrentBalance,
   type OpeningBalanceCycle,
 } from "@/domain/cycle";
 
@@ -121,15 +120,14 @@ export function deriveCycleSummaryRows(
     // `settlement` transaction; a non-settled cycle has only a projection
     // (Story 12.3 — projection subtracts opening_balance).
     const settledPayout = cycleTx.find((t) => t.kind === "settlement")?.amount ?? null;
+    // Story 12.5 PR C — non-settled cycles get the CURRENT balance
+    // (actual cumul = what the saver would receive if settled now),
+    // not the pre-12.5 contract projection. Settled cycles keep their
+    // actual realised payout (from the kind='settlement' tx).
     const final_payout =
       cycle.status === "settled" && settledPayout !== null
         ? settledPayout
-        : computeProjectedFinalBalance(
-            dailyAmount,
-            advances_sum,
-            cycleLengthDays(cycle.start_date, cycle.end_date) - 1,
-            opening_balance,
-          );
+        : computeCurrentBalance(total_contributions, dailyAmount, advances_sum, opening_balance);
 
     return {
       cycle_id: cycle.id,

@@ -53,7 +53,7 @@ test.describe("Flow — /members/:id profile (Story 2.4)", () => {
     // Header datapoints — at least the daily-amount + cycle-day labels.
     await expect(page.getByText(/FCFA \/ jour/i)).toBeVisible();
     await expect(page.getByText(/Jour \d+ sur 30/i)).toBeVisible();
-    await expect(page.getByText(/Solde prévu fin cycle/i)).toBeVisible();
+    await expect(page.getByText(/Solde à reverser/i)).toBeVisible();
 
     // Transaction list — seedMembersForCollector inserts 1 contribution
     // (cycle_day 1, amount 500) per member, so the list should render that

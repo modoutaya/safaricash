@@ -117,7 +117,7 @@ describe("MemberProfileRoute", () => {
           daysRemaining: 19,
           contributedTotal: 0,
           outstandingAdvances: 0,
-          projectedFinalBalance: 14500,
+          currentBalance: 14500,
         },
       },
     });
@@ -148,7 +148,7 @@ describe("MemberProfileRoute", () => {
           daysRemaining: 19,
           contributedTotal: 0,
           outstandingAdvances: 0,
-          projectedFinalBalance: 14500,
+          currentBalance: 14500,
         },
       },
     });
@@ -183,7 +183,7 @@ describe("MemberProfileRoute", () => {
           contributedTotal: 14500,
           outstandingAdvances: 0,
           openingBalance: 0,
-          projectedFinalBalance: 14500,
+          currentBalance: 14500,
         },
       },
     });
@@ -227,7 +227,7 @@ describe("MemberProfileRoute", () => {
           daysRemaining: 19,
           contributedTotal: 500,
           outstandingAdvances: 0,
-          projectedFinalBalance: 14500,
+          currentBalance: 14500,
         },
       },
     });
@@ -274,7 +274,7 @@ describe("MemberProfileRoute", () => {
           contributedTotal: 0,
           outstandingAdvances: 0,
           openingBalance: 0,
-          projectedFinalBalance: 14500,
+          currentBalance: 14500,
         },
       },
     });
@@ -306,7 +306,7 @@ describe("MemberProfileRoute", () => {
           daysRemaining: 19,
           contributedTotal: 0,
           outstandingAdvances: 0,
-          projectedFinalBalance: 14500,
+          currentBalance: 14500,
         },
       },
     });
@@ -335,7 +335,7 @@ describe("MemberProfileRoute", () => {
           daysRemaining: 0,
           contributedTotal: 0,
           outstandingAdvances: 0,
-          projectedFinalBalance: 14500,
+          currentBalance: 14500,
         },
       },
     });

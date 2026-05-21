@@ -124,23 +124,31 @@ export function commission(dailyAmount: number): number {
 }
 
 /**
- * FR17 — projected final balance.
+ * Story 12.5 PR C — current "to-reverse" balance (NEW MODEL).
  *
- *   projected = dailyAmount × contributionDays − Σ(advances) − openingBalance
+ * Renamed from `computeProjectedFinalBalance` because the pre-12.5
+ * projection (daily × contributionDays) made no sense under the
+ * cotisation-libre model. The saver versés freely; we can't project
+ * a final amount, but we CAN report what the collector currently owes
+ * if the cycle were settled this instant.
  *
- * where `contributionDays = cycleLength − 1` (the −1 is the commission
- * day, INV-4) and `openingBalance` is the carry-over of unpaid debt from
- * the previous unsettled cycle (Story 12.3 — defaults to 0 for backward
- * compatibility). INV-1 — independent of cycleDay. Per ADR-004 Q1:
- * returns the raw value (may be negative); UI decides presentation.
+ *   currentBalance = contributedTotal − dailyAmount − Σ(advances) − openingBalance
+ *
+ * That's identical to settle() — `currentBalance` IS the running
+ * settlement amount evaluated at the current moment.
+ *
+ * Drives the MemberCard / MemberProfile / AdvanceSimulationPanel
+ * "Solde à reverser" row. Per ADR-004 Q1: returns the raw value
+ * (may be negative when advances + commission exceed contributions);
+ * UI decides presentation.
  */
-export function computeProjectedFinalBalance(
+export function computeCurrentBalance(
+  contributedTotal: number,
   dailyAmount: number,
   advancesSoFar: number,
-  contributionDays: number,
   openingBalance: number = 0,
 ): number {
-  return dailyAmount * contributionDays - advancesSoFar - openingBalance;
+  return contributedTotal - dailyAmount - advancesSoFar - openingBalance;
 }
 
 /**
@@ -304,7 +312,13 @@ export interface MemberStats {
   contributedTotal: number;
   outstandingAdvances: number;
   openingBalance: number;
-  projectedFinalBalance: number;
+  /** Story 12.5 PR C — was `currentBalance` until 2026-05-22.
+   *  Renamed because the pre-12.5 projection (daily × contribDays) no
+   *  longer applies in the cotisation-libre model. Now: what the
+   *  collector owes the saver RIGHT NOW = contributedTotal − daily
+   *  (commission) − advances − opening_balance. Drives the
+   *  "Solde à reverser" row across UIs. */
+  currentBalance: number;
 }
 
 export interface MemberStatsTransaction {
@@ -340,7 +354,7 @@ export function computeMemberStats(
       contributedTotal,
       outstandingAdvances,
       openingBalance,
-      projectedFinalBalance: 0,
+      currentBalance: 0,
     };
   }
 
@@ -354,10 +368,10 @@ export function computeMemberStats(
     contributedTotal,
     outstandingAdvances,
     openingBalance,
-    projectedFinalBalance: computeProjectedFinalBalance(
+    currentBalance: computeCurrentBalance(
+      contributedTotal,
       member.dailyAmount,
       outstandingAdvances,
-      cycleLength - 1,
       openingBalance,
     ),
   };
