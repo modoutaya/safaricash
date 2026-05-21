@@ -66,7 +66,12 @@ function useFilteredMembers(
         // OR-logic across chips. "À régler" matches awaitingSettlement!=null;
         // the others match displayStatus equality.
         const matches =
-          (selectedChips.has(TO_SETTLE_CHIP) && m.awaitingSettlement !== null) ||
+          // Loose `!= null` catches BOTH null AND undefined. The latter
+          // shows up on stale TanStack-persisted MemberWithMeta objects
+          // from before Story 12.4 (Story 8.6 IndexedDB cache rehydrates
+          // the pre-12.4 shape on first paint, which is missing this
+          // field). Crash repro 2026-05-21.
+          (selectedChips.has(TO_SETTLE_CHIP) && m.awaitingSettlement != null) ||
           selectedChips.has(m.displayStatus);
         if (!matches) return false;
       }
