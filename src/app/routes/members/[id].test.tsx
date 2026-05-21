@@ -248,7 +248,7 @@ describe("MemberProfileRoute", () => {
     ).toBeInTheDocument();
   });
 
-  it("Story 7.3 — 'Clôturer le cycle' link is present when cycle.status === 'completed'", () => {
+  it("Story 7.3 — 'Payer le membre' link is present when cycle.status === 'completed'", () => {
     const completedCycle = {
       id: "22222222-2222-4222-8222-222222222222",
       cycle_number: 1,
@@ -279,12 +279,12 @@ describe("MemberProfileRoute", () => {
       },
     });
     renderRoute(`/members/${VALID_ID}`);
-    const link = screen.getByRole("link", { name: /Clôturer le cycle/ });
+    const link = screen.getByRole("link", { name: /Payer le membre/ });
     expect(link).toBeInTheDocument();
     expect(link.getAttribute("href")).toBe(`/members/${VALID_ID}/settlement`);
   });
 
-  it("Story 7.3 — 'Clôturer le cycle' link is NOT rendered when cycle.status === 'active'", () => {
+  it("Story 7.3 — 'Payer le membre' link is NOT rendered when cycle.status === 'active'", () => {
     useMemberProfileMock.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -311,10 +311,10 @@ describe("MemberProfileRoute", () => {
       },
     });
     renderRoute(`/members/${VALID_ID}`);
-    expect(screen.queryByRole("link", { name: /Clôturer le cycle/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Payer le membre/ })).not.toBeInTheDocument();
   });
 
-  it("Story 7.3 — 'Clôturer le cycle' link is NOT rendered when cycle.status === 'settled'", () => {
+  it("Story 7.3 — 'Payer le membre' link is NOT rendered when cycle.status === 'settled'", () => {
     useMemberProfileMock.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -340,6 +340,6 @@ describe("MemberProfileRoute", () => {
       },
     });
     renderRoute(`/members/${VALID_ID}`);
-    expect(screen.queryByRole("link", { name: /Clôturer le cycle/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Payer le membre/ })).not.toBeInTheDocument();
   });
 });

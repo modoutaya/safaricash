@@ -201,6 +201,7 @@ describe("useUpdateMember — optimistic cache", () => {
         cycleAdvancesTotal: 0,
         projectedBalance: null,
         awaitingSettlement: null,
+        lastSettlementAt: null,
       },
     ];
     testClient.setQueryData(MEMBERS_QUERY_KEY, members);

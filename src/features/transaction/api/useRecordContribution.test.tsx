@@ -250,6 +250,7 @@ describe("useRecordContribution", () => {
         cycleAdvancesTotal: 0,
         projectedBalance: null,
         awaitingSettlement: null,
+        lastSettlementAt: null,
       },
       {
         id: INPUT.memberId,
@@ -262,6 +263,7 @@ describe("useRecordContribution", () => {
         cycleAdvancesTotal: 0,
         projectedBalance: null,
         awaitingSettlement: null,
+        lastSettlementAt: null,
       },
     ];
     const { client, wrapper } = makeWrapper();
@@ -297,6 +299,7 @@ describe("useRecordContribution", () => {
         cycleAdvancesTotal: 0,
         projectedBalance: null,
         awaitingSettlement: null,
+        lastSettlementAt: null,
       },
       {
         id: INPUT.memberId,
@@ -309,6 +312,7 @@ describe("useRecordContribution", () => {
         cycleAdvancesTotal: 0,
         projectedBalance: null,
         awaitingSettlement: null,
+        lastSettlementAt: null,
       },
     ];
     const { client, wrapper } = makeWrapper();

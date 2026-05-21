@@ -25,6 +25,7 @@ const makeMember = (overrides: Partial<MemberWithMeta> = {}): MemberWithMeta => 
   cycleAdvancesTotal: 0,
   projectedBalance: 14500,
   awaitingSettlement: null,
+  lastSettlementAt: null,
   ...overrides,
 });
 
@@ -56,6 +57,7 @@ describe("MemberCard", () => {
           },
           projectedBalance: 145000,
           awaitingSettlement: null,
+          lastSettlementAt: null,
         })}
       />,
     );
@@ -92,6 +94,7 @@ describe("MemberCard", () => {
           displayStatus: "termine",
           projectedBalance: null,
           awaitingSettlement: null,
+          lastSettlementAt: null,
         })}
       />,
     );

@@ -23,6 +23,16 @@ import { formatFcfaAmount } from "../api/formatAmount";
 import { memberInitials } from "../api/memberInitials";
 import type { MemberWithMeta } from "../types";
 
+/** Story 12.4 — short DD/MM date for the "Payé le …" inline. Uses the
+ *  fr-FR locale (already established for amount formatting). */
+const PAID_DATE_FORMATTER = new Intl.DateTimeFormat("fr-FR", {
+  day: "2-digit",
+  month: "2-digit",
+});
+function formatPaidDate(iso: string): string {
+  return PAID_DATE_FORMATTER.format(new Date(iso));
+}
+
 export interface MemberCardProps {
   member: MemberWithMeta;
   onSelect?: (memberId: string) => void;
@@ -94,6 +104,20 @@ export function MemberCard({ member, onSelect, className }: MemberCardProps): JS
                 from before Story 12.4 (cache rehydrates the pre-12.4 shape
                 on first paint; the field is missing → strict !== null was
                 truthy → .payout on undefined → crash). Repro 2026-05-21. */}
+            {/* Story 12.4 — positive feedback "Payé le DD/MM" for 7 days
+                post-payment. Suppressed when awaitingSettlement != null so
+                the action-required signal wins. Loose `!= null` for stale-
+                cache safety (cf. PR #132 hotfix). */}
+            {member.lastSettlementAt != null && member.awaitingSettlement == null ? (
+              <p
+                className="text-caption font-medium text-primary-700"
+                style={{ fontVariantNumeric: "tabular-nums" }}
+              >
+                {t("members.card.paid_recent_inline", {
+                  date: formatPaidDate(member.lastSettlementAt),
+                })}
+              </p>
+            ) : null}
             {member.awaitingSettlement != null ? (
               <p
                 className="text-caption font-semibold text-warning-text"

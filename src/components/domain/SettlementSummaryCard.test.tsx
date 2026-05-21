@@ -42,7 +42,7 @@ describe("SettlementSummaryCard", () => {
     expect(screen.getByText("Solde à remettre")).toBeInTheDocument();
     // 2 CTAs
     expect(screen.getByRole("button", { name: /Vérifier les transactions/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Confirmer et clôturer/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Confirmer le paiement/ })).toBeInTheDocument();
     // Component MUST NOT emit an h1 (AC #9)
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
     // AC #1 — rows render in EXACT order: contributions → commission → advances → final payout.
@@ -93,12 +93,12 @@ describe("SettlementSummaryCard", () => {
     expect(screen.getByText(/Avance 3 : 5[\s\u00a0]000 FCFA/)).toBeInTheDocument();
   });
 
-  it("isSubmitting — both CTAs disabled; primary shows 'Clôture en cours…' + spinner", () => {
+  it("isSubmitting — both CTAs disabled; primary shows 'Paiement en cours…' + spinner", () => {
     render(<SettlementSummaryCard {...baseProps} isSubmitting />);
     const verify = screen.getByRole("button", { name: /Vérifier les transactions/ });
     expect(verify).toBeDisabled();
     // Primary label switches to submitting text
-    const primary = screen.getByRole("button", { name: /Clôture en cours…/ });
+    const primary = screen.getByRole("button", { name: /Paiement en cours…/ });
     expect(primary).toBeDisabled();
     // Spinner icon — lucide Loader2 has aria-hidden and animate-spin class
     expect(primary.querySelector(".animate-spin")).not.toBeNull();
@@ -118,7 +118,7 @@ describe("SettlementSummaryCard", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /Vérifier les transactions/ }));
     expect(onVerifyTransactions).toHaveBeenCalledWith("m-42", "c-99");
-    fireEvent.click(screen.getByRole("button", { name: /Confirmer et clôturer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Confirmer le paiement/ }));
     expect(onConfirm).toHaveBeenCalledWith("m-42", "c-99");
   });
 
