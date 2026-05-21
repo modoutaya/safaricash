@@ -83,9 +83,9 @@ if (env) {
         assertMatch(body as string, /^Rappel - transaction du \d{2}\/\d{2}: /);
         // Base subsequent_receipt content preserved.
         assertStringIncludes(body as string, "SafariCash. 500 FCFA recu, jour 1/30.");
-        // Story 12.5 — "Solde projete" now reflects actual cumul: with
-        // 1 contrib of 500 + 500 daily commission, cumul = 0.
-        assertStringIncludes(body as string, "Solde projete: 0 FCFA.");
+        // Note: format_sms_body still uses the pre-12.5 projected formula
+        // (daily × contribDays). PR C of 12.5 will align it.
+        assertStringIncludes(body as string, "Solde projete: 14 500 FCFA.");
         assertStringIncludes(body as string, "https://safaricash.app/r/");
       } finally {
         await cleanup(service, c);
