@@ -2,9 +2,9 @@
 //
 // Asserts the full settlement ceremony end-to-end:
 // 1. Seed a member with cycle.status flipped to 'completed' via service role.
-// 2. Navigate to the profile — "Clôturer le cycle" CTA visible.
+// 2. Navigate to the profile — "Payer le membre" CTA visible (Story 12.4 rename).
 // 3. Tap → /members/:id/settlement renders SettlementSummaryCard.
-// 4. Tap "Confirmer et clôturer" → SettlementReauthDialog opens.
+// 4. Tap "Confirmer le paiement" → SettlementReauthDialog opens.
 // 5. Wrong password → inline alert, dialog stays open.
 // 6. Real password → EnvelopeHandoverScreen renders with the payout amount.
 // 7. Service-role checks: cycle.status='settled' + audit cycle.settled + 1
@@ -38,10 +38,10 @@ test.describe("Flow 3 — cycle settlement (Story 7.4)", () => {
     // helper creates the cycle in 'active'.
     await service.from("cycles").update({ status: "completed" }).eq("id", target.cycleId);
 
-    // --- 1. Profile shows "Clôturer le cycle" CTA when cycle.status === "completed" ---
+    // --- 1. Profile shows "Payer le membre" CTA when cycle.status === "completed" ---
     await page.goto(`/members/${target.memberId}`);
     await expect(page.getByRole("heading", { level: 1, name: /member settle-1/i })).toBeVisible();
-    const settleLink = page.getByRole("link", { name: /^clôturer le cycle$/i });
+    const settleLink = page.getByRole("link", { name: /^payer le membre$/i });
     await expect(settleLink).toBeVisible();
     await expect(settleLink).toHaveAttribute(
       "href",
@@ -50,13 +50,15 @@ test.describe("Flow 3 — cycle settlement (Story 7.4)", () => {
 
     // --- 2. Tap → settlement route mounts the card ---
     await settleLink.click();
-    await expect(page.getByRole("heading", { level: 1, name: /clôture du cycle/i })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { level: 1, name: /paiement du membre/i }),
+    ).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: /member settle-1/i })).toBeVisible();
     // Final payout = 500 × 29 − 0 (no advances seeded) = 14 500 FCFA.
     await expect(page.getByText(/14[\s\u00a0]500 FCFA/)).toBeVisible();
 
-    // --- 3. Tap "Confirmer et clôturer" → dialog opens ---
-    await page.getByRole("button", { name: /^confirmer et clôturer$/i }).click();
+    // --- 3. Tap "Confirmer le paiement" → dialog opens ---
+    await page.getByRole("button", { name: /^confirmer le paiement$/i }).click();
     await expect(
       page.getByRole("heading", { level: 2, name: /^confirmation requise$/i }),
     ).toBeVisible();
@@ -64,7 +66,7 @@ test.describe("Flow 3 — cycle settlement (Story 7.4)", () => {
 
     // --- 4. Wrong password → inline alert + dialog stays open ---
     await page.getByLabel(/^mot de passe$/i).fill("wrong-password");
-    await page.getByRole("button", { name: /^valider la clôture$/i }).click();
+    await page.getByRole("button", { name: /^valider le paiement$/i }).click();
     await expect(page.getByRole("alert").first()).toContainText(/mot de passe incorrect/i);
     await expect(
       page.getByRole("heading", { level: 2, name: /^confirmation requise$/i }),
@@ -80,10 +82,12 @@ test.describe("Flow 3 — cycle settlement (Story 7.4)", () => {
 
     // --- 5. Real password → EnvelopeHandoverScreen ---
     await page.getByLabel(/^mot de passe$/i).fill(seededCollector.password);
-    await page.getByRole("button", { name: /^valider la clôture$/i }).click();
-    await expect(page.getByRole("heading", { level: 2, name: /^cycle clôturé$/i })).toBeVisible({
-      timeout: 10_000,
-    });
+    await page.getByRole("button", { name: /^valider le paiement$/i }).click();
+    await expect(page.getByRole("heading", { level: 2, name: /^paiement effectué$/i })).toBeVisible(
+      {
+        timeout: 10_000,
+      },
+    );
     await expect(page.getByText(/14[\s\u00a0]500 FCFA/)).toBeVisible();
     await expect(page.getByRole("button", { name: /^retour aux membres$/i })).toBeVisible();
 
