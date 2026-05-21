@@ -79,6 +79,16 @@ export function MemberCard({ member, onSelect, className }: MemberCardProps): JS
                   })}`
                 : ""}
             </p>
+            {cycle.openingBalance > 0 ? (
+              <p
+                className="text-caption font-medium text-warning-text"
+                style={{ fontVariantNumeric: "tabular-nums" }}
+              >
+                {t("members.card.opening_balance_inline", {
+                  amount: formatFcfaAmount(cycle.openingBalance),
+                })}
+              </p>
+            ) : null}
             <CycleProgressBar
               dayNumber={cycle.dayNumber}
               totalDays={cycle.cycleLength}

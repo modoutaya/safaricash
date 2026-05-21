@@ -19,6 +19,7 @@ const makeMember = (overrides: Partial<MemberWithMeta> = {}): MemberWithMeta => 
     endDate: "2026-05-10",
     cycleLength: 30,
     dayNumber: 11,
+    openingBalance: 0,
   },
   latestInteractionAt: "2026-04-20T10:00:00Z",
   cycleAdvancesTotal: 0,
@@ -50,6 +51,7 @@ describe("MemberCard", () => {
             endDate: "2026-05-10",
             cycleLength: 30,
             dayNumber: 25,
+            openingBalance: 0,
           },
           projectedBalance: 145000,
         })}

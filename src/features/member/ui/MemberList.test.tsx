@@ -36,6 +36,7 @@ const makeMember = (overrides: Partial<MemberWithMeta>): MemberWithMeta => ({
     endDate: "2026-05-10",
     cycleLength: 30,
     dayNumber: 11,
+    openingBalance: 0,
   },
   latestInteractionAt: overrides.latestInteractionAt ?? "2026-04-20T10:00:00Z",
   cycleAdvancesTotal: 0,
@@ -313,6 +314,7 @@ describe("MemberList", () => {
             endDate: "2026-04-30",
             cycleLength: 30,
             dayNumber: 25,
+            openingBalance: 0,
           },
         }),
         makeMember({
@@ -324,6 +326,7 @@ describe("MemberList", () => {
             endDate: "2026-04-30",
             cycleLength: 30,
             dayNumber: 5,
+            openingBalance: 0,
           },
         }),
         makeMember({
@@ -335,6 +338,7 @@ describe("MemberList", () => {
             endDate: "2026-04-30",
             cycleLength: 30,
             dayNumber: 30,
+            openingBalance: 0,
           },
         }),
       ],
@@ -368,6 +372,7 @@ describe("MemberList", () => {
             endDate: "2026-04-30",
             cycleLength: 30,
             dayNumber: 25,
+            openingBalance: 0,
           },
         }),
         makeMember({
@@ -379,6 +384,7 @@ describe("MemberList", () => {
             endDate: "2026-04-30",
             cycleLength: 30,
             dayNumber: 5,
+            openingBalance: 0,
           },
         }),
       ],
@@ -417,6 +423,7 @@ describe("MemberList", () => {
             endDate: "2026-04-30",
             cycleLength: 30,
             dayNumber: 28,
+            openingBalance: 0,
           },
         }),
         makeMember({
@@ -429,6 +436,7 @@ describe("MemberList", () => {
             endDate: "2026-04-30",
             cycleLength: 30,
             dayNumber: 28,
+            openingBalance: 0,
           },
         }),
         makeMember({
@@ -441,6 +449,7 @@ describe("MemberList", () => {
             endDate: "2026-04-30",
             cycleLength: 30,
             dayNumber: 5,
+            openingBalance: 0,
           },
         }),
       ],

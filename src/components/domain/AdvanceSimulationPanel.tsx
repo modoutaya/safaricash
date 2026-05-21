@@ -25,6 +25,10 @@ export interface AdvanceSimulationPanelProps {
   /** Inclusive day count of the member's current cycle (Story 11.2 —
    *  variable length). `contributionDays = cycleLength − 1`. */
   cycleLength: number;
+  /** Story 12.3 — carry-over of unpaid debt from the previous unsettled
+   *  cycle. Defaults to 0 for backward compatibility. Both the capacity
+   *  check and the projected balance subtract this. */
+  openingBalance?: number;
   /** Caller-side spacing/sizing tweaks. */
   className?: string;
 }
@@ -36,9 +40,16 @@ function deriveState(
   existingAdvances: ReadonlyArray<number>,
   candidateAmount: number,
   contributionDays: number,
+  openingBalance: number,
 ): SimulationState {
   if (candidateAmount === 0) return "empty";
-  return canAcceptAdvance(dailyAmount, existingAdvances, candidateAmount, contributionDays)
+  return canAcceptAdvance(
+    dailyAmount,
+    existingAdvances,
+    candidateAmount,
+    contributionDays,
+    openingBalance,
+  )
     ? "valid"
     : "over-limit";
 }
@@ -54,20 +65,29 @@ export function AdvanceSimulationPanel({
   existingAdvances,
   candidateAmount,
   cycleLength,
+  openingBalance = 0,
   className,
 }: AdvanceSimulationPanelProps): JSX.Element {
   const t = useT();
   const contributionDays = cycleLength - 1;
-  const state = deriveState(dailyAmount, existingAdvances, candidateAmount, contributionDays);
+  const state = deriveState(
+    dailyAmount,
+    existingAdvances,
+    candidateAmount,
+    contributionDays,
+    openingBalance,
+  );
 
   const totalProjected = dailyAmount * cycleLength;
   const commissionAmount = commission(dailyAmount);
   // Projected final balance = engine's raw value, except clamped to 0
   // for the over-limit display (BDD line 903 — "row 4 shows 0 FCFA").
+  // Story 12.3: subtracts opening_balance (carry-over).
   const projectedRaw = computeProjectedFinalBalance(
     dailyAmount,
     sumAdvances(existingAdvances, candidateAmount),
     contributionDays,
+    openingBalance,
   );
   const finalBalance = state === "over-limit" ? 0 : projectedRaw;
 

@@ -16,6 +16,7 @@ function cycle(overrides: Partial<ExportCycle> = {}): ExportCycle {
   return {
     id: "cyc-1",
     member_id: "mem-1",
+    cycle_number: 1,
     start_date: "2026-04-01",
     end_date: "2026-04-30",
     status: "active",

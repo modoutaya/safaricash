@@ -20,6 +20,7 @@ import {
   canAcceptAdvance,
   commission,
   computeMemberStats,
+  computeOpeningBalance,
   computeProjectedFinalBalance,
   cycleDay,
   cycleLengthDays,
@@ -29,6 +30,7 @@ import {
   isCycleInUpcomingEndWindow,
   isSettlementReady,
   settle,
+  type OpeningBalanceCycle,
 } from "./cycleEngine";
 
 const sum = (xs: ReadonlyArray<number>): number => xs.reduce((a, b) => a + b, 0);
@@ -245,6 +247,224 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
         },
       ),
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // Story 12.3 — opening_balance carry-over property tests.
+  // -------------------------------------------------------------------------
+
+  it("INV-1 (extended): projected balance = daily × contribDays − Σ(advances) − openingBalance (propProjectedBalanceWithOpeningBalanceInvariant)", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 100, max: 100_000 }),
+        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
+        fc.array(fc.integer({ min: 1, max: 10_000 }), { minLength: 0, maxLength: 31 }),
+        fc.integer({ min: 0, max: 1_000_000 }),
+        (dailyAmount, cycleLength, advances, openingBalance) => {
+          const contributionDays = cycleLength - 1;
+          const projected = computeProjectedFinalBalance(
+            dailyAmount,
+            sum(advances),
+            contributionDays,
+            openingBalance,
+          );
+          return projected === dailyAmount * contributionDays - sum(advances) - openingBalance;
+        },
+      ),
+    );
+  });
+
+  it("INV-3 (extended): capacity = daily × contribDays − openingBalance (propAdvanceCapacityBoundWithOpeningBalance)", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 100, max: 100_000 }),
+        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
+        fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 20 }),
+        fc.integer({ min: 1, max: 100_000 }),
+        fc.integer({ min: 0, max: 1_000_000 }),
+        (dailyAmount, cycleLength, existing, newAdvance, openingBalance) => {
+          const contributionDays = cycleLength - 1;
+          const capacity = dailyAmount * contributionDays - openingBalance;
+          const expected = sum(existing) + newAdvance <= capacity;
+          return (
+            canAcceptAdvance(
+              dailyAmount,
+              existing,
+              newAdvance,
+              contributionDays,
+              openingBalance,
+            ) === expected
+          );
+        },
+      ),
+    );
+  });
+
+  it("Q2bis: when openingBalance ≥ daily × contribDays, ALL positive advances are rejected", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 100, max: 100_000 }),
+        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
+        fc.integer({ min: 1, max: 100_000 }),
+        (dailyAmount, cycleLength, newAdvance) => {
+          const contributionDays = cycleLength - 1;
+          const openingBalance = dailyAmount * contributionDays; // exactly at limit
+          // newAdvance > 0 + existing = 0 → sum = newAdvance > 0 = capacity (which is 0)
+          // → rejected (the ≤ is strict at 0 with newAdvance > 0).
+          return (
+            canAcceptAdvance(dailyAmount, [], newAdvance, contributionDays, openingBalance) ===
+            false
+          );
+        },
+      ),
+    );
+  });
+
+  it("propOpeningBalanceMonotonic: ∀ ob₁ ≤ ob₂ ⇒ projected(ob₂) ≤ projected(ob₁)", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 100, max: 100_000 }),
+        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
+        fc.array(fc.integer({ min: 1, max: 10_000 }), { minLength: 0, maxLength: 31 }),
+        fc.integer({ min: 0, max: 500_000 }),
+        fc.integer({ min: 0, max: 500_000 }),
+        (dailyAmount, cycleLength, advances, ob1, ob2) => {
+          const contributionDays = cycleLength - 1;
+          const [low, high] = ob1 <= ob2 ? [ob1, ob2] : [ob2, ob1];
+          const projectedLow = computeProjectedFinalBalance(
+            dailyAmount,
+            sum(advances),
+            contributionDays,
+            low,
+          );
+          const projectedHigh = computeProjectedFinalBalance(
+            dailyAmount,
+            sum(advances),
+            contributionDays,
+            high,
+          );
+          return projectedHigh <= projectedLow;
+        },
+      ),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Story 12.3 — computeOpeningBalance example tests (recursion behaviour).
+// ---------------------------------------------------------------------------
+
+describe("computeOpeningBalance (Story 12.3)", () => {
+  const DAILY = 500;
+  const makeCycle = (
+    id: string,
+    cycleNumber: number,
+    startDate: string,
+    endDate: string,
+    status: OpeningBalanceCycle["status"],
+  ): OpeningBalanceCycle => ({ id, cycleNumber, startDate, endDate, status });
+
+  it("first cycle (cycle_number = 1) → 0", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-05-01", "2026-05-30", "active"),
+    ];
+    const advances = new Map<string, number>();
+    expect(computeOpeningBalance(cycles, advances, DAILY, "c1")).toBe(0);
+  });
+
+  it("previous cycle is 'settled' → 0 (chain restarts)", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-04-01", "2026-04-30", "settled"),
+      makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
+    ];
+    const advances = new Map<string, number>([["c1", 50_000]]); // huge unpaid but settled
+    expect(computeOpeningBalance(cycles, advances, DAILY, "c2")).toBe(0);
+  });
+
+  it("previous cycle had no debt (positive final balance) → 0", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
+      makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
+    ];
+    // c1: daily × 29 = 14_500. Advances = 1_000. Balance = 13_500 > 0 → no debt.
+    const advances = new Map<string, number>([["c1", 1_000]]);
+    expect(computeOpeningBalance(cycles, advances, DAILY, "c2")).toBe(0);
+  });
+
+  it("previous cycle ended with debt → positive carry-over", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
+      makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
+    ];
+    // c1: daily × 29 = 14_500. Advances = 20_000. Balance = -5_500 → carry-over 5_500.
+    const advances = new Map<string, number>([["c1", 20_000]]);
+    expect(computeOpeningBalance(cycles, advances, DAILY, "c2")).toBe(5_500);
+  });
+
+  it("3-cycle chain, c1 settled → c3 sees only c2's debt", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-03-01", "2026-03-30", "settled"),
+      makeCycle("c2", 2, "2026-04-01", "2026-04-30", "completed"),
+      makeCycle("c3", 3, "2026-05-01", "2026-05-30", "active"),
+    ];
+    // c2: opening = 0 (c1 settled). daily × 29 − advances = 14_500 − 17_000 = -2_500.
+    // c3 carries 2_500 (c2's debt).
+    const advances = new Map<string, number>([["c2", 17_000]]);
+    expect(computeOpeningBalance(cycles, advances, DAILY, "c3")).toBe(2_500);
+  });
+
+  it("3-cycle chain, none settled → debt accumulates", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-03-01", "2026-03-30", "completed"),
+      makeCycle("c2", 2, "2026-04-01", "2026-04-30", "completed"),
+      makeCycle("c3", 3, "2026-05-01", "2026-05-30", "active"),
+    ];
+    // c1: opening = 0. Advances 16_000. Balance = 14_500 − 16_000 = -1_500 → c2 opening = 1_500.
+    // c2: opening = 1_500. Advances 14_500. Balance = 14_500 − 14_500 − 1_500 = -1_500 → c3 opening = 1_500.
+    const advances = new Map<string, number>([
+      ["c1", 16_000],
+      ["c2", 14_500],
+    ]);
+    expect(computeOpeningBalance(cycles, advances, DAILY, "c2")).toBe(1_500);
+    expect(computeOpeningBalance(cycles, advances, DAILY, "c3")).toBe(1_500);
+  });
+
+  it("3-cycle chain, c2 repays past debt and contributes more → c3 opening = 0", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-03-01", "2026-03-30", "completed"),
+      makeCycle("c2", 2, "2026-04-01", "2026-04-30", "completed"),
+      makeCycle("c3", 3, "2026-05-01", "2026-05-30", "active"),
+    ];
+    // c1 debt = 5_000 → c2 opening = 5_000.
+    // c2: advances 0. Balance = 14_500 − 0 − 5_000 = 9_500 → no debt to carry → c3 opening = 0.
+    const advances = new Map<string, number>([["c1", 19_500]]);
+    expect(computeOpeningBalance(cycles, advances, DAILY, "c2")).toBe(5_000);
+    expect(computeOpeningBalance(cycles, advances, DAILY, "c3")).toBe(0);
+  });
+
+  it("unknown cycle id → 0 (defensive)", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-05-01", "2026-05-30", "active"),
+    ];
+    expect(computeOpeningBalance(cycles, new Map(), DAILY, "does-not-exist")).toBe(0);
+  });
+
+  it("missing previous cycle in array → 0 (gap in chain)", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
+      // c1 missing (cycle_number = 1 absent from the array)
+    ];
+    expect(computeOpeningBalance(cycles, new Map(), DAILY, "c2")).toBe(0);
+  });
+
+  it("equality boundary: prev balance exactly 0 → no carry-over", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
+      makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
+    ];
+    // c1: daily × 29 = 14_500. Advances = 14_500. Balance = 0 → 0 carry-over.
+    const advances = new Map<string, number>([["c1", 14_500]]);
+    expect(computeOpeningBalance(cycles, advances, DAILY, "c2")).toBe(0);
   });
 });
 
@@ -618,6 +838,7 @@ describe("cycleEngine — example tests", () => {
         daysRemaining: 0,
         contributedTotal: 0,
         outstandingAdvances: 0,
+        openingBalance: 0,
         projectedFinalBalance: 0,
       });
     });

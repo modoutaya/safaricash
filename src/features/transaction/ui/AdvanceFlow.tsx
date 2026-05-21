@@ -112,10 +112,18 @@ export function AdvanceFlow({
   const handleChipTap = (n: number) => setRawAmount(String(n));
 
   // Story 11.2 — capacity is bounded by the cycle's own length.
+  // Story 12.3 — capacity also subtracts opening_balance (carry-over).
   const cycleLength = cycleLengthDays(data.currentCycle.start_date, data.currentCycle.end_date);
+  const openingBalance = data.stats.openingBalance;
 
   const canAcceptCheck = (n: number): boolean =>
-    canAcceptAdvance(data.member.daily_amount, existingAdvanceAmounts, n, cycleLength - 1);
+    canAcceptAdvance(
+      data.member.daily_amount,
+      existingAdvanceAmounts,
+      n,
+      cycleLength - 1,
+      openingBalance,
+    );
 
   const trimmedMotive = motive.trim();
   const ctaEnabled = candidateAmount > 0 && canAcceptCheck(candidateAmount);
@@ -275,6 +283,7 @@ export function AdvanceFlow({
           existingAdvances={existingAdvanceAmounts}
           candidateAmount={candidateAmount}
           cycleLength={cycleLength}
+          openingBalance={openingBalance}
         />
 
         {/* Amber security notice. */}

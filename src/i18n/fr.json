@@ -167,6 +167,7 @@
     "card": {
       "cycle_day": "Jour {day} — cycle de {total} jours",
       "advance_inline": "Avance : {amount} F CFA",
+      "opening_balance_inline": "Report : {amount} F CFA",
       "days_remaining_one": "1 jour restant",
       "days_remaining_many": "{days} jours restants",
       "last_day": "Dernier jour du cycle",
@@ -274,6 +275,7 @@
         "cycle_day": "Jour {n} sur {total}",
         "contributed_total": "Versé : {amount} FCFA",
         "outstanding_advances": "Avances en cours : {amount} FCFA",
+        "opening_balance": "Solde reporté du cycle précédent : {amount} FCFA",
         "projected_balance": "Solde prévu fin cycle : {amount} FCFA"
       },
       "transactions": {
