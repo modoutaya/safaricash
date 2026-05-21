@@ -89,7 +89,12 @@ export function MemberCard({ member, onSelect, className }: MemberCardProps): JS
                 })}
               </p>
             ) : null}
-            {member.awaitingSettlement !== null ? (
+            {/* Loose `!= null` catches BOTH null AND undefined. The latter
+                shows up on stale TanStack-persisted MemberWithMeta objects
+                from before Story 12.4 (cache rehydrates the pre-12.4 shape
+                on first paint; the field is missing → strict !== null was
+                truthy → .payout on undefined → crash). Repro 2026-05-21. */}
+            {member.awaitingSettlement != null ? (
               <p
                 className="text-caption font-semibold text-warning-text"
                 style={{ fontVariantNumeric: "tabular-nums" }}
