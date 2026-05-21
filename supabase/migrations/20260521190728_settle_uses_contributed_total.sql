@@ -19,19 +19,18 @@
 --
 -- Latest pre-12.5 version: migration 20260521084835 (Story 12.3 Phase A).
 --
--- This migration ALSO updates `format_sms_body` (first_receipt /
--- subsequent_receipt branches) to use the same actual-contribution math
--- — otherwise the SMS receipt's "Solde projete" line would show the
--- old contract-based projection while the actual payout is different.
--- The user-visible label stays "Solde projete" for this PR (changing
--- the SMS copy is tracked separately) but the underlying value is now
--- the actual current cumul.
+-- This migration touches:
+--   1. commit_cycle_settlement   — new payout formula.
+--   2. format_sms_body           — first_receipt/subsequent_receipt
+--                                  "Solde projete" line reflects actual
+--                                  cumul (the saver's running net).
+--   3. get_receipt_payload       — projected_balance column reflects
+--                                  the same actual cumul (so the SMS
+--                                  and the receipt page agree).
 --
 -- Other Phase A artefacts (record_advance capacity, compute_opening_balance
--- itself) are NOT touched by this migration. PR B of the 12.5 refactor
--- will replace record_advance's capacity check (cap = contributedTotal −
--- advances). PR D will re-evaluate compute_opening_balance under the new
--- model.
+-- itself) are NOT touched. PR B of the 12.5 refactor will replace
+-- record_advance's capacity check. PR D will re-evaluate compute_opening_balance.
 
 set check_function_bodies = off;
 
@@ -41,6 +40,10 @@ set check_function_bodies = off;
 -- Same idempotency guards, ownership checks, audit emission, sms_queue
 -- enqueue, transactions kind='settlement' insert, NFR-R3 cross-check.
 -- Only the v_computed_payout assignment changes.
+--
+-- Return column name MUST stay `settlement_transaction_id` to match the
+-- Phase A signature — Postgres rejects column-name changes on existing
+-- functions (SQLSTATE 42P13 "cannot change return type").
 -- ---------------------------------------------------------------------------
 
 create or replace function public.commit_cycle_settlement(
@@ -157,15 +160,15 @@ comment on function public.commit_cycle_settlement(uuid, uuid, bigint) is
   'Story 12.5: atomic settlement commit with NEW formula — payout = contributedTotal − dailyAmount − Σadvances − opening_balance. The pre-12.5 formula assumed daily × contribDays which doesn''t match the cotisation-libre model. Client TS settle() must mirror this exactly or the NFR-R3 cross-check fires.';
 
 -- ---------------------------------------------------------------------------
--- 2. format_sms_body — receipt-template "Solde projete" line aligned with
---    the new payout math. The label stays "Solde projete" for this PR
---    (changing the saver-facing SMS copy is a follow-up); only the
---    underlying number changes to: contributedTotal − daily − advances −
---    opening_balance (the saver's current cumul = what they're owed RIGHT
---    NOW if the cycle settled this instant).
---
--- All other branches (settlement / dispute_ack / opt_out_confirmation) are
--- preserved byte-for-byte from the Phase A version.
+-- 2. format_sms_body — first_receipt/subsequent_receipt "Solde projete"
+--    line aligned with the new payout math. Other branches preserved
+--    BYTE-FOR-BYTE from Phase A:
+--      - opt_out_confirmation: early-exit BEFORE the transaction lookup
+--        (a prior PR-A draft moved this AFTER the lookup, which broke
+--        the worker's opt-out endpoint because it doesn't have a tx_id
+--        to pass).
+--      - dispute_ack: reads from public.disputes (not transactions).
+--    See migration 20260521084835 for the previous version.
 -- ---------------------------------------------------------------------------
 
 create or replace function public.format_sms_body(p_template_key text, p_transaction_id uuid)
@@ -193,11 +196,23 @@ declare
   v_cycle_end           date;
   v_cycle_length        integer;
   v_contribution_days   integer;
-  v_opening_balance     numeric(12, 0);
+  v_opening_balance     bigint;
 begin
-  select t.id, t.amount, t.cycle_id, t.member_id, t.cycle_day, t.receipt_token, t.kind
+  if p_template_key not in (
+    'first_receipt', 'subsequent_receipt', 'settlement', 'dispute_ack', 'opt_out_confirmation'
+  ) then
+    raise exception 'invalid_template_key: % is not a recognised template', p_template_key
+      using errcode = '22000';
+  end if;
+
+  if p_template_key = 'opt_out_confirmation' then
+    return 'SafariCash. Vous ne recevrez plus de SMS. Pour les reactiver, contactez votre collecteur.';
+  end if;
+
+  select t.id, t.member_id, t.cycle_id, t.kind, t.cycle_day, t.receipt_token,
+         nullif(public.vault_decrypt(t.amount_encrypted), '')::numeric(12, 0) as amount
     into v_tx
-    from public.transactions_decrypted t
+    from public.transactions t
    where t.id = p_transaction_id;
 
   if v_tx.id is null then
@@ -234,14 +249,17 @@ begin
        and t2.kind in ('contribution', 'rattrapage')
        and t2.undone_at is null;
 
+    -- Story 11.4 — cycle_length drives the printed denominator.
     select c.start_date, c.end_date into v_cycle_start, v_cycle_end
       from public.cycles c where c.id = v_tx.cycle_id;
     v_cycle_length := (v_cycle_end - v_cycle_start + 1);
     v_contribution_days := v_cycle_length - 1;
     v_opening_balance := public.compute_opening_balance(v_tx.member_id, v_tx.cycle_id);
 
-    -- Story 12.5 — projected line now reflects the actual cumul (= what
-    -- the saver is owed RIGHT NOW), not the contract-based projection.
+    -- Story 12.5 — "Solde projete" line now reflects the actual cumul:
+    -- contributedTotal − daily(commission) − advances − opening_balance.
+    -- That's what the saver would receive RIGHT NOW if the cycle ended.
+    -- Label stays "Solde projete" (copy update tracked separately).
     v_projected := v_contributed_total - v_member.daily_amount - v_advances_sum - v_opening_balance;
     v_projected_str := replace(to_char(v_projected, 'FM999G999G999'), ',', ' ');
 
@@ -264,39 +282,118 @@ begin
       from public.members m
      where m.id = v_tx.member_id;
 
-    v_prenom := substring(coalesce(split_part(v_member.full_name, ' ', 1), 'Saver') from 1 for 16);
+    v_prenom := substring(coalesce(split_part(v_member.full_name, ' ', 1), 'Saver') from 1 for 9);
     if v_prenom = '' then v_prenom := 'Saver'; end if;
 
-    select c.start_date, c.end_date into v_cycle_start, v_cycle_end
-      from public.cycles c where c.id = v_tx.cycle_id;
-    v_cycle_start_str := to_char(v_cycle_start, 'DD/MM');
-    v_cycle_end_str   := to_char(v_cycle_end,   'DD/MM');
+    select to_char(c.start_date, 'DD/MM'), to_char(c.end_date, 'DD/MM')
+      into v_cycle_start_str, v_cycle_end_str
+      from public.cycles c
+     where c.id = v_tx.cycle_id;
 
     return format(
       'SafariCash. %s, votre cycle du %s au %s est clos. Vous avez recu %s FCFA. Detail: %s.',
-      v_prenom, v_cycle_start_str, v_cycle_end_str, v_amount_str, v_url
+      v_prenom, v_cycle_start_str, v_cycle_end_str,
+      to_char(v_amount, 'FM999999999'), v_url
     );
   end if;
 
-  if p_template_key = 'dispute_ack' then
-    v_dispute_ref := substring(replace(v_tx.id::text, '-', '') from 1 for 8);
-    return format(
-      'SafariCash. Litige enregistre, ref %s. Reponse sous 48h.',
-      v_dispute_ref
-    );
+  -- p_template_key = 'dispute_ack'
+  select substring(d.id::text from 1 for 8)
+    into v_dispute_ref
+    from public.disputes d
+   where d.transaction_id = p_transaction_id
+   order by d.flagged_at desc
+   limit 1;
+
+  if v_dispute_ref is null then
+    v_dispute_ref := 'pending';
   end if;
 
-  if p_template_key = 'opt_out_confirmation' then
-    return 'SafariCash. Vous ne recevrez plus de SMS. Pour reactiver, contactez votre collecteur.';
-  end if;
-
-  raise exception 'unknown_template_key: %', p_template_key using errcode = 'P0002';
+  return format(
+    'SafariCash. Votre signalement a ete recu. Reponse sous 48h. Reference: %s.',
+    v_dispute_ref
+  );
 end;
 $function$;
 
-grant execute on function public.format_sms_body(text, uuid) to service_role;
+grant execute on function public.format_sms_body(text, uuid) to authenticated, service_role;
 revoke execute on function public.format_sms_body(text, uuid) from public;
-revoke execute on function public.format_sms_body(text, uuid) from authenticated;
 
 comment on function public.format_sms_body(text, uuid) is
-  'Story 12.5: receipt SMS first_receipt/subsequent_receipt "Solde projete" line now reflects the actual cumul (contributedTotal − daily − advances − opening_balance), not the pre-12.5 contract-based projection. settlement / dispute_ack / opt_out_confirmation branches unchanged.';
+  'Story 12.5: first_receipt/subsequent_receipt "Solde projete" line reflects actual cumul (contributedTotal − daily − advances − opening_balance), not the pre-12.5 contract projection. opt_out_confirmation / settlement / dispute_ack branches preserved byte-for-byte from Phase A (incl. opt_out_confirmation early-exit before the tx lookup — critical for the worker''s opt-out endpoint that calls without a tx_id).';
+
+-- ---------------------------------------------------------------------------
+-- 3. get_receipt_payload — projected_balance column aligned with the new
+--    payout math. Column return shape unchanged so the Cloudflare worker
+--    (workers/receipt-url) consumes the same surface without a code edit.
+-- ---------------------------------------------------------------------------
+
+drop function if exists public.get_receipt_payload(text);
+
+create function public.get_receipt_payload(p_token text)
+returns table (
+  amount             numeric(12, 0),
+  kind               text,
+  cycle_day          int,
+  created_at         timestamptz,
+  member_first_name  text,
+  projected_balance  numeric(12, 0),
+  daily_amount       numeric(12, 0),
+  cycle_start_date   date,
+  cycle_end_date     date,
+  anonymised_at      timestamptz
+)
+language sql
+security definer
+stable
+set search_path = public, pg_temp
+as $$
+  select
+    nullif(public.vault_decrypt(t.amount_encrypted), '')::numeric(12, 0) as amount,
+    t.kind::text,
+    t.cycle_day,
+    t.created_at,
+    substring(unaccent(public.vault_decrypt(m.name_encrypted)) from '^[^ ]+') as member_first_name,
+    -- Story 12.5 — projected_balance now reflects actual cumul:
+    -- contributedTotal − daily(commission) − advances − opening_balance.
+    (
+      coalesce(
+        (
+          select sum(nullif(public.vault_decrypt(t2.amount_encrypted), '')::numeric(12, 0))
+            from public.transactions t2
+           where t2.cycle_id = t.cycle_id
+             and t2.kind in ('contribution', 'rattrapage')
+             and t2.undone_at is null
+        ),
+        0
+      )
+      - m.daily_amount
+      - coalesce(
+          (
+            select sum(nullif(public.vault_decrypt(t2.amount_encrypted), '')::numeric(12, 0))
+              from public.transactions t2
+             where t2.cycle_id = t.cycle_id
+               and t2.kind = 'advance'
+               and t2.undone_at is null
+          ),
+          0
+        )
+      - public.compute_opening_balance(t.member_id, t.cycle_id)
+    ) as projected_balance,
+    m.daily_amount,
+    c.start_date as cycle_start_date,
+    c.end_date   as cycle_end_date,
+    m.anonymised_at
+  from public.transactions t
+  join public.members m on m.id = t.member_id
+  join public.cycles  c on c.id = t.cycle_id
+  where t.receipt_token = p_token
+    and t.undone_at is null;
+$$;
+
+comment on function public.get_receipt_payload(text) is
+  'Story 12.5: projected_balance now reflects actual cumul (contributedTotal − daily − advances − opening_balance), aligned with format_sms_body and commit_cycle_settlement. Return shape unchanged so the worker consumes the same column list.';
+
+grant execute on function public.get_receipt_payload(text) to service_role;
+revoke execute on function public.get_receipt_payload(text) from public;
+revoke execute on function public.get_receipt_payload(text) from authenticated;
