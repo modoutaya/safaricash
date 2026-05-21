@@ -293,10 +293,11 @@ if (env) {
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
-        await markCycleCompleted(service, cycleId);
 
-        // Story 12.5 — seed full cycle so the real payout is positive.
+        // Story 12.5 — seed contribs BEFORE marking completed. record_contribution
+        // RPC rejects inserts on a 'completed' cycle (Story 3.4 trigger).
         await seedFullCycleContribs(userClient, memberId, cycleId, 29, 500);
+        await markCycleCompleted(service, cycleId);
 
         // Real payout = 14_500 − 500 = 14_000; pass 99999 instead.
         const { row, error } = await callRpc(userClient, memberId, cycleId, 99999);

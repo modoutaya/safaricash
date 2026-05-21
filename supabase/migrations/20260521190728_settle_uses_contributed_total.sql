@@ -44,24 +44,31 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
+  -- Story 12.5 — declarations mirror Phase A's commit_cycle_settlement
+  -- byte-for-byte except for v_contributed_total (new). The previous
+  -- draft of this migration substituted `record` for `%rowtype` and
+  -- `text` for `uuid`, both of which produced runtime failures.
   v_collector_id        uuid;
-  v_cycle               record;
-  v_member              record;
+  v_cycle               public.cycles%rowtype;
+  v_member              public.members%rowtype;
   v_cycle_length        integer;
   v_advances_sum        bigint;
   v_contributed_total   bigint;
   v_opening_balance     bigint;
   v_computed_payout     bigint;
-  v_amount_secret       text;
+  v_amount_secret       uuid;
   v_tx_id               uuid;
   v_settled_at          timestamptz;
 begin
   v_collector_id := auth.uid();
   if v_collector_id is null then
-    raise exception 'cycle_settlement: missing auth.uid()' using errcode = '42501';
+    -- errcode 28000 matches Phase A (contract test #9 pins this code).
+    raise exception 'cycle_settlement: auth required' using errcode = '28000';
   end if;
 
-  select * into v_cycle from public.cycles where id = p_cycle_id;
+  -- FOR UPDATE locks the cycle row for the txn — prevents a concurrent
+  -- settle from racing. Phase A had this; my earlier draft dropped it.
+  select * into v_cycle from public.cycles where id = p_cycle_id for update;
   if not found then
     raise exception 'cycle_settlement: cycle not found or not owned' using errcode = 'P0002';
   end if;
