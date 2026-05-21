@@ -81,6 +81,9 @@ export function MemberProfile({
   );
 
   const showAdvancesRow = stats.outstandingAdvances > 0;
+  // Story 12.3 — surface the carry-over of unpaid debt from the previous
+  // unsettled cycle. Hidden when 0 (most members, especially first cycles).
+  const showOpeningBalanceRow = stats.openingBalance > 0;
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">
@@ -139,6 +142,15 @@ export function MemberProfile({
               <dt className="text-warning">
                 {t("members.profile.field.outstanding_advances", {
                   amount: formatFcfaAmount(stats.outstandingAdvances),
+                })}
+              </dt>
+            </div>
+          ) : null}
+          {showOpeningBalanceRow ? (
+            <div className="flex items-center justify-between">
+              <dt className="text-warning-text">
+                {t("members.profile.field.opening_balance", {
+                  amount: formatFcfaAmount(stats.openingBalance),
                 })}
               </dt>
             </div>

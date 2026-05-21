@@ -524,4 +524,145 @@ if (env) {
       }
     },
   });
+
+  // -------------------------------------------------------------------------
+  // Story 12.3 — opening_balance carry-over (Q1 Path A: dynamic).
+  // -------------------------------------------------------------------------
+  Deno.test({
+    name: "12.3 — settlement payout subtracts opening_balance from previous unsettled cycle",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "cs123");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+
+        // Cycle 1: a regular 30-day window. Will receive a 20_000 advance.
+        // dailyAmount = 500 (seed helper default). Cycle 1 contribution-days = 29.
+        // Cycle 1 final balance = 500 × 29 − 20_000 = -5_500 → debt 5_500 → carry-over.
+        const seeded = await seedMemberWithCycleBounds(userClient, service, c.userId, {
+          startDate: "2026-04-01",
+          endDate: "2026-04-30",
+        });
+        const cycle1Id = seeded.cycleId;
+        // Insert a 20_000 advance on cycle 1.
+        const { data: advanceSecret, error: advanceErr } = await service.rpc("vault_encrypt", {
+          plaintext: "20000",
+        });
+        if (advanceErr || !advanceSecret) {
+          throw new Error(`vault_encrypt(advance): ${advanceErr?.message}`);
+        }
+        const { error: insertErr } = await service.from("transactions").insert({
+          collector_id: c.userId,
+          member_id: seeded.memberId,
+          cycle_id: cycle1Id,
+          kind: "advance",
+          amount_encrypted: advanceSecret,
+          cycle_day: 5,
+          source: "online",
+          motive: "12.3 seed",
+          saver_acknowledged: true,
+        });
+        if (insertErr) throw new Error(`seed advance: ${insertErr.message}`);
+        await markCycleCompleted(service, cycle1Id);
+
+        // Cycle 2: fresh 30-day window. cycle_number = 2.
+        const { data: cycle2, error: cycle2Err } = await service
+          .from("cycles")
+          .insert({
+            member_id: seeded.memberId,
+            collector_id: c.userId,
+            cycle_number: 2,
+            start_date: "2026-05-01",
+            end_date: "2026-05-30",
+            status: "completed",
+          })
+          .select("id")
+          .single();
+        if (cycle2Err || !cycle2) throw new Error(`seed cycle 2: ${cycle2Err?.message}`);
+
+        // Expected payout on cycle 2 = daily × 29 − 0 (no cycle-2 advances) − 5_500 (carry-over)
+        //                            = 14_500 − 5_500 = 9_000.
+        const { data, error } = await userClient.rpc("commit_cycle_settlement", {
+          p_member_id: seeded.memberId,
+          p_cycle_id: cycle2.id,
+          p_expected_payout: 9_000,
+        });
+        assertEquals(error, null, `RPC error: ${error?.message ?? ""}`);
+        const row = (data as Array<{ settled_payout: number | string }>)[0];
+        assertEquals(Number(row!.settled_payout), 9_000);
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
+
+  Deno.test({
+    name: "12.3 — settlement rejects on NFR-R3 mismatch when client forgets opening_balance",
+    ...denoOpts,
+    fn: async () => {
+      const anon = createClient(env.url, env.anonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const c = await seedCollector(service, anon, "cs123b");
+      try {
+        const userClient = createClient(env.url, env.anonKey, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${c.jwt}` } },
+        });
+
+        // Same seed as the previous test: cycle 1 with 20_000 advance (debt 5_500),
+        // cycle 2 completed.
+        const seeded = await seedMemberWithCycleBounds(userClient, service, c.userId, {
+          startDate: "2026-04-01",
+          endDate: "2026-04-30",
+        });
+        const { data: advanceSecret } = await service.rpc("vault_encrypt", {
+          plaintext: "20000",
+        });
+        await service.from("transactions").insert({
+          collector_id: c.userId,
+          member_id: seeded.memberId,
+          cycle_id: seeded.cycleId,
+          kind: "advance",
+          amount_encrypted: advanceSecret,
+          cycle_day: 5,
+          source: "online",
+          motive: "12.3 seed",
+          saver_acknowledged: true,
+        });
+        await markCycleCompleted(service, seeded.cycleId);
+
+        const { data: cycle2 } = await service
+          .from("cycles")
+          .insert({
+            member_id: seeded.memberId,
+            collector_id: c.userId,
+            cycle_number: 2,
+            start_date: "2026-05-01",
+            end_date: "2026-05-30",
+            status: "completed",
+          })
+          .select("id")
+          .single();
+
+        // Client passes 14_500 (forgot opening_balance). Server computes 9_000.
+        // NFR-R3 cross-check fires.
+        const { error } = await userClient.rpc("commit_cycle_settlement", {
+          p_member_id: seeded.memberId,
+          p_cycle_id: cycle2!.id,
+          p_expected_payout: 14_500,
+        });
+        assertExists(error);
+        assertEquals(error?.code, "P0002");
+      } finally {
+        await cleanup(service, c);
+      }
+    },
+  });
 }

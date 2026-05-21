@@ -108,14 +108,20 @@ export interface MemberWithMeta {
     dayNumber: number;
     /** Inclusive day count of the cycle: end − start + 1. */
     cycleLength: number;
+    /** Story 12.3 — carry-over of unpaid debt from the previous
+     *  unsettled cycle (0 when first cycle / previous is 'settled' /
+     *  previous had no debt). Displayed in MemberCard + MemberProfile
+     *  as "Report : X F CFA" when > 0. */
+    openingBalance: number;
   } | null;
   latestInteractionAt: string; // ISO-8601
   /** Sum of advance amounts booked in the current cycle. 0 when there are
    *  no advances or no current cycle. */
   cycleAdvancesTotal: number;
   /** Projected final payout for the current cycle (dailyAmount ×
-   *  contributionDays − advances, via the cycle engine). null when no
-   *  current cycle. */
+   *  contributionDays − advances − openingBalance, via the cycle engine
+   *  — Story 12.3 added the openingBalance term). null when no current
+   *  cycle. */
   projectedBalance: number | null;
 }
 

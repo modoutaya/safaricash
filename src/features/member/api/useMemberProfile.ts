@@ -9,7 +9,11 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { z } from "zod";
 
-import { computeMemberStats } from "@/domain/cycle";
+import {
+  computeMemberStats,
+  computeOpeningBalance,
+  type OpeningBalanceCycle,
+} from "@/domain/cycle";
 import { supabase } from "@/infrastructure/supabase/client";
 
 import {
@@ -107,10 +111,39 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
   const transactions = currentCycle
     ? allTransactions.filter((tx) => tx.cycle_id === currentCycle.id)
     : [];
+
+  // Story 12.3 — opening_balance carry-over. Build the per-cycle
+  // advance totals (excluding undone) once, then recurse via
+  // computeOpeningBalance. Mirrors SQL `compute_opening_balance` —
+  // cross-checked by compute-opening-balance.contract.test.ts.
+  const advancesByCycleId = new Map<string, number>();
+  for (const tx of allTransactions) {
+    if (tx.kind !== "advance") continue;
+    // undone advances are already excluded by transactions_decrypted view.
+    advancesByCycleId.set(tx.cycle_id, (advancesByCycleId.get(tx.cycle_id) ?? 0) + tx.amount);
+  }
+  const openingBalanceCycles: OpeningBalanceCycle[] = cleanedCycles.map((c) => ({
+    id: c.id,
+    cycleNumber: c.cycle_number,
+    startDate: c.start_date,
+    endDate: c.end_date,
+    status: c.status,
+  }));
+  const openingBalance = currentCycle
+    ? computeOpeningBalance(
+        openingBalanceCycles,
+        advancesByCycleId,
+        member.daily_amount,
+        currentCycle.id,
+      )
+    : 0;
+
   const stats = computeMemberStats(
     transactions,
     { dailyAmount: member.daily_amount },
     currentCycle ? { startDate: currentCycle.start_date, endDate: currentCycle.end_date } : null,
+    undefined,
+    openingBalance,
   );
 
   return {

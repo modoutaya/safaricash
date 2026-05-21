@@ -126,32 +126,43 @@ export function commission(dailyAmount: number): number {
 /**
  * FR17 — projected final balance.
  *
- *   projected = dailyAmount × contributionDays − Σ(advances)
+ *   projected = dailyAmount × contributionDays − Σ(advances) − openingBalance
  *
  * where `contributionDays = cycleLength − 1` (the −1 is the commission
- * day, INV-4). INV-1 — independent of cycleDay. Per ADR-004 Q1: returns
- * the raw value (may be negative); UI decides presentation.
+ * day, INV-4) and `openingBalance` is the carry-over of unpaid debt from
+ * the previous unsettled cycle (Story 12.3 — defaults to 0 for backward
+ * compatibility). INV-1 — independent of cycleDay. Per ADR-004 Q1:
+ * returns the raw value (may be negative); UI decides presentation.
  */
 export function computeProjectedFinalBalance(
   dailyAmount: number,
   advancesSoFar: number,
   contributionDays: number,
+  openingBalance: number = 0,
 ): number {
-  return dailyAmount * contributionDays - advancesSoFar;
+  return dailyAmount * contributionDays - advancesSoFar - openingBalance;
 }
 
 /**
  * INV-3 — accept iff Σ(existing) + new ≤ dailyAmount × contributionDays
+ *                                                   − openingBalance
  * (i.e., the new advance does not push the projected balance below 0).
  * Strict ≤ at the equality boundary — landing exactly at 0 is allowed.
+ *
+ * Story 12.3 Q2bis: when openingBalance ≥ dailyAmount × contributionDays,
+ * the right-hand side is ≤ 0 and every positive newAdvanceAmount is
+ * rejected — the saver must repay the carry-over via contributions first.
  */
 export function canAcceptAdvance(
   dailyAmount: number,
   existingAdvances: ReadonlyArray<number>,
   newAdvanceAmount: number,
   contributionDays: number,
+  openingBalance: number = 0,
 ): boolean {
-  return sum(existingAdvances) + newAdvanceAmount <= dailyAmount * contributionDays;
+  return (
+    sum(existingAdvances) + newAdvanceAmount <= dailyAmount * contributionDays - openingBalance
+  );
 }
 
 /**
@@ -162,14 +173,16 @@ export function canAcceptAdvance(
  * MIRRORS computeProjectedFinalBalance to satisfy that by construction.
  *
  * The contractual amount per FR17 is `dailyAmount × contributionDays −
- * Σ(advances)`, regardless of how many days were actually recorded.
+ * Σ(advances) − openingBalance`, regardless of how many days were
+ * actually recorded.
  */
 export function settle(
   dailyAmount: number,
   advances: ReadonlyArray<number>,
   contributionDays: number,
+  openingBalance: number = 0,
 ): number {
-  return computeProjectedFinalBalance(dailyAmount, sum(advances), contributionDays);
+  return computeProjectedFinalBalance(dailyAmount, sum(advances), contributionDays, openingBalance);
 }
 
 /**
@@ -253,13 +266,16 @@ export function isCycleInUpcomingEndWindow(
 }
 
 /** Pure derived stats per FR17. Replaces the Story 2.4
- *  src/features/member/api/computeMemberStats.ts helper. */
+ *  src/features/member/api/computeMemberStats.ts helper. Story 12.3 added
+ *  `openingBalance` — the carry-over of unpaid debt from the previous
+ *  unsettled cycle (0 when none / first cycle / previous is 'settled'). */
 export interface MemberStats {
   cycleDay: number;
   cycleLength: number;
   daysRemaining: number;
   contributedTotal: number;
   outstandingAdvances: number;
+  openingBalance: number;
   projectedFinalBalance: number;
 }
 
@@ -273,6 +289,10 @@ export function computeMemberStats(
   member: { dailyAmount: number },
   currentCycle: { startDate: string; endDate: string } | null,
   now: Date = new Date(),
+  /** Carry-over from the previous unsettled cycle. Story 12.3 — defaults
+   *  to 0 for backward compatibility with call sites that don't yet
+   *  thread the value through (legacy + new-member-first-cycle paths). */
+  openingBalance: number = 0,
 ): MemberStats {
   let contributedTotal = 0;
   let outstandingAdvances = 0;
@@ -291,6 +311,7 @@ export function computeMemberStats(
       daysRemaining: 0,
       contributedTotal,
       outstandingAdvances,
+      openingBalance,
       projectedFinalBalance: 0,
     };
   }
@@ -304,10 +325,70 @@ export function computeMemberStats(
     daysRemaining: daysUntilCycleEnd(day, cycleLength),
     contributedTotal,
     outstandingAdvances,
+    openingBalance,
     projectedFinalBalance: computeProjectedFinalBalance(
       member.dailyAmount,
       outstandingAdvances,
       cycleLength - 1,
+      openingBalance,
     ),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Story 12.3 — opening_balance carry-over (TS mirror of SQL helper
+// public.compute_opening_balance). Recursive on the chain of unsettled
+// previous cycles. Same algorithm, same return value (≥ 0). Cross-checked
+// by compute-opening-balance.contract.test.ts.
+// ---------------------------------------------------------------------------
+
+/** Shape consumed by computeOpeningBalance — a minimal cycle record. The
+ *  caller (useMembers / useMemberProfile) already loads these rows. */
+export interface OpeningBalanceCycle {
+  id: string;
+  cycleNumber: number;
+  startDate: string;
+  endDate: string;
+  status: "active" | "with_advance" | "completed" | "settled";
+}
+
+/**
+ * Story 12.3 — opening_balance(cycle) returns the unpaid debt of the
+ * previous unsettled cycle (0 when none). Recursion bottoms out at:
+ *   - cycle is the first cycle of the member (cycle_number = 1), OR
+ *   - the previous cycle's status is 'settled' (the chain restarts).
+ *
+ * Pure / deterministic. The caller passes:
+ *   - `cycles`: ALL cycles of the member (the recursion walks the chain
+ *     backward via cycle_number − 1; cycles outside the chain are
+ *     ignored). Order doesn't matter.
+ *   - `advancesByCycleId`: a Map<cycleId, Σ(advances excluding undone)>
+ *     — the caller is responsible for the exclusion. Missing entries
+ *     default to 0.
+ *   - `dailyAmount`: the member's daily contribution amount (constant
+ *     across cycles per current schema — if this ever changes, this
+ *     helper must take a per-cycle daily amount).
+ *   - `cycleId`: the cycle whose opening_balance we want.
+ *
+ * Returns: ≥ 0. Positive = debt carried over. Zero = no carry-over.
+ */
+export function computeOpeningBalance(
+  cycles: ReadonlyArray<OpeningBalanceCycle>,
+  advancesByCycleId: ReadonlyMap<string, number>,
+  dailyAmount: number,
+  cycleId: string,
+): number {
+  const current = cycles.find((c) => c.id === cycleId);
+  if (!current || current.cycleNumber <= 1) return 0;
+
+  const prev = cycles.find((c) => c.cycleNumber === current.cycleNumber - 1);
+  if (!prev) return 0;
+  if (prev.status === "settled") return 0;
+
+  const prevAdvances = advancesByCycleId.get(prev.id) ?? 0;
+  const prevOpening = computeOpeningBalance(cycles, advancesByCycleId, dailyAmount, prev.id);
+  const prevContribDays = cycleLengthDays(prev.startDate, prev.endDate) - 1;
+  const prevBalance = dailyAmount * prevContribDays - prevAdvances - prevOpening;
+
+  return prevBalance >= 0 ? 0 : -prevBalance;
 }

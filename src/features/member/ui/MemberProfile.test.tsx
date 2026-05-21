@@ -35,6 +35,7 @@ const STATS_NO_ADVANCES: MemberStats = {
   daysRemaining: 19,
   contributedTotal: 5500,
   outstandingAdvances: 0,
+  openingBalance: 0,
   projectedFinalBalance: 14500,
 };
 
@@ -44,6 +45,7 @@ const STATS_WITH_ADVANCES: MemberStats = {
   daysRemaining: 19,
   contributedTotal: 5500,
   outstandingAdvances: 3000,
+  openingBalance: 0,
   projectedFinalBalance: 11500,
 };
 

@@ -4,7 +4,13 @@
 // unit-tested on its own. `commission` / `computeProjectedFinalBalance`
 // come from the cycle-engine domain — never re-derived inline.
 
-import { commission, computeProjectedFinalBalance, cycleLengthDays } from "@/domain/cycle";
+import {
+  commission,
+  computeOpeningBalance,
+  computeProjectedFinalBalance,
+  cycleLengthDays,
+  type OpeningBalanceCycle,
+} from "@/domain/cycle";
 
 /** Subset of a `cycles` row the export needs.
  *  Note: `cycles` has NO `settled_payout` column — the realised payout of
@@ -13,9 +19,10 @@ import { commission, computeProjectedFinalBalance, cycleLengthDays } from "@/dom
 export interface ExportCycle {
   id: string;
   member_id: string;
+  cycle_number: number;
   start_date: string;
   end_date: string;
-  status: string;
+  status: OpeningBalanceCycle["status"];
 }
 
 /** Subset of a `members_decrypted` row the export needs. */
@@ -67,6 +74,20 @@ export function deriveCycleSummaryRows(
 ): CycleSummaryRow[] {
   const memberById = new Map(members.map((m) => [m.id, m]));
 
+  // Story 12.3 — group cycles per member so computeOpeningBalance can
+  // walk the chain. Pre-compute the per-cycle advances once.
+  const cyclesByMemberId = new Map<string, ExportCycle[]>();
+  for (const c of cycles) {
+    const list = cyclesByMemberId.get(c.member_id) ?? [];
+    list.push(c);
+    cyclesByMemberId.set(c.member_id, list);
+  }
+  const advancesByCycleId = new Map<string, number>();
+  for (const tx of transactions) {
+    if (tx.kind !== "advance") continue;
+    advancesByCycleId.set(tx.cycle_id, (advancesByCycleId.get(tx.cycle_id) ?? 0) + tx.amount);
+  }
+
   return cycles.map((cycle) => {
     const member = memberById.get(cycle.member_id);
     const dailyAmount = member?.daily_amount ?? 0;
@@ -79,8 +100,26 @@ export function deriveCycleSummaryRows(
       .filter((t) => t.kind === "advance")
       .reduce((sum, t) => sum + t.amount, 0);
 
+    // Story 12.3 — opening_balance carry-over from the previous unsettled
+    // cycle of the same member. Same TS engine helper as the live UI.
+    const memberCycles = cyclesByMemberId.get(cycle.member_id) ?? [cycle];
+    const openingBalanceCycles: OpeningBalanceCycle[] = memberCycles.map((c) => ({
+      id: c.id,
+      cycleNumber: c.cycle_number,
+      startDate: c.start_date,
+      endDate: c.end_date,
+      status: c.status,
+    }));
+    const opening_balance = computeOpeningBalance(
+      openingBalanceCycles,
+      advancesByCycleId,
+      dailyAmount,
+      cycle.id,
+    );
+
     // A settled cycle's realised payout is the amount of its synthetic
-    // `settlement` transaction; a non-settled cycle has only a projection.
+    // `settlement` transaction; a non-settled cycle has only a projection
+    // (Story 12.3 — projection subtracts opening_balance).
     const settledPayout = cycleTx.find((t) => t.kind === "settlement")?.amount ?? null;
     const final_payout =
       cycle.status === "settled" && settledPayout !== null
@@ -89,6 +128,7 @@ export function deriveCycleSummaryRows(
             dailyAmount,
             advances_sum,
             cycleLengthDays(cycle.start_date, cycle.end_date) - 1,
+            opening_balance,
           );
 
     return {

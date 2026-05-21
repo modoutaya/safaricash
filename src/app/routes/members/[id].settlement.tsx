@@ -122,9 +122,18 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
   // the SAME value to the Edge Function (the server recomputes independently
   // and rejects on mismatch). Story 11.2 — contributionDays is derived from
   // THIS cycle's calendar-month length, not a fixed 30.
+  // Story 12.3 — settlement subtracts opening_balance (carry-over from
+  // the previous unsettled cycle). The SQL commit_cycle_settlement
+  // recomputes this server-side via compute_opening_balance; the TS
+  // mirror MUST agree or the cross-check fires.
   const settlementContributionDays =
     cycleLengthDays(data.currentCycle.start_date, data.currentCycle.end_date) - 1;
-  const expectedPayout = settle(data.member.daily_amount, advances, settlementContributionDays);
+  const expectedPayout = settle(
+    data.member.daily_amount,
+    advances,
+    settlementContributionDays,
+    data.stats.openingBalance,
+  );
 
   const handleVerifyTransactions = () => {
     navigate(`/members/${memberId}`);

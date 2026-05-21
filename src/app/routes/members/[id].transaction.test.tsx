@@ -77,6 +77,7 @@ function memberFixture(overrides: Partial<MemberWithMeta> = {}): MemberWithMeta 
       endDate: "2026-05-10",
       cycleLength: 30,
       dayNumber: 11,
+      openingBalance: 0,
     },
     latestInteractionAt: "2026-04-20T10:00:00Z",
     cycleAdvancesTotal: 0,

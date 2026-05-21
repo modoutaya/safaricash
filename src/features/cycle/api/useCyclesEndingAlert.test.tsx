@@ -40,6 +40,7 @@ function mkMember(
       endDate: "2026-04-30",
       cycleLength: 30,
       dayNumber: 25,
+      openingBalance: 0,
     },
     latestInteractionAt: "2026-04-25T12:00:00Z",
     cycleAdvancesTotal: 0,
@@ -83,6 +84,7 @@ describe("useCyclesEndingAlert", () => {
           endDate: "2026-04-30",
           cycleLength: 30,
           dayNumber: 5,
+          openingBalance: 0,
         },
       }),
     ]);

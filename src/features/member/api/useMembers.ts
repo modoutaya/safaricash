@@ -15,7 +15,13 @@
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { z } from "zod";
 
-import { computeProjectedFinalBalance, cycleDay, cycleLengthDays } from "@/domain/cycle";
+import {
+  computeOpeningBalance,
+  computeProjectedFinalBalance,
+  cycleDay,
+  cycleLengthDays,
+  type OpeningBalanceCycle,
+} from "@/domain/cycle";
 import { supabase } from "@/infrastructure/supabase/client";
 
 import {
@@ -60,6 +66,25 @@ export function deriveMembersWithMeta(
     const displayStatus = deriveMemberStatus(row, currentCycle);
     const latestTxAt = data.latestTxByMember.get(row.id) ?? null;
     const cycleAdvancesTotal = currentCycle ? (data.advancesByCycle.get(currentCycle.id) ?? 0) : 0;
+    // Story 12.3 — opening_balance carry-over. We already have ALL the
+    // member's cycles + per-cycle advance totals in scope; the TS engine
+    // helper walks the chain recursively. Mirrors SQL
+    // `compute_opening_balance` — cross-checked by the Deno contract test.
+    const openingBalanceCycles: OpeningBalanceCycle[] = memberCycles.map((c) => ({
+      id: c.id,
+      cycleNumber: c.cycle_number,
+      startDate: c.start_date,
+      endDate: c.end_date,
+      status: c.status,
+    }));
+    const openingBalance = currentCycle
+      ? computeOpeningBalance(
+          openingBalanceCycles,
+          data.advancesByCycle,
+          row.daily_amount,
+          currentCycle.id,
+        )
+      : 0;
     return {
       id: row.id,
       name: row.name,
@@ -73,6 +98,7 @@ export function deriveMembersWithMeta(
             endDate: currentCycle.end_date,
             dayNumber: cycleDay(currentCycle.start_date, currentCycle.end_date, now),
             cycleLength: cycleLengthDays(currentCycle.start_date, currentCycle.end_date),
+            openingBalance,
           }
         : null,
       latestInteractionAt: latestTxAt ?? row.created_at,
@@ -82,6 +108,7 @@ export function deriveMembersWithMeta(
             row.daily_amount,
             cycleAdvancesTotal,
             cycleLengthDays(currentCycle.start_date, currentCycle.end_date) - 1,
+            openingBalance,
           )
         : null,
       createdAt: row.created_at,

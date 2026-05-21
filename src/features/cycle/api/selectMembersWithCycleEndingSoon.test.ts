@@ -21,6 +21,7 @@ function mkMember(
       endDate: "2026-04-30",
       cycleLength: 30,
       dayNumber: 25,
+      openingBalance: 0,
     },
     latestInteractionAt: "2026-04-25T12:00:00Z",
     cycleAdvancesTotal: 0,
@@ -52,6 +53,7 @@ describe("selectMembersWithCycleEndingSoon", () => {
         endDate: "2026-04-30",
         cycleLength: 30,
         dayNumber: 25,
+        openingBalance: 0,
       },
     });
     const outOfWindow = mkMember({
@@ -63,6 +65,7 @@ describe("selectMembersWithCycleEndingSoon", () => {
         endDate: "2026-04-30",
         cycleLength: 30,
         dayNumber: 10,
+        openingBalance: 0,
       },
     });
     const nullCycle = mkMember({ id: "null1", name: "NullCycle", currentCycle: null });
@@ -76,6 +79,7 @@ describe("selectMembersWithCycleEndingSoon", () => {
         endDate: "2026-04-30",
         cycleLength: 30,
         dayNumber: 30,
+        openingBalance: 0,
       },
     });
     const inWindow2 = mkMember({
@@ -87,6 +91,7 @@ describe("selectMembersWithCycleEndingSoon", () => {
         endDate: "2026-04-30",
         cycleLength: 30,
         dayNumber: 30,
+        openingBalance: 0,
       },
     });
 
@@ -108,6 +113,7 @@ describe("selectMembersWithCycleEndingSoon", () => {
         endDate: "2026-04-30",
         cycleLength: 30,
         dayNumber: 29,
+        openingBalance: 0,
       },
     });
     const day30 = mkMember({
@@ -119,6 +125,7 @@ describe("selectMembersWithCycleEndingSoon", () => {
         endDate: "2026-04-30",
         cycleLength: 30,
         dayNumber: 30,
+        openingBalance: 0,
       },
     });
     expect(selectMembersWithCycleEndingSoon([day29, day30], 0).map((m) => m.id)).toEqual(["30"]);
@@ -134,6 +141,7 @@ describe("selectMembersWithCycleEndingSoon", () => {
         endDate: "2026-04-30",
         cycleLength: 30,
         dayNumber: 1,
+        openingBalance: 0,
       },
     });
     const day30 = mkMember({
@@ -145,6 +153,7 @@ describe("selectMembersWithCycleEndingSoon", () => {
         endDate: "2026-04-30",
         cycleLength: 30,
         dayNumber: 30,
+        openingBalance: 0,
       },
     });
     const nullC = mkMember({ id: "null", name: "Null", currentCycle: null });

@@ -21,9 +21,13 @@ import {
 const cycleSchema = z.object({
   id: z.string(),
   member_id: z.string(),
+  cycle_number: z.number().int().positive(),
   start_date: z.string(),
   end_date: z.string(),
-  status: z.string(),
+  // Story 12.3 — typed enum (was `z.string()` pre-12.3). The export
+  // now passes the value to computeOpeningBalance which expects the
+  // narrow union.
+  status: z.enum(["active", "with_advance", "completed", "settled"]),
 });
 const memberSchema = z.object({
   id: z.string(),
@@ -70,7 +74,7 @@ export interface CsvExportResult {
 
 export async function runCsvExport(): Promise<CsvExportResult> {
   const [cyclesResult, membersResult, txResult] = await Promise.all([
-    supabase.from("cycles").select("id, member_id, start_date, end_date, status"),
+    supabase.from("cycles").select("id, member_id, cycle_number, start_date, end_date, status"),
     supabase.from("members_decrypted").select("id, name, daily_amount"),
     supabase
       .from("transactions_decrypted")

@@ -92,6 +92,11 @@ export function applyOptimisticTransactionUpdate(
     // first pass). computeMemberStats is pure + cheap; runs over the
     // current-cycle transactions only (matches useMemberProfile's
     // filter semantics).
+    // Story 12.3 — preserve the existing openingBalance from the cached
+    // stats. A new transaction in the CURRENT cycle does NOT change the
+    // carry-over (which is a snapshot of the PREVIOUS cycle's debt);
+    // useMemberProfile's next refetch will re-derive the authoritative
+    // value if anything has changed on the server.
     const nextStats = computeMemberStats(
       nextTransactions,
       { dailyAmount: previousProfile.member.daily_amount },
@@ -101,6 +106,8 @@ export function applyOptimisticTransactionUpdate(
             endDate: previousProfile.currentCycle.end_date,
           }
         : null,
+      undefined,
+      previousProfile.stats.openingBalance,
     );
     const nextProfile: MemberProfileData = {
       ...previousProfile,

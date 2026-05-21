@@ -48,6 +48,7 @@ const OK_TABLES: Record<string, TableResult> = {
       {
         id: CYCLE_ID,
         member_id: MEMBER_ID,
+        cycle_number: 1,
         start_date: "2026-04-01",
         end_date: "2026-04-30",
         status: "active",
