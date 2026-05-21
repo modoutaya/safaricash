@@ -87,19 +87,25 @@ export default function MemberProfileRoute() {
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-col gap-4 py-6">
-      <header className="flex items-center justify-between gap-2 px-4">
+      {/* Story 12.4 hotfix — `flex-wrap` on the actions group so the buttons
+          wrap to a 2nd line on narrow viewports instead of forcing the
+          whole page into horizontal overflow. Memory feedback_responsive_width
+          rule: nothing wider than the device viewport. The chevron stays on
+          its row; the buttons cascade below when they don't fit. `min-w-0`
+          on the group lets it shrink. */}
+      <header className="flex flex-wrap items-start justify-between gap-2 px-4">
         <button
           type="button"
           onClick={() => navigate("/members")}
           aria-label={t("members.profile.back_label")}
-          className="flex h-11 w-11 items-center justify-center rounded-md text-text-secondary hover:bg-neutral-100 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+          className="flex h-11 w-11 flex-none items-center justify-center rounded-md text-text-secondary hover:bg-neutral-100 hover:text-text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
         >
           <ChevronLeft size={24} aria-hidden />
         </button>
         <div
           role="group"
           aria-label={t("members.profile.actions_label")}
-          className="flex items-center gap-1"
+          className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1"
         >
           <Button asChild variant="outline" size="sm" disabled={!isUuid}>
             <Link to={`/members/${id}/edit`}>{t("members.profile.action_edit")}</Link>
@@ -147,6 +153,7 @@ export default function MemberProfileRoute() {
           member={query.data.member}
           currentCycle={query.data.currentCycle}
           previousCycles={query.data.previousCycles}
+          awaitingSettlementPayout={query.data.awaitingSettlementPayout}
           transactions={query.data.transactions}
           stats={query.data.stats}
           onTransactionTap={setSelectedTx}
