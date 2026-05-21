@@ -89,7 +89,11 @@ const mkData = (
       cycleLength: 30,
       // Fixture cycle is 30 days → daysRemaining = cycleLength − cycleDay.
       daysRemaining: 30 - (overrides.cycleDay ?? 10),
-      contributedTotal: overrides.contributedTotal ?? 0,
+      // Story 12.5 PR B — advance cap = contributedTotal. Default 145_000
+      // matches the legacy daily(5000) × contribDays(29) capacity so the
+      // pre-12.5 test assertions (50K / 100K / 150K chips, 20K / 200K
+      // amounts) keep their accept/reject semantics.
+      contributedTotal: overrides.contributedTotal ?? 145_000,
       outstandingAdvances: overrides.outstandingAdvances ?? 0,
       projectedFinalBalance: 0,
     },

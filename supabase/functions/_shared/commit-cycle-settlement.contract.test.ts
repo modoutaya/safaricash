@@ -400,11 +400,12 @@ if (env) {
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
-        const advA = await recordAdvance(userClient, memberId, cycleId, 1, 2000);
-        await recordAdvance(userClient, memberId, cycleId, 2, 1000);
-
-        // Story 12.5 — seed full cycle so the post-undo payout is positive.
-        await seedFullCycleContribs(userClient, memberId, cycleId, 27, 500); // days 3..29
+        // Story 12.5 PR B — seed contribs BEFORE advances (cap = contributedTotal).
+        // 27 contribs of 500 on days 1..27 = 13_500 versé.
+        await seedFullCycleContribs(userClient, memberId, cycleId, 27, 500);
+        // Advances at days 28 / 29 (no day collision with contribs).
+        const advA = await recordAdvance(userClient, memberId, cycleId, 28, 2000);
+        await recordAdvance(userClient, memberId, cycleId, 29, 1000);
 
         // Soft-undo advA (2000). Real advances sum = 1000.
         // Payout = 13_500 (contrib) − 500 (daily) − 1_000 (advB) = 12_000.

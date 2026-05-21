@@ -106,6 +106,27 @@ async function seedMemberWithCycle(
   return { memberId, cycleId: cycle.id };
 }
 
+/** Story 12.5 PR B — seed contributions before advances since the new
+ *  cap is contributedTotal not daily × contribDays. Default seeds 145_000
+ *  versed (29 days × dailyAmount=5000), matching the legacy capacity. */
+async function seedContribsForAdvanceTests(
+  userClient: SupabaseClient,
+  memberId: string,
+  cycleId: string,
+  days: number = 29,
+  amountEach: number = 5000,
+): Promise<void> {
+  for (let d = 1; d <= days; d++) {
+    const { error } = await userClient.rpc("record_contribution", {
+      p_member_id: memberId,
+      p_cycle_id: cycleId,
+      p_amount: amountEach,
+      p_cycle_day: d,
+    });
+    if (error) throw new Error(`seedContrib day ${d}: ${error.message}`);
+  }
+}
+
 async function cleanup(service: SupabaseClient, c: PhoneCollector): Promise<void> {
   await service.from("transactions").delete().eq("collector_id", c.userId);
   await service.from("cycles").delete().eq("collector_id", c.userId);
@@ -146,6 +167,9 @@ if (env) {
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        // Story 12.5 PR B — advance requires contributedTotal ≥ amount.
+        // Seed 29 × 5000 = 145_000 so a 50_000 advance fits.
+        await seedContribsForAdvanceTests(userClient, memberId, cycleId);
 
         const { data: txId, error: rpcErr } = await userClient.rpc("record_advance", {
           p_member_id: memberId,
@@ -231,6 +255,7 @@ if (env) {
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        await seedContribsForAdvanceTests(userClient, memberId, cycleId);
 
         const { data: txId, error: rpcErr } = await userClient.rpc("record_advance", {
           p_member_id: memberId,
@@ -302,8 +327,10 @@ if (env) {
           auth: { persistSession: false, autoRefreshToken: false },
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
-        // dailyAmount=5000 → capacity = 5000 × 29 = 145_000.
+        // Story 12.5 PR B — cap = contributedTotal − existing_advances.
+        // Seed 145_000 contributedTotal then attempt an advance of 200_000.
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        await seedContribsForAdvanceTests(userClient, memberId, cycleId);
 
         const { error: rpcErr } = await userClient.rpc("record_advance", {
           p_member_id: memberId,
@@ -336,6 +363,8 @@ if (env) {
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        // Seed contribs while cycle is still active, THEN mark completed.
+        await seedContribsForAdvanceTests(userClient, memberId, cycleId);
         await service.from("cycles").update({ status: "completed" }).eq("id", cycleId);
 
         const { error: rpcErr } = await userClient.rpc("record_advance", {
@@ -481,7 +510,7 @@ if (env) {
   // Story 11.3 AC #11 — partial-cycle capacity bound.
   // -------------------------------------------------------------------------
   Deno.test({
-    name: "11.3 AC #11 — partial cycle (cycleLength 24) → capacity = dailyAmount × 23 (boundary + over-limit)",
+    name: "11.3 AC #11 — partial cycle (cycleLength 24) — capacity bounded by contributedTotal (Story 12.5 PR B)",
     ...denoOpts,
     fn: async () => {
       const anon = createClient(env.url, env.anonKey, {
@@ -502,7 +531,10 @@ if (env) {
           .eq("id", cycleId);
         if (pinErr) throw new Error(`pin cycle: ${pinErr.message}`);
 
-        // dailyAmount = 5000 (inline seed default) → capacity = 5000 × 23 = 115_000.
+        // Story 12.5 PR B — cap = actual contributedTotal, NOT daily × contribDays.
+        // Seed 23 contribs of 5000 = 115_000 contributedTotal so the legacy
+        // capacity-115_000 assertions still hold.
+        await seedContribsForAdvanceTests(userClient, memberId, cycleId, 23, 5000);
 
         // Advance of exactly capacity is accepted (≤ boundary inclusive per INV-3).
         const { data: txId1, error: errAccept } = await userClient.rpc("record_advance", {
@@ -557,6 +589,10 @@ if (env) {
           .update({ start_date: "2026-01-01", end_date: "2026-01-31" })
           .eq("id", cycleId);
         if (pinErr) throw new Error(`pin cycle: ${pinErr.message}`);
+
+        // Story 12.5 PR B — seed a contribution so the advance fits the
+        // contributedTotal cap. 1 contrib of 5_000 covers the 1_000 advance.
+        await seedContribsForAdvanceTests(userClient, memberId, cycleId, 1, 5_000);
 
         // cycle_day = 31 is now accepted (was rejected pre-11.3).
         const { data: txId, error: errAccept } = await userClient.rpc("record_advance", {

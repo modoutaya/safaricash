@@ -117,18 +117,20 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
     );
   });
 
-  it("INV-3: advance request is accepted iff total advances stay within capacity (propAdvanceCapacityBound)", () => {
+  it("INV-3 (12.5 PR B rewrite): advance accepted iff Σ(existing) + new ≤ contributedTotal", () => {
+    // Pre-12.5 INV-3 capped by dailyAmount × contributionDays (the
+    // contract projection). The new model caps by ACTUAL contributedTotal:
+    // the collector never advances more than what's been versed so far.
     fc.assert(
       fc.property(
-        fc.integer({ min: 100, max: 100_000 }),
-        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
-        fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 20 }),
-        fc.integer({ min: 1, max: 100_000 }),
-        (dailyAmount, cycleLength, existing, newAdvance) => {
-          const contributionDays = cycleLength - 1;
-          const capacity = dailyAmount * contributionDays;
-          const expected = sum(existing) + newAdvance <= capacity;
-          return canAcceptAdvance(dailyAmount, existing, newAdvance, contributionDays) === expected;
+        fc.record({
+          contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
+          existing: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 20 }),
+          newAdvance: fc.integer({ min: 1, max: 100_000 }),
+        }),
+        ({ contributedTotal, existing, newAdvance }) => {
+          const expected = sum(existing) + newAdvance <= contributedTotal;
+          return canAcceptAdvance(contributedTotal, existing, newAdvance) === expected;
         },
       ),
     );
@@ -282,47 +284,16 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
     );
   });
 
-  it("INV-3 (extended): capacity = daily × contribDays − openingBalance (propAdvanceCapacityBoundWithOpeningBalance)", () => {
+  it("Story 12.5 PR B — when contributedTotal = 0, every positive advance is rejected", () => {
+    // Symmetric to the pre-12.5 Q2bis property (which gated on
+    // openingBalance ≥ daily × contribDays). The new model: nothing
+    // versed yet → nothing to lend against.
     fc.assert(
       fc.property(
-        fc.integer({ min: 100, max: 100_000 }),
-        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
+        fc.integer({ min: 1, max: 100_000 }),
         fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 20 }),
-        fc.integer({ min: 1, max: 100_000 }),
-        fc.integer({ min: 0, max: 1_000_000 }),
-        (dailyAmount, cycleLength, existing, newAdvance, openingBalance) => {
-          const contributionDays = cycleLength - 1;
-          const capacity = dailyAmount * contributionDays - openingBalance;
-          const expected = sum(existing) + newAdvance <= capacity;
-          return (
-            canAcceptAdvance(
-              dailyAmount,
-              existing,
-              newAdvance,
-              contributionDays,
-              openingBalance,
-            ) === expected
-          );
-        },
-      ),
-    );
-  });
-
-  it("Q2bis: when openingBalance ≥ daily × contribDays, ALL positive advances are rejected", () => {
-    fc.assert(
-      fc.property(
-        fc.integer({ min: 100, max: 100_000 }),
-        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
-        fc.integer({ min: 1, max: 100_000 }),
-        (dailyAmount, cycleLength, newAdvance) => {
-          const contributionDays = cycleLength - 1;
-          const openingBalance = dailyAmount * contributionDays; // exactly at limit
-          // newAdvance > 0 + existing = 0 → sum = newAdvance > 0 = capacity (which is 0)
-          // → rejected (the ≤ is strict at 0 with newAdvance > 0).
-          return (
-            canAcceptAdvance(dailyAmount, [], newAdvance, contributionDays, openingBalance) ===
-            false
-          );
+        (newAdvance, existing) => {
+          return canAcceptAdvance(0, existing, newAdvance) === false;
         },
       ),
     );
@@ -713,24 +684,29 @@ describe("cycleEngine — example tests", () => {
     });
   });
 
-  describe("canAcceptAdvance", () => {
-    it("accepts an advance that exactly hits capacity (29 contribution days)", () => {
-      expect(canAcceptAdvance(500, [], 14_500, 29)).toBe(true);
+  describe("canAcceptAdvance (Story 12.5 PR B — contributedTotal cap)", () => {
+    it("accepts an advance that exactly hits contributedTotal", () => {
+      expect(canAcceptAdvance(14_500, [], 14_500)).toBe(true);
     });
 
     it("rejects an advance over by 1 FCFA", () => {
-      expect(canAcceptAdvance(500, [], 14_501, 29)).toBe(false);
+      expect(canAcceptAdvance(14_500, [], 14_501)).toBe(false);
     });
 
     it("respects existing advances", () => {
-      expect(canAcceptAdvance(500, [10_000], 4_500, 29)).toBe(true); // total 14_500 = capacity
-      expect(canAcceptAdvance(500, [10_000], 4_501, 29)).toBe(false); // over by 1
+      expect(canAcceptAdvance(14_500, [10_000], 4_500)).toBe(true); // total 14_500 = cap
+      expect(canAcceptAdvance(14_500, [10_000], 4_501)).toBe(false); // over by 1
     });
 
-    it("capacity shrinks with a shorter partial cycle (23 contribution days)", () => {
-      // dailyAmount 500 × 23 = 11_500 capacity.
-      expect(canAcceptAdvance(500, [], 11_500, 23)).toBe(true);
-      expect(canAcceptAdvance(500, [], 11_501, 23)).toBe(false);
+    it("capacity = contributedTotal regardless of cycle length", () => {
+      // 11 500 versé so far → max advance 11 500 minus existing.
+      expect(canAcceptAdvance(11_500, [], 11_500)).toBe(true);
+      expect(canAcceptAdvance(11_500, [], 11_501)).toBe(false);
+    });
+
+    it("0 versé so far → no advance possible", () => {
+      expect(canAcceptAdvance(0, [], 1)).toBe(false);
+      expect(canAcceptAdvance(0, [], 0)).toBe(true);
     });
   });
 

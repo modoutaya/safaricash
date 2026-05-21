@@ -18,16 +18,21 @@ import { cn } from "@/lib/utils";
 export interface AdvanceSimulationPanelProps {
   /** FCFA integer; expected positive. */
   dailyAmount: number;
+  /** Story 12.5 PR B — actual sum of (contribution + rattrapage) booked
+   *  in the cycle so far (undone excluded). The collector's physically
+   *  held cash for this saver. Drives the new capacity cap. */
+  contributedTotal: number;
   /** FCFA integers; each positive. Empty array = no prior advances. */
   existingAdvances: ReadonlyArray<number>;
   /** FCFA integer. 0 when the input is empty (caller normalises). */
   candidateAmount: number;
   /** Inclusive day count of the member's current cycle (Story 11.2 —
-   *  variable length). `contributionDays = cycleLength − 1`. */
+   *  variable length). Still used for the row-1 totalProjected display
+   *  pending Story 12.5 PR C's projected → currentBalance rename. */
   cycleLength: number;
   /** Story 12.3 — carry-over of unpaid debt from the previous unsettled
-   *  cycle. Defaults to 0 for backward compatibility. Both the capacity
-   *  check and the projected balance subtract this. */
+   *  cycle. Defaults to 0 for backward compatibility. Subtracted from
+   *  the projected-balance display only (PR C will revisit). */
   openingBalance?: number;
   /** Caller-side spacing/sizing tweaks. */
   className?: string;
@@ -36,20 +41,12 @@ export interface AdvanceSimulationPanelProps {
 type SimulationState = "empty" | "valid" | "over-limit";
 
 function deriveState(
-  dailyAmount: number,
+  contributedTotal: number,
   existingAdvances: ReadonlyArray<number>,
   candidateAmount: number,
-  contributionDays: number,
-  openingBalance: number,
 ): SimulationState {
   if (candidateAmount === 0) return "empty";
-  return canAcceptAdvance(
-    dailyAmount,
-    existingAdvances,
-    candidateAmount,
-    contributionDays,
-    openingBalance,
-  )
+  return canAcceptAdvance(contributedTotal, existingAdvances, candidateAmount)
     ? "valid"
     : "over-limit";
 }
@@ -62,6 +59,7 @@ function sumAdvances(existingAdvances: ReadonlyArray<number>, candidateAmount: n
 
 export function AdvanceSimulationPanel({
   dailyAmount,
+  contributedTotal,
   existingAdvances,
   candidateAmount,
   cycleLength,
@@ -70,13 +68,7 @@ export function AdvanceSimulationPanel({
 }: AdvanceSimulationPanelProps): JSX.Element {
   const t = useT();
   const contributionDays = cycleLength - 1;
-  const state = deriveState(
-    dailyAmount,
-    existingAdvances,
-    candidateAmount,
-    contributionDays,
-    openingBalance,
-  );
+  const state = deriveState(contributedTotal, existingAdvances, candidateAmount);
 
   const totalProjected = dailyAmount * cycleLength;
   const commissionAmount = commission(dailyAmount);

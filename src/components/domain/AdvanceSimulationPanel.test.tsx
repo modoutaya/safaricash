@@ -13,6 +13,7 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
+        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={0}
       />,
@@ -26,6 +27,7 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
+        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={20_000}
       />,
@@ -42,6 +44,7 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
+        contributedTotal={145_000}
         existingAdvances={[10_000]}
         candidateAmount={20_000}
       />,
@@ -55,6 +58,7 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
+        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={145_000}
       />,
@@ -70,6 +74,7 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
+        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={200_000}
       />,
@@ -87,6 +92,7 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
+        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={20_000}
       />,
@@ -101,6 +107,7 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
+        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={10_000}
       />,
@@ -110,6 +117,7 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
+        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={20_000}
       />,
@@ -131,6 +139,7 @@ describe("AdvanceSimulationPanel", () => {
           existingAdvances={c.existingAdvances}
           candidateAmount={c.candidateAmount}
           cycleLength={30}
+          contributedTotal={145_000}
         />,
       );
       const results = await axe(container);

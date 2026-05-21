@@ -107,6 +107,24 @@ function userClientFor(env: { url: string; anonKey: string }, jwt: string): Supa
   });
 }
 
+/** Story 12.5 PR B — seed a single contribution so the cap on the
+ *  follow-up advance is non-zero. record_advance now refuses to credit
+ *  more than the saver has versed. amount=10_000 covers every 500-FCFA
+ *  advance the idempotency tests below attempt. */
+async function seedSingleContrib(
+  userClient: SupabaseClient,
+  memberId: string,
+  cycleId: string,
+): Promise<void> {
+  const { error } = await userClient.rpc("record_contribution", {
+    p_member_id: memberId,
+    p_cycle_id: cycleId,
+    p_amount: 10_000,
+    p_cycle_day: 1,
+  });
+  if (error) throw new Error(`seedSingleContrib: ${error.message}`);
+}
+
 const env = envOrSkip();
 
 Deno.test({
@@ -382,6 +400,7 @@ if (env) {
       try {
         const user = userClientFor(env, c.jwt);
         const { memberId, cycleId } = await seedMemberWithCycle(user, service, c.userId);
+        await seedSingleContrib(user, memberId, cycleId);
         const eventId = crypto.randomUUID();
         const { data: txId, error } = await user.rpc("record_advance", {
           p_member_id: memberId,
@@ -419,6 +438,7 @@ if (env) {
       try {
         const user = userClientFor(env, c.jwt);
         const { memberId, cycleId } = await seedMemberWithCycle(user, service, c.userId);
+        await seedSingleContrib(user, memberId, cycleId);
         const eventId = crypto.randomUUID();
         const args = {
           p_member_id: memberId,
@@ -466,6 +486,8 @@ if (env) {
         const userB = userClientFor(env, b.jwt);
         const seedA = await seedMemberWithCycle(userA, service, a.userId);
         const seedB = await seedMemberWithCycle(userB, service, b.userId);
+        await seedSingleContrib(userA, seedA.memberId, seedA.cycleId);
+        await seedSingleContrib(userB, seedB.memberId, seedB.cycleId);
         const shared = crypto.randomUUID();
         const { data: txA } = await userA.rpc("record_advance", {
           p_member_id: seedA.memberId,
