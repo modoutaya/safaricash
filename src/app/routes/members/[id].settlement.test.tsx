@@ -104,21 +104,27 @@ function baseData(overrides: Partial<ReturnType<typeof buildBase>> = {}) {
   return { ...buildBase(), ...overrides };
 }
 function buildBase() {
+  const txs = [
+    makeTx("contribution", 500, "2026-04-13T09:00:00Z"),
+    makeTx("contribution", 500, "2026-04-14T09:00:00Z"),
+    makeTx("advance", 3_000, "2026-04-20T11:00:00Z"),
+  ];
   return {
     member: MEMBER,
     currentCycle: COMPLETED_CYCLE as typeof COMPLETED_CYCLE | null,
     previousCycles: [] as (typeof COMPLETED_CYCLE)[],
-    transactions: [
-      makeTx("contribution", 500, "2026-04-13T09:00:00Z"),
-      makeTx("contribution", 500, "2026-04-14T09:00:00Z"),
-      makeTx("advance", 3_000, "2026-04-20T11:00:00Z"),
-    ],
+    // Story 12.4 — settlement route now targets cycleAwaitingSettlement.
+    // Pre-Phase-B model: the cycle to settle equals currentCycle.
+    cycleAwaitingSettlement: COMPLETED_CYCLE as typeof COMPLETED_CYCLE | null,
+    transactions: txs,
+    allTransactions: txs,
     stats: {
       cycleDay: 30,
       cycleLength: 30,
       daysRemaining: 0,
       contributedTotal: 1_000,
       outstandingAdvances: 3_000,
+      openingBalance: 0,
       // Fixture cycle is 30 days → contributionDays 29. Projected = 500 × 29 − 3 000.
       projectedFinalBalance: 500 * 29 - 3_000,
     },
@@ -189,10 +195,16 @@ describe("MemberSettlementRoute", () => {
     expect(screen.getByRole("button", { name: /Retour au profil/ })).toBeInTheDocument();
   });
 
-  it("precondition guard — currentCycle.status === 'active' → redirects to profile", () => {
+  // Story 12.4 — guard was rewritten: redirect when
+  // `cycleAwaitingSettlement == null`, i.e. no cycle in 'completed' status
+  // exists across the member's history. The fixtures below clear both
+  // currentCycle's settle-relevant status AND cycleAwaitingSettlement.
+
+  it("precondition guard — no awaiting-settlement cycle ('active' current) → redirects to profile", () => {
     useMemberProfileMock.mockReturnValue({
       data: baseData({
         currentCycle: { ...COMPLETED_CYCLE, status: "active" },
+        cycleAwaitingSettlement: null,
       }),
       isLoading: false,
       isError: false,
@@ -205,10 +217,11 @@ describe("MemberSettlementRoute", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("precondition guard — currentCycle.status === 'settled' → redirects to profile", () => {
+  it("precondition guard — no awaiting-settlement cycle ('settled' current) → redirects to profile", () => {
     useMemberProfileMock.mockReturnValue({
       data: baseData({
         currentCycle: { ...COMPLETED_CYCLE, status: "settled" },
+        cycleAwaitingSettlement: null,
       }),
       isLoading: false,
       isError: false,
@@ -217,14 +230,11 @@ describe("MemberSettlementRoute", () => {
     expect(screen.getByTestId("profile-sentinel")).toBeInTheDocument();
   });
 
-  it("precondition guard — currentCycle.status === 'with_advance' → redirects to profile", () => {
-    // Defensive — `with_advance` is also intercepted by the strict
-    // `!== "completed"` check. Without this case, a future refactor that
-    // decomposed the literal-inequality into an explicit union could
-    // silently drop `with_advance` from the guard.
+  it("precondition guard — no awaiting-settlement cycle ('with_advance' current) → redirects to profile", () => {
     useMemberProfileMock.mockReturnValue({
       data: baseData({
         currentCycle: { ...COMPLETED_CYCLE, status: "with_advance" },
+        cycleAwaitingSettlement: null,
       }),
       isLoading: false,
       isError: false,
@@ -233,9 +243,9 @@ describe("MemberSettlementRoute", () => {
     expect(screen.getByTestId("profile-sentinel")).toBeInTheDocument();
   });
 
-  it("precondition guard — currentCycle === null → redirects to profile", () => {
+  it("precondition guard — no cycle at all → redirects to profile", () => {
     useMemberProfileMock.mockReturnValue({
-      data: baseData({ currentCycle: null }),
+      data: baseData({ currentCycle: null, cycleAwaitingSettlement: null }),
       isLoading: false,
       isError: false,
     });
@@ -430,19 +440,23 @@ describe("MemberSettlementRoute", () => {
   });
 
   it("advance ordering — 3 advances rendered newest-first in sub-list", () => {
+    const advanceTxs = [
+      makeTx("advance", 1_000, "2026-04-15T08:00:00Z"), // oldest
+      makeTx("advance", 2_000, "2026-04-20T08:00:00Z"),
+      makeTx("advance", 3_000, "2026-05-01T08:00:00Z"), // newest
+    ];
     useMemberProfileMock.mockReturnValue({
       data: baseData({
-        transactions: [
-          makeTx("advance", 1_000, "2026-04-15T08:00:00Z"), // oldest
-          makeTx("advance", 2_000, "2026-04-20T08:00:00Z"),
-          makeTx("advance", 3_000, "2026-05-01T08:00:00Z"), // newest
-        ],
+        // Story 12.4 — route now reads allTransactions for the cycle filter.
+        transactions: advanceTxs,
+        allTransactions: advanceTxs,
         stats: {
           cycleDay: 30,
           cycleLength: 30,
           daysRemaining: 0,
           contributedTotal: 1_000,
           outstandingAdvances: 6_000,
+          openingBalance: 0,
           // Fixture cycle is 30 days → contributionDays 29. Projected = 500 × 29 − 6 000.
           projectedFinalBalance: 500 * 29 - 6_000,
         },

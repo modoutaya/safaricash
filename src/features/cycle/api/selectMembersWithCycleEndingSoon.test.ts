@@ -26,6 +26,7 @@ function mkMember(
     latestInteractionAt: "2026-04-25T12:00:00Z",
     cycleAdvancesTotal: 0,
     projectedBalance: null,
+    awaitingSettlement: null,
     ...override,
   };
 }

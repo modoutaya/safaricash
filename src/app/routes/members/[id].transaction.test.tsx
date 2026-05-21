@@ -82,6 +82,7 @@ function memberFixture(overrides: Partial<MemberWithMeta> = {}): MemberWithMeta 
     latestInteractionAt: "2026-04-20T10:00:00Z",
     cycleAdvancesTotal: 0,
     projectedBalance: 14500,
+    awaitingSettlement: null,
     ...overrides,
   };
 }

@@ -70,9 +70,15 @@ export default function MemberProfileRoute() {
   // completed/settled. Hidden (not disabled) per AC #1.
   const currentCycleStatus = query.data?.currentCycle?.status;
   const canRestart = currentCycleStatus === "completed" || currentCycleStatus === "settled";
-  // Story 7.3 — "Clôturer le cycle" is visible iff the current cycle is
-  // completed (not yet settled). Tap navigates to /members/:id/settlement.
-  const canSettle = currentCycleStatus === "completed";
+  // Story 7.3 — "Clôturer le cycle" is visible iff at least one cycle is
+  // awaiting settlement (status='completed' not yet 'settled'). Tap
+  // navigates to /members/:id/settlement.
+  // Story 12.4 — gate switched from `currentCycle.status==='completed'`
+  // to `cycleAwaitingSettlement !== null` because after the Phase B cron
+  // (Story 12.3) the just-closed cycle moves to previousCycles while
+  // currentCycle becomes the freshly-opened 'active' one. Without this
+  // change the CTA disappears the moment the cron fires.
+  const canSettle = query.data?.cycleAwaitingSettlement != null;
   // Story 6.6 — Renvoyer l'historique visible when current cycle is active
   // AND member is active. Server enforces opt-out / no-phone / empty-cycle
   // short-circuits.

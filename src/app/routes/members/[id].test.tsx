@@ -245,26 +245,31 @@ describe("MemberProfileRoute", () => {
   });
 
   it("Story 7.3 — 'Clôturer le cycle' link is present when cycle.status === 'completed'", () => {
+    const completedCycle = {
+      id: "22222222-2222-4222-8222-222222222222",
+      cycle_number: 1,
+      start_date: "2026-04-12",
+      end_date: "2026-05-11",
+      status: "completed" as const,
+    };
     useMemberProfileMock.mockReturnValue({
       isLoading: false,
       isError: false,
       data: {
         member: MEMBER,
-        currentCycle: {
-          id: "22222222-2222-4222-8222-222222222222",
-          cycle_number: 1,
-          start_date: "2026-04-12",
-          end_date: "2026-05-11",
-          status: "completed",
-        },
+        currentCycle: completedCycle,
         previousCycles: [],
+        // Story 12.4 — link gate now reads cycleAwaitingSettlement.
+        cycleAwaitingSettlement: completedCycle,
         transactions: [],
+        allTransactions: [],
         totalTransactionsCount: 0,
         stats: {
           cycleDay: 30,
           daysRemaining: 0,
           contributedTotal: 0,
           outstandingAdvances: 0,
+          openingBalance: 0,
           projectedFinalBalance: 14500,
         },
       },

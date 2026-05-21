@@ -89,6 +89,16 @@ export function MemberCard({ member, onSelect, className }: MemberCardProps): JS
                 })}
               </p>
             ) : null}
+            {member.awaitingSettlement !== null ? (
+              <p
+                className="text-caption font-semibold text-warning-text"
+                style={{ fontVariantNumeric: "tabular-nums" }}
+              >
+                {t("members.card.to_settle_inline", {
+                  amount: formatFcfaAmount(member.awaitingSettlement.payout),
+                })}
+              </p>
+            ) : null}
             <CycleProgressBar
               dayNumber={cycle.dayNumber}
               totalDays={cycle.cycleLength}
