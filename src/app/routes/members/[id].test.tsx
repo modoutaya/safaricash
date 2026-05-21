@@ -161,7 +161,7 @@ describe("MemberProfileRoute", () => {
     expect(screen.getByRole("button", { name: /supprimer/i })).toBeEnabled();
   });
 
-  it("Story 2.7 — renders the Restart button when the current cycle is completed", () => {
+  it("Story 12.4 — Story-2.7 Restart button is REMOVED (Phase B cron auto-restarts cycles)", () => {
     useMemberProfileMock.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -182,12 +182,16 @@ describe("MemberProfileRoute", () => {
           daysRemaining: 0,
           contributedTotal: 14500,
           outstandingAdvances: 0,
+          openingBalance: 0,
           projectedFinalBalance: 14500,
         },
       },
     });
     renderRoute(`/members/${VALID_ID}`);
-    expect(screen.getByRole("button", { name: /redémarrer/i })).toBeInTheDocument();
+    // Story 2.7's "Redémarrer le cycle" button was removed in Story 12.4:
+    // since the Phase B cron auto-creates the next cycle on the 1st of
+    // each month, this CTA was a duplicate path that confused operators.
+    expect(screen.queryByRole("button", { name: /redémarrer/i })).not.toBeInTheDocument();
   });
 
   // Story 6.7 AC #22 — tapping a transaction row opens the receipt sheet.
