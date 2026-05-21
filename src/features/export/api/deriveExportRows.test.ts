@@ -70,22 +70,20 @@ describe("deriveCycleSummaryRows", () => {
     expect(rows[0]!.final_payout).toBe(13500);
   });
 
-  it("final_payout falls back to the projection when a settled cycle has no settlement tx", () => {
+  it("final_payout falls back to the current cumul when a settled cycle has no settlement tx", () => {
     const rows = deriveCycleSummaryRows([cycle({ status: "settled" })], [MEMBER], []);
-    // Fixture cycle is 30 days (start + 29 days) → contributionDays 29.
-    // computeProjectedFinalBalance(500, 0, 29) = 500 × 29 = 14_500.
-    expect(rows[0]!.final_payout).toBe(14500);
+    // Story 12.5 PR C — currentBalance = contributedTotal(0) − daily(500) = −500.
+    expect(rows[0]!.final_payout).toBe(-500);
   });
 
-  it("final_payout for a non-settled cycle = projected balance (daily × contributionDays − advances)", () => {
+  it("final_payout for a non-settled cycle = current cumul (Story 12.5 PR C)", () => {
     const rows = deriveCycleSummaryRows(
       [cycle({ status: "with_advance" })],
       [MEMBER],
       [tx({ kind: "advance", amount: 2000 })],
     );
-    // computeProjectedFinalBalance(500, 2000, 29) = 500 × 29 − 2000 = 12_500
-    // (30-day fixture → contributionDays 29).
-    expect(rows[0]!.final_payout).toBe(12500);
+    // currentBalance = contributedTotal(0) − daily(500) − advances(2000) = −2500.
+    expect(rows[0]!.final_payout).toBe(-2500);
   });
 
   it("only the cycle's own transactions are aggregated", () => {
@@ -100,15 +98,14 @@ describe("deriveCycleSummaryRows", () => {
     expect(rows[0]!.total_contributions).toBe(500);
   });
 
-  it("final_payout for a completed (non-settled) cycle = the projection", () => {
+  it("final_payout for a completed (non-settled) cycle = the current cumul (Story 12.5 PR C)", () => {
     const rows = deriveCycleSummaryRows(
       [cycle({ status: "completed" })],
       [MEMBER],
       [tx({ kind: "advance", amount: 1000 })],
     );
-    // computeProjectedFinalBalance(500, 1000, 29) = 500 × 29 − 1000 = 13_500
-    // (30-day fixture → contributionDays 29).
-    expect(rows[0]!.final_payout).toBe(13500);
+    // currentBalance = contributedTotal(0) − daily(500) − advances(1000) = −1500.
+    expect(rows[0]!.final_payout).toBe(-1500);
   });
 
   it("carries cycle metadata + a member-name fallback when the member is absent", () => {

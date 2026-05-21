@@ -95,7 +95,7 @@ const mkData = (
       // amounts) keep their accept/reject semantics.
       contributedTotal: overrides.contributedTotal ?? 145_000,
       outstandingAdvances: overrides.outstandingAdvances ?? 0,
-      projectedFinalBalance: 0,
+      currentBalance: 0,
     },
   };
 };

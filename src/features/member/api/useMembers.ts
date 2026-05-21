@@ -16,8 +16,8 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { z } from "zod";
 
 import {
+  computeCurrentBalance,
   computeOpeningBalance,
-  computeProjectedFinalBalance,
   cycleDay,
   cycleLengthDays,
   settle,
@@ -153,11 +153,16 @@ export function deriveMembersWithMeta(
       cycleAdvancesTotal,
       awaitingSettlement,
       lastSettlementAt,
+      // Story 12.5 PR C — MemberWithMeta.projectedBalance is now the
+      // current cumul (contributedTotal − daily − advances − opening),
+      // not the contract projection. Field name kept for back-compat
+      // with the existing UI consumers (MemberCard's "Solde à reverser"
+      // row reads this).
       projectedBalance: currentCycle
-        ? computeProjectedFinalBalance(
+        ? computeCurrentBalance(
+            data.contributedByCycle.get(currentCycle.id) ?? 0,
             row.daily_amount,
             cycleAdvancesTotal,
-            cycleLengthDays(currentCycle.start_date, currentCycle.end_date) - 1,
             openingBalance,
           )
         : null,

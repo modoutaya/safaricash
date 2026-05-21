@@ -60,17 +60,25 @@ describe("deriveMembersWithMeta", () => {
     });
   });
 
-  it("computes cycleAdvancesTotal + projectedBalance from advancesByCycle", () => {
-    const out = deriveMembersWithMeta(makeData({ advancesByCycle: new Map([["c1", 3000]]) }), NOW);
+  it("computes cycleAdvancesTotal + projectedBalance from advancesByCycle (Story 12.5 PR C — currentBalance formula)", () => {
+    const out = deriveMembersWithMeta(
+      makeData({
+        advancesByCycle: new Map([["c1", 3000]]),
+        contributedByCycle: new Map([["c1", 14500]]),
+      }),
+      NOW,
+    );
     expect(out[0]!.cycleAdvancesTotal).toBe(3000);
-    // Projected = dailyAmount(500) × 29 − advances(3000) = 14 500 − 3 000.
-    expect(out[0]!.projectedBalance).toBe(11500);
+    // Story 12.5 PR C — projectedBalance = currentBalance =
+    //   contributedTotal(14_500) − daily(500) − advances(3_000) − 0 = 11_000.
+    expect(out[0]!.projectedBalance).toBe(11_000);
   });
 
-  it("defaults cycleAdvancesTotal to 0 + projectedBalance to dailyAmount × contributionDays with no advances (30-day fixture → contributionDays 29)", () => {
+  it("projectedBalance with empty contributedByCycle = −daily (Story 12.5 PR C)", () => {
     const out = deriveMembersWithMeta(makeData(), NOW);
     expect(out[0]!.cycleAdvancesTotal).toBe(0);
-    expect(out[0]!.projectedBalance).toBe(14500);
+    // Empty contributedByCycle → 0 contributed; currentBalance = 0 − 500 − 0 − 0 = −500.
+    expect(out[0]!.projectedBalance).toBe(-500);
   });
 
   it("projectedBalance is null when the member has no current cycle", () => {

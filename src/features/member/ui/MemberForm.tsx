@@ -19,12 +19,7 @@ import type { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  commission,
-  computeProjectedFinalBalance,
-  cycleLengthDays,
-  deriveCycleBounds,
-} from "@/domain/cycle";
+import { commission, cycleLengthDays, deriveCycleBounds } from "@/domain/cycle";
 import type { TranslationKey } from "@/i18n/keys";
 import { useT } from "@/i18n/useT";
 
@@ -109,7 +104,13 @@ function CycleRecap({ name, dailyAmount }: { name: string; dailyAmount: number }
     { label: t("members.create.recap.row_commission"), value: amount(commission(dailyAmount)) },
     {
       label: t("members.create.recap.row_repayment"),
-      value: amount(computeProjectedFinalBalance(dailyAmount, 0, cycleLength - 1)),
+      // Story 12.5 PR C — the create-member recap is a theoretical
+      // teaser ("si le saver cotise daily × cycleLength chaque jour,
+      // il recevra ce montant à la fin"). The new currentBalance is
+      // a runtime value (contributedTotal − …) and is meaningless
+      // before the first contribution, so we keep the legacy
+      // `daily × (cycleLength − 1)` math inline as the teaser.
+      value: amount(dailyAmount * (cycleLength - 1)),
     },
   ];
   return (

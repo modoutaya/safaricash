@@ -97,8 +97,8 @@ describe("fetchProfile", () => {
     // Story 6.7 — sms_opt_out is exposed on the member shape.
     expect(result?.member.sms_opt_out).toBe(false);
     expect(result?.stats.contributedTotal).toBe(500);
-    // Fixture cycle is 30 days → contributionDays 29 → 500 × 29 = 14_500.
-    expect(result?.stats.projectedFinalBalance).toBe(14_500);
+    // Story 12.5 PR C — currentBalance = contributedTotal(500) − daily(500) = 0.
+    expect(result?.stats.currentBalance).toBe(0);
   });
 
   it("member-not-found — returns undefined", async () => {

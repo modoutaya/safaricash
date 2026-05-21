@@ -134,7 +134,7 @@ function buildBase() {
       openingBalance: 0,
       // Story 12.5 — payout = contributedTotal − daily − advances
       //   = 14 500 − 500 − 3 000 = 11 000.
-      projectedFinalBalance: 14_500 - 500 - 3_000,
+      currentBalance: 14_500 - 500 - 3_000,
     },
     totalTransactionsCount: 30,
   };
@@ -474,7 +474,7 @@ describe("MemberSettlementRoute", () => {
           outstandingAdvances: 6_000,
           openingBalance: 0,
           // Fixture cycle is 30 days → contributionDays 29. Projected = 500 × 29 − 6 000.
-          projectedFinalBalance: 500 * 29 - 6_000,
+          currentBalance: 500 * 29 - 6_000,
         },
       }),
       isLoading: false,

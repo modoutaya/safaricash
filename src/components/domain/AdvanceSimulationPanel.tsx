@@ -10,7 +10,7 @@
 // ux-design-specification.md:509-510 (warning + destructive palettes),
 // docs/ADR/004-cycle-invariants.md (INV-1 — projection independent of cycleDay).
 
-import { canAcceptAdvance, commission, computeProjectedFinalBalance } from "@/domain/cycle";
+import { canAcceptAdvance, commission, computeCurrentBalance } from "@/domain/cycle";
 import { formatFcfaAmount } from "@/features/member/api/formatAmount";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
@@ -67,21 +67,23 @@ export function AdvanceSimulationPanel({
   className,
 }: AdvanceSimulationPanelProps): JSX.Element {
   const t = useT();
-  const contributionDays = cycleLength - 1;
   const state = deriveState(contributedTotal, existingAdvances, candidateAmount);
 
   const totalProjected = dailyAmount * cycleLength;
   const commissionAmount = commission(dailyAmount);
-  // Projected final balance = engine's raw value, except clamped to 0
-  // for the over-limit display (BDD line 903 — "row 4 shows 0 FCFA").
-  // Story 12.3: subtracts opening_balance (carry-over).
-  const projectedRaw = computeProjectedFinalBalance(
+  // Story 12.5 PR C — final balance = actual cumul minus the candidate
+  // advance (= what the saver would receive if settled now WITH the new
+  // advance taken). The engine returns the raw value (may be negative
+  // when commission alone exceeds residual); the simulation display
+  // clamps at 0 for both over-limit AND valid states — the saver-facing
+  // amount can't be < 0 (commission is silently absorbed).
+  const currentRaw = computeCurrentBalance(
+    contributedTotal,
     dailyAmount,
     sumAdvances(existingAdvances, candidateAmount),
-    contributionDays,
     openingBalance,
   );
-  const finalBalance = state === "over-limit" ? 0 : projectedRaw;
+  const finalBalance = Math.max(0, currentRaw);
 
   return (
     <div

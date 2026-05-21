@@ -57,7 +57,7 @@ const MEMBER_DATA = {
     daysRemaining: 19,
     contributedTotal: 0,
     outstandingAdvances: 0,
-    projectedFinalBalance: 14500,
+    currentBalance: 14500,
   },
 };
 
