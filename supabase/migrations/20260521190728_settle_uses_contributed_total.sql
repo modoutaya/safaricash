@@ -49,9 +49,9 @@ create or replace function public.commit_cycle_settlement(
   p_expected_payout  bigint
 )
 returns table (
-  transaction_id  uuid,
-  settled_payout  bigint,
-  settled_at      timestamptz
+  settlement_transaction_id  uuid,
+  settled_payout             bigint,
+  settled_at                 timestamptz
 )
 language plpgsql
 security definer
