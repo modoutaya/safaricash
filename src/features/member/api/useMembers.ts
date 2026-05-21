@@ -54,6 +54,11 @@ export interface RawMembersData {
   latestTxByMember: Map<string, string>;
   /** cycle_id → Σ advance amounts booked in that cycle (undone rows excluded). */
   advancesByCycle: Map<string, number>;
+  /** Story 12.5 — cycle_id → Σ (contribution + rattrapage) booked in that
+   *  cycle (undone rows excluded). Needed by the new settle() math which
+   *  reads the actual sum the saver versed instead of projecting from
+   *  the daily_amount × cycleLength contract. */
+  contributedByCycle: Map<string, number>;
 }
 
 /** Pure transform: raw PostgREST rows → sorted, filtered view-model. */
@@ -94,13 +99,16 @@ export function deriveMembersWithMeta(
       memberCycles
         .filter((c) => c.status === "completed")
         .sort((a, b) => a.cycle_number - b.cycle_number)[0] ?? null;
+    // Story 12.5 — settle() new formula uses contributedTotal of the
+    // awaiting cycle (not daily × contribDays). cotisation libre means
+    // actual versed amount drives the payout, not a contractual projection.
     const awaitingSettlement: { cycleId: string; payout: number } | null = awaitingCycle
       ? {
           cycleId: awaitingCycle.id,
           payout: settle(
+            data.contributedByCycle.get(awaitingCycle.id) ?? 0,
             row.daily_amount,
             [data.advancesByCycle.get(awaitingCycle.id) ?? 0],
-            cycleLengthDays(awaitingCycle.start_date, awaitingCycle.end_date) - 1,
             computeOpeningBalance(
               openingBalanceCycles,
               data.advancesByCycle,
@@ -220,6 +228,7 @@ async function fetchRawMembersData(): Promise<RawMembersData> {
 
   const latestTxByMember = new Map<string, string>();
   const advancesByCycle = new Map<string, number>();
+  const contributedByCycle = new Map<string, number>();
   for (const tx of transactions) {
     const prev = latestTxByMember.get(tx.member_id);
     if (prev === undefined || tx.created_at > prev) {
@@ -227,10 +236,12 @@ async function fetchRawMembersData(): Promise<RawMembersData> {
     }
     if (tx.kind === "advance") {
       advancesByCycle.set(tx.cycle_id, (advancesByCycle.get(tx.cycle_id) ?? 0) + tx.amount);
+    } else if (tx.kind === "contribution" || tx.kind === "rattrapage") {
+      contributedByCycle.set(tx.cycle_id, (contributedByCycle.get(tx.cycle_id) ?? 0) + tx.amount);
     }
   }
 
-  return { members, cyclesByMember, latestTxByMember, advancesByCycle };
+  return { members, cyclesByMember, latestTxByMember, advancesByCycle, contributedByCycle };
 }
 
 export function useMembers(): UseQueryResult<MemberWithMeta[], Error> {

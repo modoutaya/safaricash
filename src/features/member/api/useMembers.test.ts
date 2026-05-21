@@ -40,6 +40,7 @@ function makeData(overrides: Partial<RawMembersData> = {}): RawMembersData {
     cyclesByMember: new Map([[baseMember.id, [activeCycle]]]),
     latestTxByMember: new Map([[baseMember.id, "2026-04-20T10:00:00Z"]]),
     advancesByCycle: new Map(),
+    contributedByCycle: new Map(),
     ...overrides,
   };
 }

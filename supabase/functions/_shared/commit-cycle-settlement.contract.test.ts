@@ -90,6 +90,24 @@ async function markCycleCompleted(service: SupabaseClient, cycleId: string): Pro
   if (error) throw new Error(`markCycleCompleted: ${error.message}`);
 }
 
+/** Story 12.5 — seeds N contributions of `amountEach` FCFA on cycle_day
+ *  1..N. The new settle formula reads actual contributedTotal, so most
+ *  pre-12.5 contract tests (which seeded 0 contributions and asserted
+ *  payout = daily × contribDays) had to be reworked to seed the
+ *  expected daily total. With daily=500, days=29, amountEach=500 the
+ *  total contributedTotal = 14_500 — matches the legacy assumption. */
+async function seedFullCycleContribs(
+  userClient: SupabaseClient,
+  memberId: string,
+  cycleId: string,
+  days: number = 29,
+  amountEach: number = 500,
+): Promise<void> {
+  for (let d = 1; d <= days; d++) {
+    await recordContrib(userClient, memberId, cycleId, d, amountEach);
+  }
+}
+
 type RpcRow = {
   settlement_transaction_id: string;
   settled_payout: number | string;
@@ -132,18 +150,19 @@ if (env) {
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
-        await recordContrib(userClient, memberId, cycleId, 1, 500);
-        await recordContrib(userClient, memberId, cycleId, 2, 500);
-        await recordAdvance(userClient, memberId, cycleId, 3, 3000);
+        // Story 12.5 — seed actual contributions (cotisation libre):
+        // 29 days × 500 = 14_500 contributedTotal. + 1 advance of 3_000.
+        await seedFullCycleContribs(userClient, memberId, cycleId, 29, 500);
+        await recordAdvance(userClient, memberId, cycleId, 30, 3000);
 
         // Mark cycle completed so it's settleable.
         await markCycleCompleted(service, cycleId);
 
-        // Expected: 500 × 29 − 3000 = 11500.
-        const { row, error } = await callRpc(userClient, memberId, cycleId, 11500);
+        // Expected: 14_500 (contributedTotal) − 500 (daily commission) − 3_000 (advance) = 11_000.
+        const { row, error } = await callRpc(userClient, memberId, cycleId, 11000);
         assertEquals(error, null);
         assertExists(row);
-        assertEquals(Number(row!.settled_payout), 11500);
+        assertEquals(Number(row!.settled_payout), 11000);
         assert(typeof row!.settlement_transaction_id === "string");
         assert(row!.settled_at.length > 0);
 
@@ -214,14 +233,16 @@ if (env) {
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        // Story 12.5 — seed full cycle to make the first commit valid.
+        await seedFullCycleContribs(userClient, memberId, cycleId, 29, 500);
         await markCycleCompleted(service, cycleId);
 
-        // First commit — expected payout = 500 × 29 = 14500 (no advances).
-        const first = await callRpc(userClient, memberId, cycleId, 14500);
+        // First commit — expected payout = 14_500 − 500 = 14_000 (no advances).
+        const first = await callRpc(userClient, memberId, cycleId, 14000);
         assertEquals(first.error, null);
 
         // Second commit on the now-settled cycle.
-        const second = await callRpc(userClient, memberId, cycleId, 14500);
+        const second = await callRpc(userClient, memberId, cycleId, 14000);
         assertExists(second.error);
         assertEquals(second.error!.code, "P0002");
         assert(second.error!.message.includes("cycle not in completed status"));
@@ -274,7 +295,10 @@ if (env) {
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
         await markCycleCompleted(service, cycleId);
 
-        // Real payout = 14500; pass 99999 instead.
+        // Story 12.5 — seed full cycle so the real payout is positive.
+        await seedFullCycleContribs(userClient, memberId, cycleId, 29, 500);
+
+        // Real payout = 14_500 − 500 = 14_000; pass 99999 instead.
         const { row, error } = await callRpc(userClient, memberId, cycleId, 99999);
         assertEquals(row, null);
         assertExists(error);
@@ -282,7 +306,7 @@ if (env) {
         assert(error!.message.includes("payout mismatch"));
         // Detail should mention both numbers.
         assert(error!.message.includes("99999"));
-        assert(error!.message.includes("14500"));
+        assert(error!.message.includes("14000"));
       } finally {
         await cleanup(service, c);
       }
@@ -378,7 +402,11 @@ if (env) {
         const advA = await recordAdvance(userClient, memberId, cycleId, 1, 2000);
         await recordAdvance(userClient, memberId, cycleId, 2, 1000);
 
-        // Soft-undo advA (2000). Real advances sum = 1000. Payout = 14500 − 1000 = 13500.
+        // Story 12.5 — seed full cycle so the post-undo payout is positive.
+        await seedFullCycleContribs(userClient, memberId, cycleId, 27, 500); // days 3..29
+
+        // Soft-undo advA (2000). Real advances sum = 1000.
+        // Payout = 13_500 (contrib) − 500 (daily) − 1_000 (advB) = 12_000.
         await service
           .from("transactions")
           .update({ undone_at: new Date().toISOString() })
@@ -386,10 +414,10 @@ if (env) {
 
         await markCycleCompleted(service, cycleId);
 
-        const { row, error } = await callRpc(userClient, memberId, cycleId, 13500);
+        const { row, error } = await callRpc(userClient, memberId, cycleId, 12000);
         assertEquals(error, null);
         assertExists(row);
-        assertEquals(Number(row!.settled_payout), 13500);
+        assertEquals(Number(row!.settled_payout), 12000);
       } finally {
         await cleanup(service, c);
       }
@@ -410,9 +438,12 @@ if (env) {
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
+        // Story 12.5 — seed full cycle for a positive payout.
+        await seedFullCycleContribs(userClient, memberId, cycleId, 29, 500);
         await markCycleCompleted(service, cycleId);
 
-        const { row, error } = await callRpc(userClient, memberId, cycleId, 14500);
+        // payout = 14_500 − 500 = 14_000.
+        const { row, error } = await callRpc(userClient, memberId, cycleId, 14000);
         assertEquals(error, null);
         assertExists(row);
 
@@ -474,7 +505,7 @@ if (env) {
   // Story 11.3 AC #10 — partial-cycle settlement.
   // -------------------------------------------------------------------------
   Deno.test({
-    name: "11.3 AC #10 — partial cycle (cycleLength 24) → payout = dailyAmount × 23",
+    name: "11.3 AC #10 — partial cycle (cycleLength 24) — payout uses actual contributedTotal (Story 12.5)",
     ...denoOpts,
     fn: async () => {
       const anon = createClient(env.url, env.anonKey, {
@@ -494,21 +525,24 @@ if (env) {
           c.userId,
           { startDate: "2026-04-07", endDate: "2026-04-30" },
         );
+        // Story 12.5 — seed 23 contributions (the full contribDays = cycleLength − 1).
+        await seedFullCycleContribs(userClient, memberId, cycleId, 23, 500);
         await markCycleCompleted(service, cycleId);
 
-        // dailyAmount = 500 (default in the seed helper) → payout = 500 × 23 = 11_500.
+        // Story 12.5 — payout = contributedTotal − daily − Σadvances.
+        // 23 × 500 = 11_500 contrib. − 500 commission − 0 advances = 11_000.
         // Call via the JWT-bound user client — commit_cycle_settlement
         // raises 28000 ('auth required') when auth.uid() is null, which
         // is the case for the service-role client.
         const { data, error } = await userClient.rpc("commit_cycle_settlement", {
           p_member_id: memberId,
           p_cycle_id: cycleId,
-          p_expected_payout: 11_500,
+          p_expected_payout: 11_000,
         });
         assertEquals(error, null);
         assertExists(data);
         const row = (data as Array<{ settled_payout: number | string }>)[0];
-        assertEquals(Number(row!.settled_payout), 11_500);
+        assertEquals(Number(row!.settled_payout), 11_000);
 
         // The synthetic settlement tx must be stamped at cycle_day = cycleLength (24),
         // not the literal 30 — admitted by the new BETWEEN 1 AND 31 column check.
@@ -586,16 +620,28 @@ if (env) {
           .single();
         if (cycle2Err || !cycle2) throw new Error(`seed cycle 2: ${cycle2Err?.message}`);
 
-        // Expected payout on cycle 2 = daily × 29 − 0 (no cycle-2 advances) − 5_500 (carry-over)
-        //                            = 14_500 − 5_500 = 9_000.
+        // Flip cycle 2 to 'active' so contributions can be recorded.
+        // (markCycleCompleted at the end flips it back to 'completed'.)
+        await service.from("cycles").update({ status: "active" }).eq("id", cycle2.id);
+        // Story 12.5 — seed 29 contribs of 500 on cycle 2 so contributedTotal
+        // is high enough to give a sensible payout after opening_balance.
+        await seedFullCycleContribs(userClient, seeded.memberId, cycle2.id, 29, 500);
+        await markCycleCompleted(service, cycle2.id);
+
+        // Story 12.5 — payout = contributedTotal − daily − advances − opening_balance
+        //   = 14_500 − 500 − 0 − 5_500(carry-over from cycle 1) = 8_500.
+        // (compute_opening_balance still uses the pre-12.5 formula; PR D
+        // re-evaluates whether that helper makes sense under the new
+        // cotisation-libre model. For now, the helper continues to detect
+        // negative end-of-cycle balances and carry them forward.)
         const { data, error } = await userClient.rpc("commit_cycle_settlement", {
           p_member_id: seeded.memberId,
           p_cycle_id: cycle2.id,
-          p_expected_payout: 9_000,
+          p_expected_payout: 8_500,
         });
         assertEquals(error, null, `RPC error: ${error?.message ?? ""}`);
         const row = (data as Array<{ settled_payout: number | string }>)[0];
-        assertEquals(Number(row!.settled_payout), 9_000);
+        assertEquals(Number(row!.settled_payout), 8_500);
       } finally {
         await cleanup(service, c);
       }
@@ -651,7 +697,14 @@ if (env) {
           .select("id")
           .single();
 
-        // Client passes 14_500 (forgot opening_balance). Server computes 9_000.
+        // Flip cycle 2 to 'active' for contribs, seed 29 × 500 = 14_500,
+        // then mark completed.
+        await service.from("cycles").update({ status: "active" }).eq("id", cycle2!.id);
+        await seedFullCycleContribs(userClient, seeded.memberId, cycle2!.id, 29, 500);
+        await markCycleCompleted(service, cycle2!.id);
+
+        // Story 12.5 — server computes 14_500 − 500 − 0 − 5_500 = 8_500.
+        // Client passes 14_500 (forgot daily AND opening_balance subtraction).
         // NFR-R3 cross-check fires.
         const { error } = await userClient.rpc("commit_cycle_settlement", {
           p_member_id: seeded.memberId,

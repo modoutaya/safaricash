@@ -166,23 +166,46 @@ export function canAcceptAdvance(
 }
 
 /**
- * INV-2 / INV-7 — settlement amount.
+ * Story 12.5 — settlement amount (NEW MODEL).
  *
- * Per ADR-004 INV-2 (NFR-R3 zero-tolerance): for a fully-paid cycle,
- * settle ≡ projected balance at the cycle's last day. Implementation
- * MIRRORS computeProjectedFinalBalance to satisfy that by construction.
+ * BUSINESS MODEL CORRECTION (2026-05-21): `daily_amount` is a UX
+ * suggestion / objective, NOT a contractual daily obligation. Savers
+ * cotise freely — some days 10 000, some days 3 000, some days 0. The
+ * collector pays back what was actually versed minus a fixed commission
+ * of `daily_amount` (1 day's worth of suggested savings) minus any
+ * mid-cycle advances minus any opening_balance debt carried over.
  *
- * The contractual amount per FR17 is `dailyAmount × contributionDays −
- * Σ(advances) − openingBalance`, regardless of how many days were
- * actually recorded.
+ *     payout = contributedTotal − dailyAmount − Σ(advances) − openingBalance
+ *
+ * Where:
+ *  - `contributedTotal` = Σ kind ∈ {contribution, rattrapage} amounts
+ *    booked in THIS cycle (undone excluded). The actual money the
+ *    collector physically holds.
+ *  - `dailyAmount` = the collector's commission (1 day's worth, fixed).
+ *  - `advances` = mid-cycle prêts already disbursed.
+ *  - `openingBalance` = carry-over from the previous unsettled cycle
+ *    (≥ 0). Story 12.3 / Phase A. Optional, defaults to 0.
+ *
+ * The result may be negative — saver owes the collector when advances
+ * + commission > contributions. The UI / Edge Function decides how to
+ * present that (could become opening_balance of the next cycle).
+ *
+ * NFR-R3 zero-tolerance: mirrors SQL `commit_cycle_settlement` exactly.
+ * Cross-checked by compute-opening-balance.contract.test.ts and the
+ * settlement happy-path unit test.
+ *
+ * Pre-12.5 signature `settle(dailyAmount, advances, contributionDays,
+ * openingBalance)` was wrong — it assumed savers always paid the full
+ * daily × contributionDays. Migration to the new signature is tracked
+ * in PR A of the 12.5 refactor.
  */
 export function settle(
+  contributedTotal: number,
   dailyAmount: number,
   advances: ReadonlyArray<number>,
-  contributionDays: number,
   openingBalance: number = 0,
 ): number {
-  return computeProjectedFinalBalance(dailyAmount, sum(advances), contributionDays, openingBalance);
+  return contributedTotal - dailyAmount - sum(advances) - openingBalance;
 }
 
 /**

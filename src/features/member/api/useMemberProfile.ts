@@ -12,7 +12,6 @@ import { z } from "zod";
 import {
   computeMemberStats,
   computeOpeningBalance,
-  cycleLengthDays,
   settle,
   type OpeningBalanceCycle,
 } from "@/domain/cycle";
@@ -186,11 +185,24 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
   // the math. Uses the cycle's OWN advances + its OWN opening_balance
   // (computed recursively from previous cycles), mirroring the SQL
   // commit_cycle_settlement formula.
+  // Story 12.5 — settle() new formula uses contributedTotal of the
+  // awaiting cycle (sum of kind ∈ {contribution, rattrapage} in that
+  // cycle). The pre-12.5 formula projected from daily × cycleLength
+  // which doesn't match the cotisation-libre model.
+  const awaitingSettlementContributedTotal = cycleAwaitingSettlement
+    ? allTransactions
+        .filter(
+          (tx) =>
+            tx.cycle_id === cycleAwaitingSettlement.id &&
+            (tx.kind === "contribution" || tx.kind === "rattrapage"),
+        )
+        .reduce((sum, tx) => sum + tx.amount, 0)
+    : 0;
   const awaitingSettlementPayout: number | null = cycleAwaitingSettlement
     ? settle(
+        awaitingSettlementContributedTotal,
         member.daily_amount,
         [advancesByCycleId.get(cycleAwaitingSettlement.id) ?? 0],
-        cycleLengthDays(cycleAwaitingSettlement.start_date, cycleAwaitingSettlement.end_date) - 1,
         computeOpeningBalance(
           openingBalanceCycles,
           advancesByCycleId,

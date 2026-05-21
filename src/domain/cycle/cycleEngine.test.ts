@@ -95,16 +95,23 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
     );
   });
 
-  it("INV-2: settled balance ≡ projected balance at cycle end for fully-paid cycles (propSettledEqualsProjectedAtCycleEnd)", () => {
+  it("INV-2 (12.5 rewrite): settle returns contributedTotal − daily − Σadvances − openingBalance (cotisation libre)", () => {
+    // Pre-12.5 INV-2 claimed settle === projected at cycle end for
+    // fully-paid cycles. That invariant assumed the saver versed
+    // daily × contributionDays exactly, which doesn't match the real
+    // model (cotisation libre). The new property: settle is the pure
+    // arithmetic of what the collector physically owes the saver.
     fc.assert(
       fc.property(
-        fc.integer({ min: 100, max: 100_000 }),
-        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
-        (dailyAmount, cycleLength) => {
-          const contributionDays = cycleLength - 1;
-          const settled = settle(dailyAmount, [], contributionDays);
-          const projected = computeProjectedFinalBalance(dailyAmount, 0, contributionDays);
-          return settled === projected && settled === dailyAmount * contributionDays;
+        fc.record({
+          contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
+          dailyAmount: fc.integer({ min: 100, max: 100_000 }),
+          advances: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 30 }),
+          openingBalance: fc.integer({ min: 0, max: 1_000_000 }),
+        }),
+        ({ contributedTotal, dailyAmount, advances, openingBalance }) => {
+          const settled = settle(contributedTotal, dailyAmount, advances, openingBalance);
+          return settled === contributedTotal - dailyAmount - sum(advances) - openingBalance;
         },
       ),
     );
@@ -182,13 +189,13 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
     fc.assert(
       fc.property(
         fc.record({
+          contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
           dailyAmount: fc.integer({ min: 100, max: 100_000 }),
           advances: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 30 }),
-          contributionDays: fc.integer({ min: MIN_CYCLE_LENGTH_DAYS - 1, max: 30 }),
         }),
         (s) => {
-          const a = settle(s.dailyAmount, s.advances, s.contributionDays);
-          const b = settle(s.dailyAmount, s.advances, s.contributionDays);
+          const a = settle(s.contributedTotal, s.dailyAmount, s.advances);
+          const b = settle(s.contributedTotal, s.dailyAmount, s.advances);
           return a === b;
         },
       ),
@@ -199,6 +206,7 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
     fc.assert(
       fc.property(
         fc.record({
+          contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
           dailyAmount: fc.integer({ min: 100, max: 100_000 }),
           advances: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 30 }),
           contributionDays: fc.integer({ min: MIN_CYCLE_LENGTH_DAYS - 1, max: 30 }),
@@ -209,7 +217,7 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
             sum(s.advances),
             s.contributionDays,
           );
-          const settled = settle(s.dailyAmount, s.advances, s.contributionDays);
+          const settled = settle(s.contributedTotal, s.dailyAmount, s.advances);
           const comm = commission(s.dailyAmount);
           return [projected, settled, comm].every(Number.isInteger);
         },
@@ -638,19 +646,36 @@ describe("cycleEngine — example tests", () => {
     });
   });
 
-  describe("settle", () => {
-    it("dailyAmount=1000, no advances, 29 contribution days → 29_000 (legacy)", () => {
-      expect(settle(1000, [], 29)).toBe(29_000);
+  describe("settle (Story 12.5 — cotisation libre)", () => {
+    it("contributedTotal=29_000, daily=1000, no advances → 28_000 payout", () => {
+      // Saver versed 29 000, collector keeps 1 000 commission → saver
+      // receives 28 000. Same numeric output the legacy formula gave
+      // (1000 × 29 = 29 000 - 1 000 = 28 000 ≡ contributedTotal − daily).
+      expect(settle(29_000, 1000, [])).toBe(28_000);
     });
 
-    it("dailyAmount=500, advances [3000, 2000], 29 contribution days → 9_500", () => {
-      expect(settle(500, [3000, 2000], 29)).toBe(9_500);
+    it("contributedTotal=14_500, daily=500, advances [3000, 2000] → 9_000", () => {
+      // 14 500 - 500(commission) - 5 000(advances) = 9 000.
+      expect(settle(14_500, 500, [3000, 2000])).toBe(9_000);
     });
 
-    it("legacy equivalence — settle on a 30-day cycle matches the pre-11.2 numbers", () => {
-      // A legacy row: cycleLength 30 → contributionDays 29 → identical output.
-      const legacyLength = cycleLengthDays("2026-04-01", "2026-04-30");
-      expect(settle(500, [], legacyLength - 1)).toBe(14_500);
+    it("Khadim repro — contributedTotal=66_000, daily=7000, no advances → 59_000", () => {
+      // The pilot-flagged case from the UX feedback session 2026-05-21:
+      // saver versed only 66 000 (not the full 210 000 the contract
+      // projected). Old formula returned 203 000 — completely wrong.
+      // New formula: 66 000 − 7 000 − 0 = 59 000.
+      expect(settle(66_000, 7000, [])).toBe(59_000);
+    });
+
+    it("openingBalance argument is subtracted from the payout", () => {
+      expect(settle(50_000, 1000, [], 5_000)).toBe(44_000);
+    });
+
+    it("negative payout when advances + commission exceed contributedTotal (saver owes)", () => {
+      // contributedTotal 5_000, daily 1_000, advances 5_000 → −1_000.
+      // The UI / commit_cycle_settlement decide what to do with debts
+      // (carry to next cycle via opening_balance, or reject).
+      expect(settle(5_000, 1_000, [5_000])).toBe(-1_000);
     });
   });
 
