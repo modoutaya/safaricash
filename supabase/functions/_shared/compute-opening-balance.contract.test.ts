@@ -63,6 +63,13 @@ if (env) {
     cycles: { id: string; cycleNumber: number; startDate: string; endDate: string }[];
   }
 
+  // Story 12.5 PR D — every cycle now needs a contributedTotal because
+  // compute_opening_balance derives the previous balance from
+  // (contrib − daily − advances − opening). Legacy fixtures used
+  // `daily × cycleLength = 15_000` implicitly; the default below
+  // preserves the old assertions.
+  const LEGACY_CONTRIB = 15_000;
+
   const seedMember = async (
     collector: PhoneCollector,
     cycles: ReadonlyArray<{
@@ -71,6 +78,7 @@ if (env) {
       endDate: string;
       status: "active" | "with_advance" | "completed" | "settled";
       advancesTotal: number;
+      contributedTotal?: number;
     }>,
   ): Promise<SeededMember> => {
     const { data: nameSecret, error: nameErr } = await service.rpc("vault_encrypt", {
@@ -142,6 +150,28 @@ if (env) {
         if (txErr) throw new Error(`seedAdvance: ${txErr.message}`);
       }
 
+      // Story 12.5 PR D — also seed a single `contribution` transaction
+      // for the cycle's contributedTotal. The opening_balance recursion
+      // reads this. Default = LEGACY_CONTRIB (= daily × 30) so old
+      // assertions keep working.
+      const contribTotal = spec.contributedTotal ?? LEGACY_CONTRIB;
+      if (contribTotal > 0) {
+        const { data: cSecret, error: cErr } = await service.rpc("vault_encrypt", {
+          plaintext: String(contribTotal),
+        });
+        if (cErr || !cSecret) throw new Error(`vault_encrypt(contrib): ${cErr?.message}`);
+        const { error: cTxErr } = await service.from("transactions").insert({
+          collector_id: collector.userId,
+          member_id: member.id,
+          cycle_id: cycle.id,
+          kind: "contribution",
+          amount_encrypted: cSecret,
+          cycle_day: 2,
+          source: "online",
+        });
+        if (cTxErr) throw new Error(`seedContrib: ${cTxErr.message}`);
+      }
+
       // Step 3: flip the cycle to its target status. The trigger guards
       // INSERT on transactions, NOT UPDATE on cycles → safe to update now.
       if (spec.status !== "active") {
@@ -167,7 +197,12 @@ if (env) {
     seeded: SeededMember,
     statuses: ReadonlyArray<{ cycleNumber: number; status: OpeningBalanceCycle["status"] }>,
     advancesByCycleNumber: ReadonlyArray<{ cycleNumber: number; advances: number }>,
-  ): { cycles: OpeningBalanceCycle[]; advancesByCycleId: Map<string, number> } => {
+    contributedByCycleNumber?: ReadonlyArray<{ cycleNumber: number; contributed: number }>,
+  ): {
+    cycles: OpeningBalanceCycle[];
+    advancesByCycleId: Map<string, number>;
+    contributedByCycleId: Map<string, number>;
+  } => {
     const cycles: OpeningBalanceCycle[] = seeded.cycles.map((c) => ({
       id: c.id,
       cycleNumber: c.cycleNumber,
@@ -180,7 +215,14 @@ if (env) {
       const cycle = seeded.cycles.find((c) => c.cycleNumber === cycleNumber);
       if (cycle) advancesByCycleId.set(cycle.id, advances);
     }
-    return { cycles, advancesByCycleId };
+    // Story 12.5 PR D — mirror the SQL: every seeded cycle has the
+    // LEGACY_CONTRIB contribution unless explicitly overridden.
+    const contributedByCycleId = new Map<string, number>();
+    for (const c of seeded.cycles) {
+      const override = contributedByCycleNumber?.find((x) => x.cycleNumber === c.cycleNumber);
+      contributedByCycleId.set(c.id, override ? override.contributed : LEGACY_CONTRIB);
+    }
+    return { cycles, advancesByCycleId, contributedByCycleId };
   };
 
   /** Run the SQL helper as the collector (RLS-scoped). */
@@ -218,12 +260,18 @@ if (env) {
         ]);
         const cycleId = seeded.cycles[0]!.id;
         const sql = await callSql(c, seeded.memberId, cycleId);
-        const { cycles, advancesByCycleId } = tsInputs(
+        const { cycles, advancesByCycleId, contributedByCycleId } = tsInputs(
           seeded,
           [{ cycleNumber: 1, status: "active" }],
           [{ cycleNumber: 1, advances: 5000 }],
         );
-        const ts = computeOpeningBalance(cycles, advancesByCycleId, DAILY, cycleId);
+        const ts = computeOpeningBalance(
+          cycles,
+          advancesByCycleId,
+          contributedByCycleId,
+          DAILY,
+          cycleId,
+        );
         assertEquals(sql, 0n);
         assertEquals(BigInt(ts), sql, "SQL/TS mismatch on first-cycle case");
       } finally {
@@ -256,7 +304,7 @@ if (env) {
         ]);
         const cycle2Id = seeded.cycles[1]!.id;
         const sql = await callSql(c, seeded.memberId, cycle2Id);
-        const { cycles, advancesByCycleId } = tsInputs(
+        const { cycles, advancesByCycleId, contributedByCycleId } = tsInputs(
           seeded,
           [
             { cycleNumber: 1, status: "settled" },
@@ -264,7 +312,13 @@ if (env) {
           ],
           [{ cycleNumber: 1, advances: 50_000 }],
         );
-        const ts = computeOpeningBalance(cycles, advancesByCycleId, DAILY, cycle2Id);
+        const ts = computeOpeningBalance(
+          cycles,
+          advancesByCycleId,
+          contributedByCycleId,
+          DAILY,
+          cycle2Id,
+        );
         assertEquals(sql, 0n);
         assertEquals(BigInt(ts), sql);
       } finally {
@@ -297,7 +351,7 @@ if (env) {
         ]);
         const cycle2Id = seeded.cycles[1]!.id;
         const sql = await callSql(c, seeded.memberId, cycle2Id);
-        const { cycles, advancesByCycleId } = tsInputs(
+        const { cycles, advancesByCycleId, contributedByCycleId } = tsInputs(
           seeded,
           [
             { cycleNumber: 1, status: "completed" },
@@ -305,7 +359,13 @@ if (env) {
           ],
           [{ cycleNumber: 1, advances: 20_000 }],
         );
-        const ts = computeOpeningBalance(cycles, advancesByCycleId, DAILY, cycle2Id);
+        const ts = computeOpeningBalance(
+          cycles,
+          advancesByCycleId,
+          contributedByCycleId,
+          DAILY,
+          cycle2Id,
+        );
         assertEquals(sql, 5_500n);
         assertEquals(BigInt(ts), sql, "SQL/TS mismatch on simple-debt case");
         assert(Number(sql) === ts, "Cross-cast TS=SQL");
@@ -351,7 +411,7 @@ if (env) {
         assertEquals(sqlC2, 1_500n, "c2 opening from c1 debt");
         assertEquals(sqlC3, 1_500n, "c3 opening = c2 debt (recursive)");
 
-        const { cycles, advancesByCycleId } = tsInputs(
+        const { cycles, advancesByCycleId, contributedByCycleId } = tsInputs(
           seeded,
           [
             { cycleNumber: 1, status: "completed" },
@@ -364,11 +424,15 @@ if (env) {
           ],
         );
         assertEquals(
-          BigInt(computeOpeningBalance(cycles, advancesByCycleId, DAILY, cycle2Id)),
+          BigInt(
+            computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, DAILY, cycle2Id),
+          ),
           sqlC2,
         );
         assertEquals(
-          BigInt(computeOpeningBalance(cycles, advancesByCycleId, DAILY, cycle3Id)),
+          BigInt(
+            computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, DAILY, cycle3Id),
+          ),
           sqlC3,
         );
       } finally {
@@ -410,7 +474,7 @@ if (env) {
         const sql = await callSql(c, seeded.memberId, cycle3Id);
         assertEquals(sql, 0n);
 
-        const { cycles, advancesByCycleId } = tsInputs(
+        const { cycles, advancesByCycleId, contributedByCycleId } = tsInputs(
           seeded,
           [
             { cycleNumber: 1, status: "completed" },
@@ -420,7 +484,9 @@ if (env) {
           [{ cycleNumber: 1, advances: 19_500 }],
         );
         assertEquals(
-          BigInt(computeOpeningBalance(cycles, advancesByCycleId, DAILY, cycle3Id)),
+          BigInt(
+            computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, DAILY, cycle3Id),
+          ),
           sql,
         );
       } finally {
