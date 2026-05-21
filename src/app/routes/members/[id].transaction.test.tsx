@@ -83,6 +83,7 @@ function memberFixture(overrides: Partial<MemberWithMeta> = {}): MemberWithMeta 
     cycleAdvancesTotal: 0,
     projectedBalance: 14500,
     awaitingSettlement: null,
+    lastSettlementAt: null,
     ...overrides,
   };
 }

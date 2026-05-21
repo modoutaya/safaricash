@@ -85,7 +85,7 @@ describe("SettlementReauthDialog", () => {
     expect(screen.getByText(/Awa/)).toBeInTheDocument();
     expect(screen.getByText(/11[\s\u00a0]500 FCFA/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Mot de passe/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Valider la clôture/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Valider le paiement/ })).toBeDisabled();
   });
 
   it("enables submit once a non-empty password is typed", () => {
@@ -93,7 +93,7 @@ describe("SettlementReauthDialog", () => {
     fireEvent.change(screen.getByLabelText(/Mot de passe/), {
       target: { value: "Pw-test" },
     });
-    expect(screen.getByRole("button", { name: /Valider la clôture/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Valider le paiement/ })).toBeEnabled();
   });
 
   it("whitespace-only password keeps submit disabled (Story 6.6 P8 pattern)", () => {
@@ -101,7 +101,7 @@ describe("SettlementReauthDialog", () => {
     fireEvent.change(screen.getByLabelText(/Mot de passe/), {
       target: { value: "   " },
     });
-    expect(screen.getByRole("button", { name: /Valider la clôture/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Valider le paiement/ })).toBeDisabled();
   });
 
   it("happy path — calls mutateAsync with trimmed password, fires onSuccess + onOpenChange(false)", async () => {
@@ -115,7 +115,7 @@ describe("SettlementReauthDialog", () => {
     const { onSuccess, onOpenChange } = renderDialog();
 
     fireEvent.change(screen.getByLabelText(/Mot de passe/), { target: { value: " Pw-test " } });
-    fireEvent.click(screen.getByRole("button", { name: /Valider la clôture/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Valider le paiement/ }));
 
     await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(1));
     // Trimmed password sent to mutation.
@@ -151,7 +151,7 @@ describe("SettlementReauthDialog", () => {
 
     const input = screen.getByLabelText(/Mot de passe/) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "wrong" } });
-    fireEvent.click(screen.getByRole("button", { name: /Valider la clôture/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Valider le paiement/ }));
 
     await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalledTimes(1));
     await waitFor(() =>
@@ -169,7 +169,7 @@ describe("SettlementReauthDialog", () => {
     const { onError, onOpenChange } = renderDialog();
 
     fireEvent.change(screen.getByLabelText(/Mot de passe/), { target: { value: "Pw-test" } });
-    fireEvent.click(screen.getByRole("button", { name: /Valider la clôture/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Valider le paiement/ }));
 
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/Trop de tentatives/));
     expect(onError).not.toHaveBeenCalled();
@@ -181,7 +181,7 @@ describe("SettlementReauthDialog", () => {
     const { onError, onOpenChange } = renderDialog();
 
     fireEvent.change(screen.getByLabelText(/Mot de passe/), { target: { value: "Pw-test" } });
-    fireEvent.click(screen.getByRole("button", { name: /Valider la clôture/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Valider le paiement/ }));
 
     await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
     const errArg = onError.mock.calls[0]?.[0];
@@ -252,7 +252,7 @@ describe("SettlementReauthDialog", () => {
       />,
     );
     fireEvent.change(screen.getByLabelText(/Mot de passe/), { target: { value: "wrong" } });
-    fireEvent.click(screen.getByRole("button", { name: /Valider la clôture/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Valider le paiement/ }));
     await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
     const results = await axe(container);
     expect(results).toHaveNoViolations();

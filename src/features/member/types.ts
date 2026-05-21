@@ -46,6 +46,11 @@ export const cycleRowSchema = z.object({
   start_date: z.string(), // YYYY-MM-DD
   end_date: z.string(),
   status: cycleStatusSchema,
+  /** Story 7.4 — set by commit_cycle_settlement when the cycle is paid
+   *  out. ISO-8601 timestamp; null for cycles that haven't been settled
+   *  yet (status != 'settled'). Story 12.4 surfaces this on MemberCard
+   *  via the "Payé le DD/MM" badge during the post-payment window. */
+  settled_at: z.string().nullable().optional(),
 });
 export type CycleRow = z.infer<typeof cycleRowSchema>;
 
@@ -128,6 +133,10 @@ export interface MemberWithMeta {
    *  null when nothing to settle for this member.
    *  Drives the "À régler" filter chip + the per-card inline badge. */
   awaitingSettlement: { cycleId: string; payout: number } | null;
+  /** Story 12.4 — most recent `cycles.settled_at` within the last 7
+   *  days (the positive-feedback fade window). null when no settlement
+   *  in that window. Drives the "Payé le DD/MM" badge on the card. */
+  lastSettlementAt: string | null;
 }
 
 /** TanStack Query key — exported for downstream stories to invalidate. */

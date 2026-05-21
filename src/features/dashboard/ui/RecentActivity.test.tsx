@@ -22,6 +22,7 @@ const MEMBER: MemberWithMeta = {
   cycleAdvancesTotal: 0,
   projectedBalance: null,
   awaitingSettlement: null,
+  lastSettlementAt: null,
 };
 
 const NOW = new Date("2026-05-15T10:00:00.000Z").getTime();

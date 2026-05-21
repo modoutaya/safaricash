@@ -27,6 +27,7 @@ function mkMember(
     cycleAdvancesTotal: 0,
     projectedBalance: null,
     awaitingSettlement: null,
+    lastSettlementAt: null,
     ...override,
   };
 }

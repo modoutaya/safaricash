@@ -26,7 +26,9 @@ describe("EnvelopeHandoverScreen", () => {
     expect(iconCircle).toBeInTheDocument();
     expect(iconCircle?.querySelector("svg")).toBeInTheDocument();
     // h2 headline
-    expect(screen.getByRole("heading", { level: 2, name: /Cycle clôturé/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: /Paiement effectué/ }),
+    ).toBeInTheDocument();
     // body sentence contains amount + name
     expect(screen.getByText(/Remettez/)).toBeInTheDocument();
     expect(screen.getByText(/Awa Diallo/)).toBeInTheDocument();
@@ -74,7 +76,9 @@ describe("EnvelopeHandoverScreen", () => {
   it("recipientPhone=null — subtext slot is entirely absent; rest of anatomy still renders", () => {
     render(<EnvelopeHandoverScreen {...baseProps} recipientPhone={null} />);
     // Anatomy renders
-    expect(screen.getByRole("heading", { level: 2, name: /Cycle clôturé/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 2, name: /Paiement effectué/ }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Retour aux membres/ })).toBeInTheDocument();
     // NO subtext copy at all (AC #4 / spec § 6 — no-phone savers must not see a fake SMS claim)
     expect(screen.queryByText(/récapitulatif/i)).not.toBeInTheDocument();

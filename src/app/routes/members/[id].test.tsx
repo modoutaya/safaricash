@@ -161,7 +161,7 @@ describe("MemberProfileRoute", () => {
     expect(screen.getByRole("button", { name: /supprimer/i })).toBeEnabled();
   });
 
-  it("Story 2.7 — renders the Restart button when the current cycle is completed", () => {
+  it("Story 12.4 — Story-2.7 Restart button is REMOVED (Phase B cron auto-restarts cycles)", () => {
     useMemberProfileMock.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -182,12 +182,16 @@ describe("MemberProfileRoute", () => {
           daysRemaining: 0,
           contributedTotal: 14500,
           outstandingAdvances: 0,
+          openingBalance: 0,
           projectedFinalBalance: 14500,
         },
       },
     });
     renderRoute(`/members/${VALID_ID}`);
-    expect(screen.getByRole("button", { name: /redémarrer/i })).toBeInTheDocument();
+    // Story 2.7's "Redémarrer le cycle" button was removed in Story 12.4:
+    // since the Phase B cron auto-creates the next cycle on the 1st of
+    // each month, this CTA was a duplicate path that confused operators.
+    expect(screen.queryByRole("button", { name: /redémarrer/i })).not.toBeInTheDocument();
   });
 
   // Story 6.7 AC #22 — tapping a transaction row opens the receipt sheet.
@@ -244,7 +248,7 @@ describe("MemberProfileRoute", () => {
     ).toBeInTheDocument();
   });
 
-  it("Story 7.3 — 'Clôturer le cycle' link is present when cycle.status === 'completed'", () => {
+  it("Story 7.3 — 'Payer le membre' link is present when cycle.status === 'completed'", () => {
     const completedCycle = {
       id: "22222222-2222-4222-8222-222222222222",
       cycle_number: 1,
@@ -275,12 +279,12 @@ describe("MemberProfileRoute", () => {
       },
     });
     renderRoute(`/members/${VALID_ID}`);
-    const link = screen.getByRole("link", { name: /Clôturer le cycle/ });
+    const link = screen.getByRole("link", { name: /Payer le membre/ });
     expect(link).toBeInTheDocument();
     expect(link.getAttribute("href")).toBe(`/members/${VALID_ID}/settlement`);
   });
 
-  it("Story 7.3 — 'Clôturer le cycle' link is NOT rendered when cycle.status === 'active'", () => {
+  it("Story 7.3 — 'Payer le membre' link is NOT rendered when cycle.status === 'active'", () => {
     useMemberProfileMock.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -307,10 +311,10 @@ describe("MemberProfileRoute", () => {
       },
     });
     renderRoute(`/members/${VALID_ID}`);
-    expect(screen.queryByRole("link", { name: /Clôturer le cycle/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Payer le membre/ })).not.toBeInTheDocument();
   });
 
-  it("Story 7.3 — 'Clôturer le cycle' link is NOT rendered when cycle.status === 'settled'", () => {
+  it("Story 7.3 — 'Payer le membre' link is NOT rendered when cycle.status === 'settled'", () => {
     useMemberProfileMock.mockReturnValue({
       isLoading: false,
       isError: false,
@@ -336,6 +340,6 @@ describe("MemberProfileRoute", () => {
       },
     });
     renderRoute(`/members/${VALID_ID}`);
-    expect(screen.queryByRole("link", { name: /Clôturer le cycle/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Payer le membre/ })).not.toBeInTheDocument();
   });
 });
