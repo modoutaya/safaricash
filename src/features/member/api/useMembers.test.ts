@@ -251,6 +251,7 @@ describe("useMembers — offline serves the cached/persisted data", () => {
           cycleAdvancesTotal: 0,
           projectedBalance: null,
           awaitingSettlement: null,
+          lastSettlementAt: null,
         },
       ];
       client.setQueryData(MEMBERS_QUERY_KEY, seeded);

@@ -35,6 +35,7 @@ const MEMBER: MemberWithMeta = {
   cycleAdvancesTotal: 0,
   projectedBalance: null,
   awaitingSettlement: null,
+  lastSettlementAt: null,
 };
 
 const COLLECTED_TX: DashboardTxRow = {

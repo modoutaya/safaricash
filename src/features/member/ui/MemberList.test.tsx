@@ -42,6 +42,7 @@ const makeMember = (overrides: Partial<MemberWithMeta>): MemberWithMeta => ({
   cycleAdvancesTotal: 0,
   projectedBalance: null,
   awaitingSettlement: null,
+  lastSettlementAt: null,
   ...overrides,
 });
 

@@ -111,6 +111,20 @@ export function deriveMembersWithMeta(
         }
       : null;
 
+    // Story 12.4 — surface "Payé le DD/MM" badge for 7 days post-payment.
+    // Pick the most recent settled_at across all settled cycles; suppress
+    // when older than 7 days (the positive feedback should fade so the UI
+    // doesn't permanently nudge about past payments).
+    const sevenDaysAgoMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+    const recentSettledAt =
+      memberCycles
+        .filter((c) => c.status === "settled" && c.settled_at != null)
+        .map((c) => c.settled_at!)
+        .filter((ts) => new Date(ts).getTime() >= sevenDaysAgoMs)
+        .sort()
+        .at(-1) ?? null;
+    const lastSettlementAt: string | null = recentSettledAt;
+
     return {
       id: row.id,
       name: row.name,
@@ -130,6 +144,7 @@ export function deriveMembersWithMeta(
       latestInteractionAt: latestTxAt ?? row.created_at,
       cycleAdvancesTotal,
       awaitingSettlement,
+      lastSettlementAt,
       projectedBalance: currentCycle
         ? computeProjectedFinalBalance(
             row.daily_amount,
@@ -172,7 +187,9 @@ async function fetchRawMembersData(): Promise<RawMembersData> {
       .from("members_decrypted")
       .select("id, collector_id, name, phone_number, daily_amount, status, created_at, updated_at")
       .order("created_at", { ascending: false }),
-    supabase.from("cycles").select("id, member_id, cycle_number, start_date, end_date, status"),
+    supabase
+      .from("cycles")
+      .select("id, member_id, cycle_number, start_date, end_date, status, settled_at"),
     // transactions_decrypted: `amount` is vault-decrypted here (the raw
     // transactions table stores it encrypted), and the view already
     // filters undone rows (Story 4.5) — so no .is("undone_at", null).

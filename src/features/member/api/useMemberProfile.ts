@@ -95,7 +95,7 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
       .maybeSingle(),
     supabase
       .from("cycles")
-      .select("id, member_id, cycle_number, start_date, end_date, status")
+      .select("id, member_id, cycle_number, start_date, end_date, status, settled_at")
       .eq("member_id", id),
     supabase
       .from("transactions_decrypted")

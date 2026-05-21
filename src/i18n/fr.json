@@ -170,6 +170,7 @@
       "advance_inline": "Avance : {amount} F CFA",
       "opening_balance_inline": "Report : {amount} F CFA",
       "to_settle_inline": "À régler : {amount} F CFA",
+      "paid_recent_inline": "✓ Payé le {date}",
       "days_remaining_one": "1 jour restant",
       "days_remaining_many": "{days} jours restants",
       "last_day": "Dernier jour du cycle",
@@ -268,7 +269,7 @@
       "back_label": "Retour à la liste des membres",
       "actions_label": "Actions",
       "action_edit": "Modifier",
-      "action_settle": "Clôturer le cycle",
+      "action_settle": "Payer le membre",
       "action_delete": "Supprimer",
       "action_disabled_tooltip": "Disponible bientôt",
       "field": {
@@ -452,25 +453,25 @@
       "row_final_payout": "Solde à remettre",
       "payout_subtitle": "à remettre à {memberFirstName}",
       "cta_verify": "Vérifier les transactions",
-      "cta_confirm": "Confirmer et clôturer",
-      "cta_submitting": "Clôture en cours…"
+      "cta_confirm": "Confirmer le paiement",
+      "cta_submitting": "Paiement en cours…"
     },
     "flow": {
-      "title": "Clôture du cycle",
+      "title": "Paiement du membre",
       "back_label": "Retour au profil",
       "confirm_pending_toast": "La confirmation sera disponible avec la prochaine mise à jour."
     },
     "reauth": {
       "title": "Confirmation requise",
-      "body": "Pour clôturer le cycle de {memberFirstName} et débloquer {payout} FCFA, confirmez votre mot de passe.",
+      "body": "Pour payer {memberFirstName} et lui remettre {payout} FCFA, confirmez votre mot de passe.",
       "password_label": "Mot de passe",
-      "cta_submit": "Valider la clôture",
+      "cta_submit": "Valider le paiement",
       "cta_submitting": "Vérification…",
       "cta_cancel": "Annuler",
       "error": {
         "credentials_invalid": "Mot de passe incorrect — réessayez.",
         "rate_limited": "Trop de tentatives — réessayez dans quelques minutes.",
-        "cycle_not_settleable": "Ce cycle n'est plus prêt à être clôturé.",
+        "cycle_not_settleable": "Ce cycle ne peut plus être payé.",
         "payout_mismatch": "Le montant a changé — rechargez la page.",
         "not_found": "Cycle ou membre introuvable.",
         "network": "Pas de réseau — vérifiez votre connexion.",
@@ -478,11 +479,11 @@
       }
     },
     "toast": {
-      "success": "Cycle clôturé. SMS envoyé à {memberFirstName}."
+      "success": "Paiement effectué. SMS envoyé à {memberFirstName}."
     }
   },
   "envelope_handover": {
-    "headline": "Cycle clôturé",
+    "headline": "Paiement effectué",
     "body_amount_prefix": "Remettez",
     "body_recipient": "à {memberName}.",
     "subtext_sent": "Un récapitulatif final vient d'être envoyé par SMS à {phone}.",

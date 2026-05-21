@@ -180,7 +180,9 @@ describe("MemberSettlementRoute", () => {
     });
     renderRoute(`/members/${VALID_ID}/settlement`);
     // Page-level h1 from the route
-    expect(screen.getByRole("heading", { level: 1, name: /Clôture du cycle/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: /Paiement du membre/ }),
+    ).toBeInTheDocument();
     // Card's h2 = member name
     expect(screen.getByRole("heading", { level: 2, name: /Awa Diallo/ })).toBeInTheDocument();
     // Cycle date range
@@ -190,7 +192,7 @@ describe("MemberSettlementRoute", () => {
     expect(screen.getByText(/11[\s\u00a0]500 FCFA/)).toBeInTheDocument();
     // Both CTAs present
     expect(screen.getByRole("button", { name: /Vérifier les transactions/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Confirmer et clôturer/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Confirmer le paiement/ })).toBeInTheDocument();
     // Back chevron present
     expect(screen.getByRole("button", { name: /Retour au profil/ })).toBeInTheDocument();
   });
@@ -213,7 +215,7 @@ describe("MemberSettlementRoute", () => {
     expect(screen.getByTestId("profile-sentinel")).toBeInTheDocument();
     // No settlement UI
     expect(
-      screen.queryByRole("heading", { level: 1, name: /Clôture du cycle/ }),
+      screen.queryByRole("heading", { level: 1, name: /Paiement du membre/ }),
     ).not.toBeInTheDocument();
   });
 
@@ -265,7 +267,7 @@ describe("MemberSettlementRoute", () => {
     renderRoute(`/members/${VALID_ID}/settlement`);
     // ProfileSkeleton has aria-label set via the prop — our route passes the
     // settlement title so the SR announces something meaningful.
-    expect(screen.getByLabelText(/Clôture du cycle/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Paiement du membre/)).toBeInTheDocument();
   });
 
   it("error state — ProfileError renders with back link", () => {
@@ -276,14 +278,14 @@ describe("MemberSettlementRoute", () => {
     expect(screen.getByRole("button", { name: /Retour au profil/ })).toBeInTheDocument();
   });
 
-  it("Story 7.4 — clicking 'Confirmer et clôturer' opens the SettlementReauthDialog", () => {
+  it("Story 7.4 — clicking 'Confirmer le paiement' opens the SettlementReauthDialog", () => {
     useMemberProfileMock.mockReturnValue({
       data: baseData(),
       isLoading: false,
       isError: false,
     });
     renderRoute(`/members/${VALID_ID}/settlement`);
-    fireEvent.click(screen.getByRole("button", { name: /Confirmer et clôturer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Confirmer le paiement/ }));
     // Dialog renders its h2 + password input.
     expect(
       screen.getByRole("heading", { level: 2, name: /Confirmation requise/ }),
@@ -304,21 +306,23 @@ describe("MemberSettlementRoute", () => {
       settled_at: "2026-05-14T12:34:56Z",
     });
     renderRoute(`/members/${VALID_ID}/settlement`);
-    fireEvent.click(screen.getByRole("button", { name: /Confirmer et clôturer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Confirmer le paiement/ }));
     fireEvent.change(screen.getByLabelText(/Mot de passe/), { target: { value: "Pw-test" } });
-    fireEvent.click(screen.getByRole("button", { name: /Valider la clôture/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Valider le paiement/ }));
 
     // EnvelopeHandoverScreen mounts — "Cycle clôturé" h2 + amount + CTA.
     await waitFor(() =>
-      expect(screen.getByRole("heading", { level: 2, name: /Cycle clôturé/ })).toBeInTheDocument(),
+      expect(
+        screen.getByRole("heading", { level: 2, name: /Paiement effectué/ }),
+      ).toBeInTheDocument(),
     );
     expect(screen.getByText(/11[\s\u00a0]500 FCFA/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Retour aux membres/ })).toBeInTheDocument();
-    // Settlement card is gone (no more "Confirmer et clôturer" button).
-    expect(screen.queryByRole("button", { name: /Confirmer et clôturer/ })).not.toBeInTheDocument();
+    // Settlement card is gone (no more "Confirmer le paiement" button).
+    expect(screen.queryByRole("button", { name: /Confirmer le paiement/ })).not.toBeInTheDocument();
     // toast.success fired with the saver's first name.
     await waitFor(() => expect(toastSuccessMock).toHaveBeenCalledTimes(1));
-    expect(toastSuccessMock).toHaveBeenCalledWith("Cycle clôturé. SMS envoyé à Awa.");
+    expect(toastSuccessMock).toHaveBeenCalledWith("Paiement effectué. SMS envoyé à Awa.");
   });
 
   it("Story 7.4 — payout_mismatch error → toast.error + navigates back to profile", async () => {
@@ -333,9 +337,9 @@ describe("MemberSettlementRoute", () => {
     });
     mutateAsyncMock.mockRejectedValue(err);
     renderRoute(`/members/${VALID_ID}/settlement`);
-    fireEvent.click(screen.getByRole("button", { name: /Confirmer et clôturer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Confirmer le paiement/ }));
     fireEvent.change(screen.getByLabelText(/Mot de passe/), { target: { value: "Pw-test" } });
-    fireEvent.click(screen.getByRole("button", { name: /Valider la clôture/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Valider le paiement/ }));
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledTimes(1));
     expect(toastErrorMock).toHaveBeenCalledWith("Le montant a changé — rechargez la page.");
@@ -355,12 +359,12 @@ describe("MemberSettlementRoute", () => {
     });
     mutateAsyncMock.mockRejectedValue(err);
     renderRoute(`/members/${VALID_ID}/settlement`);
-    fireEvent.click(screen.getByRole("button", { name: /Confirmer et clôturer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Confirmer le paiement/ }));
     fireEvent.change(screen.getByLabelText(/Mot de passe/), { target: { value: "Pw-test" } });
-    fireEvent.click(screen.getByRole("button", { name: /Valider la clôture/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Valider le paiement/ }));
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledTimes(1));
-    expect(toastErrorMock).toHaveBeenCalledWith("Ce cycle n'est plus prêt à être clôturé.");
+    expect(toastErrorMock).toHaveBeenCalledWith("Ce cycle ne peut plus être payé.");
     await waitFor(() => expect(screen.getByTestId("profile-sentinel")).toBeInTheDocument());
   });
 
@@ -376,9 +380,9 @@ describe("MemberSettlementRoute", () => {
     });
     mutateAsyncMock.mockRejectedValue(err);
     renderRoute(`/members/${VALID_ID}/settlement`);
-    fireEvent.click(screen.getByRole("button", { name: /Confirmer et clôturer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Confirmer le paiement/ }));
     fireEvent.change(screen.getByLabelText(/Mot de passe/), { target: { value: "Pw-test" } });
-    fireEvent.click(screen.getByRole("button", { name: /Valider la clôture/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Valider le paiement/ }));
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledTimes(1));
     expect(toastErrorMock).toHaveBeenCalledWith("Cycle ou membre introuvable.");
@@ -397,15 +401,17 @@ describe("MemberSettlementRoute", () => {
     });
     mutateAsyncMock.mockRejectedValue(err);
     renderRoute(`/members/${VALID_ID}/settlement`);
-    fireEvent.click(screen.getByRole("button", { name: /Confirmer et clôturer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Confirmer le paiement/ }));
     fireEvent.change(screen.getByLabelText(/Mot de passe/), { target: { value: "Pw-test" } });
-    fireEvent.click(screen.getByRole("button", { name: /Valider la clôture/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Valider le paiement/ }));
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledTimes(1));
     expect(toastErrorMock).toHaveBeenCalledWith("Pas de réseau — vérifiez votre connexion.");
     // No navigation — user stays on settlement page (network errors are retryable).
     expect(screen.queryByTestId("profile-sentinel")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: /Clôture du cycle/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: /Paiement du membre/ }),
+    ).toBeInTheDocument();
   });
 
   it("Story 7.4 — unknown error fallback → toast.error generic + stays on page", async () => {
@@ -420,9 +426,9 @@ describe("MemberSettlementRoute", () => {
     });
     mutateAsyncMock.mockRejectedValue(err);
     renderRoute(`/members/${VALID_ID}/settlement`);
-    fireEvent.click(screen.getByRole("button", { name: /Confirmer et clôturer/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Confirmer le paiement/ }));
     fireEvent.change(screen.getByLabelText(/Mot de passe/), { target: { value: "Pw-test" } });
-    fireEvent.click(screen.getByRole("button", { name: /Valider la clôture/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Valider le paiement/ }));
 
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledTimes(1));
     expect(toastErrorMock).toHaveBeenCalledWith("Erreur inattendue — réessayez.");
