@@ -98,6 +98,10 @@ if (env) {
 
     const seededCycles: SeededMember["cycles"] = [];
     for (const spec of cycles) {
+      // Step 1: insert the cycle as 'active'. Story 3.4 trigger
+      // `reject_transaction_on_closed_cycle` rejects any INSERT into
+      // transactions when the cycle is 'completed' / 'settled' — we MUST
+      // seed advances first, THEN flip the status.
       const { data: cycle, error: cycleErr } = await service
         .from("cycles")
         .insert({
@@ -106,7 +110,7 @@ if (env) {
           cycle_number: spec.cycleNumber,
           start_date: spec.startDate,
           end_date: spec.endDate,
-          status: spec.status,
+          status: "active",
         })
         .select("id")
         .single();
@@ -118,6 +122,7 @@ if (env) {
         endDate: spec.endDate,
       });
 
+      // Step 2: insert the advance (allowed because cycle is still active).
       if (spec.advancesTotal > 0) {
         const { data: amountSecret, error: amtErr } = await service.rpc("vault_encrypt", {
           plaintext: String(spec.advancesTotal),
@@ -135,6 +140,16 @@ if (env) {
           saver_acknowledged: true,
         });
         if (txErr) throw new Error(`seedAdvance: ${txErr.message}`);
+      }
+
+      // Step 3: flip the cycle to its target status. The trigger guards
+      // INSERT on transactions, NOT UPDATE on cycles → safe to update now.
+      if (spec.status !== "active") {
+        const { error: updateErr } = await service
+          .from("cycles")
+          .update({ status: spec.status })
+          .eq("id", cycle.id);
+        if (updateErr) throw new Error(`seedCycle status flip: ${updateErr.message}`);
       }
     }
     return { memberId: member.id, cycles: seededCycles };
