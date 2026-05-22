@@ -29,6 +29,7 @@ export { MemberList } from "./ui/MemberList";
 export { MemberCard } from "./ui/MemberCard";
 export { MemberForm } from "./ui/MemberForm";
 export { MemberProfile } from "./ui/MemberProfile";
+export { AwaitingSettlementCard } from "./ui/AwaitingSettlementCard";
 export { ConsentScreen } from "./ui/ConsentScreen";
 export { ContactsPickerStep, type PickedContact } from "./ui/ContactsPickerStep";
 export { ImportProgressStep } from "./ui/ImportProgressStep";

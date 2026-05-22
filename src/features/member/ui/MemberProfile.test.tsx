@@ -82,7 +82,8 @@ describe("MemberProfile", () => {
     expect(screen.getByText("+221777915898")).toBeInTheDocument();
     expect(screen.getByText(/500 FCFA \/ jour/)).toBeInTheDocument();
     expect(screen.getByText(/Jour 11 sur 30/)).toBeInTheDocument();
-    expect(screen.getByText(/Versé/)).toBeInTheDocument();
+    // Story 12.5 PR E — "Versé" → "Cotisé ce mois".
+    expect(screen.getByText(/Cotisé ce mois/)).toBeInTheDocument();
     expect(screen.queryByText(/Avances en cours/)).not.toBeInTheDocument();
     expect(screen.getByText(/Solde à reverser/)).toBeInTheDocument();
   });

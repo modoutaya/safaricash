@@ -5,6 +5,7 @@
 import { Flag } from "lucide-react";
 
 import { StatusBadge } from "@/components/domain/StatusBadge";
+import { CycleProgressBar } from "@/features/cycle";
 import { DisputeInlineBanner } from "@/features/dispute";
 import { useT } from "@/i18n/useT";
 
@@ -16,17 +17,16 @@ import { deriveMemberStatus } from "../api/deriveMemberStatus";
 import type { CycleRow, MemberRow, MemberStats, TransactionKind, TransactionRow } from "../types";
 import { LocalDataNote } from "./LocalDataNote";
 
+const MONTH_FORMATTER = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+function formatCycleMonth(iso: string): string {
+  return MONTH_FORMATTER.format(new Date(`${iso}T00:00:00Z`));
+}
+
 export interface MemberProfileProps {
   member: MemberRow;
   currentCycle: CycleRow | null;
   /** Story 2.7 — completed/settled cycles to render as a read-only history. */
   previousCycles?: CycleRow[];
-  /** Story 12.4 — payout amount for the oldest cycle awaiting manual
-   *  settlement, or null when none. When present, the profile surfaces
-   *  an inline "À régler : X F CFA" row next to the settlement CTA so
-   *  the collector sees the amount before navigating into the settle
-   *  flow. */
-  awaitingSettlementPayout?: number | null;
   transactions: TransactionRow[];
   stats: MemberStats;
   /** Story 6.7 — tap a transaction row to open the per-receipt sheet.
@@ -70,7 +70,6 @@ export function MemberProfile({
   member,
   currentCycle,
   previousCycles = [],
-  awaitingSettlementPayout = null,
   transactions,
   stats,
   onTransactionTap,
@@ -91,11 +90,6 @@ export function MemberProfile({
   // Story 12.3 — surface the carry-over of unpaid debt from the previous
   // unsettled cycle. Hidden when 0 (most members, especially first cycles).
   const showOpeningBalanceRow = stats.openingBalance > 0;
-  // Story 12.4 — surface the payout amount of the oldest cycle awaiting
-  // manual settlement. Hidden when no cycle to settle (the most common
-  // case during a healthy cycle's daily contributions).
-  const showAwaitingSettlementRow =
-    awaitingSettlementPayout != null && awaitingSettlementPayout > 0;
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">
@@ -104,81 +98,83 @@ export function MemberProfile({
         count={openDisputeCount}
         onViewDetail={onDisputeBannerTap ?? (() => {})}
       />
-      <section className="flex flex-col gap-4 rounded-lg border border-hairline bg-card p-4">
-        <header className="flex items-center gap-3">
-          <div
-            aria-hidden
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary-100 text-title-2 font-semibold text-primary-700"
-          >
-            {memberInitials(member.name)}
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <h1 className="truncate text-title-1 text-text-primary">{member.name}</h1>
-            {member.phone_number ? (
-              <p className="truncate text-body-2 text-text-secondary">{member.phone_number}</p>
-            ) : null}
-          </div>
-          {showStatusBadge ? <StatusBadge kind={displayStatus} className="flex-none" /> : null}
-        </header>
 
-        <dl
-          className="flex flex-col gap-2 text-body-2"
-          style={{ fontVariantNumeric: "tabular-nums" }}
+      {/* Story 12.5 PR E — identity card. Math has moved out to the
+          "Cycle en cours" section + the AwaitingSettlementCard (route). */}
+      <section className="flex items-center gap-3 rounded-lg border border-hairline bg-card p-4">
+        <div
+          aria-hidden
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary-100 text-title-2 font-semibold text-primary-700"
         >
-          <div className="flex items-center justify-between">
-            <dt className="text-text-secondary">
-              {t("members.profile.field.daily_amount", {
-                amount: formatFcfaAmount(member.daily_amount),
+          {memberInitials(member.name)}
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <h1 className="truncate text-title-1 text-text-primary">{member.name}</h1>
+          {member.phone_number ? (
+            <p className="truncate text-body-2 text-text-secondary">{member.phone_number}</p>
+          ) : null}
+        </div>
+        {showStatusBadge ? <StatusBadge kind={displayStatus} className="flex-none" /> : null}
+      </section>
+
+      {/* Story 12.5 PR E — current cycle section. Skipped when there is
+          no currentCycle (member just created, etc.). */}
+      {currentCycle ? (
+        <section
+          className="flex flex-col gap-3 rounded-lg border border-hairline bg-card p-4"
+          aria-labelledby="current-cycle-heading"
+        >
+          <h2 id="current-cycle-heading" className="text-title-2 text-text-primary">
+            {t("members.profile.cycle_in_progress_title", {
+              month: formatCycleMonth(currentCycle.start_date),
+            })}
+          </h2>
+          <div className="flex flex-col gap-2">
+            <p className="text-body-2 text-text-secondary">
+              {t("members.profile.field.cycle_day", {
+                n: stats.cycleDay,
+                total: stats.cycleLength,
               })}
-            </dt>
+            </p>
+            <CycleProgressBar dayNumber={stats.cycleDay} totalDays={stats.cycleLength} />
           </div>
-          {currentCycle ? (
+          <dl
+            className="flex flex-col gap-2 text-body-2"
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          >
             <div className="flex items-center justify-between">
               <dt className="text-text-secondary">
-                {t("members.profile.field.cycle_day", {
-                  n: stats.cycleDay,
-                  total: stats.cycleLength,
+                {t("members.profile.field.daily_amount", {
+                  amount: formatFcfaAmount(member.daily_amount),
                 })}
               </dt>
             </div>
-          ) : null}
-          <div className="flex items-center justify-between">
-            <dt className="text-text-secondary">
-              {t("members.profile.field.contributed_total", {
-                amount: formatFcfaAmount(stats.contributedTotal),
-              })}
-            </dt>
-          </div>
-          {showAdvancesRow ? (
             <div className="flex items-center justify-between">
-              <dt className="text-warning">
-                {t("members.profile.field.outstanding_advances", {
-                  amount: formatFcfaAmount(stats.outstandingAdvances),
+              <dt className="text-text-secondary">
+                {t("members.profile.field.contributed_total", {
+                  amount: formatFcfaAmount(stats.contributedTotal),
                 })}
               </dt>
             </div>
-          ) : null}
-          {showOpeningBalanceRow ? (
-            <div className="flex items-center justify-between">
-              <dt className="text-warning-text">
-                {t("members.profile.field.opening_balance", {
-                  amount: formatFcfaAmount(stats.openingBalance),
-                })}
-              </dt>
-            </div>
-          ) : null}
-          {showAwaitingSettlementRow && awaitingSettlementPayout != null ? (
-            <div className="flex items-center justify-between">
-              <dt className="font-semibold text-warning-text">
-                {t("members.profile.field.awaiting_settlement", {
-                  amount: formatFcfaAmount(awaitingSettlementPayout),
-                })}
-              </dt>
-            </div>
-          ) : null}
-        </dl>
-
-        {currentCycle ? (
+            {showAdvancesRow ? (
+              <div className="flex items-center justify-between">
+                <dt className="text-warning">
+                  {t("members.profile.field.outstanding_advances", {
+                    amount: formatFcfaAmount(stats.outstandingAdvances),
+                  })}
+                </dt>
+              </div>
+            ) : null}
+            {showOpeningBalanceRow ? (
+              <div className="flex items-center justify-between">
+                <dt className="text-warning-text">
+                  {t("members.profile.field.opening_balance", {
+                    amount: formatFcfaAmount(stats.openingBalance),
+                  })}
+                </dt>
+              </div>
+            ) : null}
+          </dl>
           <p
             className="text-display text-primary-700"
             style={{ fontVariantNumeric: "tabular-nums" }}
@@ -187,8 +183,8 @@ export function MemberProfile({
               amount: formatFcfaAmount(stats.currentBalance),
             })}
           </p>
-        ) : null}
-      </section>
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-2" aria-labelledby="transactions-title">
         <h2 id="transactions-title" className="text-title-2 text-text-primary">

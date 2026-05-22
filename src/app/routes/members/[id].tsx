@@ -15,7 +15,7 @@ import {
   ProfileSkeleton,
 } from "@/components/domain/MemberProfileStates";
 import { Button } from "@/components/ui/button";
-import { MemberProfile, useMemberProfile } from "@/features/member";
+import { AwaitingSettlementCard, MemberProfile, useMemberProfile } from "@/features/member";
 import { DeleteMemberDialog } from "@/features/member/ui/DeleteMemberDialog";
 import { ResendHistoryDialog } from "@/features/member/ui/ResendHistoryDialog";
 import type {
@@ -72,15 +72,10 @@ export default function MemberProfileRoute() {
   // restart_member_cycle SQL RPC stays in place as an ops fallback if
   // the cron ever fails — service-role callable via Supabase Studio.
   const currentCycleStatus = query.data?.currentCycle?.status;
-  // Story 7.3 — "Clôturer le cycle" is visible iff at least one cycle is
-  // awaiting settlement (status='completed' not yet 'settled'). Tap
-  // navigates to /members/:id/settlement.
-  // Story 12.4 — gate switched from `currentCycle.status==='completed'`
-  // to `cycleAwaitingSettlement !== null` because after the Phase B cron
-  // (Story 12.3) the just-closed cycle moves to previousCycles while
-  // currentCycle becomes the freshly-opened 'active' one. Without this
-  // change the CTA disappears the moment the cron fires.
-  const canSettle = query.data?.cycleAwaitingSettlement != null;
+  // Story 12.5 PR E — the "Payer le membre" CTA moved from the header
+  // action row to the prominent AwaitingSettlementCard rendered above
+  // the profile. The visibility gate (cycleAwaitingSettlement != null)
+  // now lives inline at the card-render site below.
   // Story 6.6 — Renvoyer l'historique visible when current cycle is active
   // AND member is active. Server enforces opt-out / no-phone / empty-cycle
   // short-circuits.
@@ -112,11 +107,9 @@ export default function MemberProfileRoute() {
           <Button asChild variant="outline" size="sm" disabled={!isUuid}>
             <Link to={`/members/${id}/edit`}>{t("members.profile.action_edit")}</Link>
           </Button>
-          {canSettle ? (
-            <Button asChild variant="outline" size="sm">
-              <Link to={`/members/${id}/settlement`}>{t("members.profile.action_settle")}</Link>
-            </Button>
-          ) : null}
+          {/* Story 12.5 PR E — the "Payer le membre" CTA moved from the
+              header action row to the proeminent AwaitingSettlementCard
+              rendered below. Header now only holds secondary actions. */}
           {canResendHistory ? (
             <Button type="button" variant="outline" size="sm" onClick={() => setResendOpen(true)}>
               {t("members.profile.resend_history.action_label")}
@@ -146,18 +139,34 @@ export default function MemberProfileRoute() {
           onBack={goBack}
         />
       ) : (
-        <MemberProfile
-          member={query.data.member}
-          currentCycle={query.data.currentCycle}
-          previousCycles={query.data.previousCycles}
-          awaitingSettlementPayout={query.data.awaitingSettlementPayout}
-          transactions={query.data.transactions}
-          stats={query.data.stats}
-          onTransactionTap={setSelectedTx}
-          openDisputeCount={openDisputes.length}
-          disputedTransactionIds={disputedTransactionIds}
-          onDisputeBannerTap={() => setSelectedDispute(openDisputes[0] ?? null)}
-        />
+        <>
+          {/* Story 12.5 PR E — proeminent "Paiement en attente" card.
+              Rendered ABOVE the identity section when a previous cycle
+              awaits manual settlement. Replaces the inline "À régler"
+              row pre-PR-E. */}
+          {query.data.cycleAwaitingSettlement != null &&
+          query.data.awaitingSettlementPayout != null &&
+          query.data.awaitingSettlementPayout > 0 ? (
+            <div className="px-4">
+              <AwaitingSettlementCard
+                payoutAmount={query.data.awaitingSettlementPayout}
+                cycleEndDate={query.data.cycleAwaitingSettlement.end_date}
+                settleHref={`/members/${id}/settlement`}
+              />
+            </div>
+          ) : null}
+          <MemberProfile
+            member={query.data.member}
+            currentCycle={query.data.currentCycle}
+            previousCycles={query.data.previousCycles}
+            transactions={query.data.transactions}
+            stats={query.data.stats}
+            onTransactionTap={setSelectedTx}
+            openDisputeCount={openDisputes.length}
+            disputedTransactionIds={disputedTransactionIds}
+            onDisputeBannerTap={() => setSelectedDispute(openDisputes[0] ?? null)}
+          />
+        </>
       )}
 
       {/* Supprimer — a destructive action, kept out of the header action row

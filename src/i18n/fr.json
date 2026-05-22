@@ -275,11 +275,17 @@
       "field": {
         "daily_amount": "{amount} FCFA / jour",
         "cycle_day": "Jour {n} sur {total}",
-        "contributed_total": "Versé : {amount} FCFA",
+        "contributed_total": "Cotisé ce mois : {amount} FCFA",
         "outstanding_advances": "Avances en cours : {amount} FCFA",
         "opening_balance": "Solde reporté du cycle précédent : {amount} FCFA",
         "awaiting_settlement": "À régler au membre : {amount} FCFA",
         "projected_balance": "Solde à reverser : {amount} FCFA"
+      },
+      "cycle_in_progress_title": "Cycle en cours — {month}",
+      "awaiting": {
+        "title": "Paiement en attente",
+        "cycle_closed_label": "Cycle clos le {date}",
+        "cta": "Payer le membre"
       },
       "transactions": {
         "title": "Historique du cycle",

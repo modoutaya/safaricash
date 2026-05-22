@@ -265,6 +265,9 @@ describe("MemberProfileRoute", () => {
         previousCycles: [],
         // Story 12.4 — link gate now reads cycleAwaitingSettlement.
         cycleAwaitingSettlement: completedCycle,
+        // Story 12.5 PR E — AwaitingSettlementCard renders the "Payer le membre"
+        // link iff awaitingSettlementPayout > 0.
+        awaitingSettlementPayout: 14500,
         transactions: [],
         allTransactions: [],
         totalTransactionsCount: 0,
