@@ -87,6 +87,7 @@ export function deriveMembersWithMeta(
       ? computeOpeningBalance(
           openingBalanceCycles,
           data.advancesByCycle,
+          data.contributedByCycle,
           row.daily_amount,
           currentCycle.id,
         )
@@ -112,6 +113,7 @@ export function deriveMembersWithMeta(
             computeOpeningBalance(
               openingBalanceCycles,
               data.advancesByCycle,
+              data.contributedByCycle,
               row.daily_amount,
               awaitingCycle.id,
             ),

@@ -586,7 +586,11 @@ if (env) {
           endDate: "2026-04-30",
         });
         const cycle1Id = seeded.cycleId;
-        // Insert a 20_000 advance on cycle 1.
+        // Story 12.5 PR D — compute_opening_balance now reads cycle 1's
+        // contributedTotal. Seed 30 contribs of 500 → 15_000 versé so
+        // the debt = 15_000 − 500 − 20_000 = −5_500 → opening_balance(c2) = 5_500.
+        await seedFullCycleContribs(userClient, seeded.memberId, cycle1Id, 30, 500);
+        // Insert a 20_000 advance on cycle 1 (service-role bypass of capacity check).
         const { data: advanceSecret, error: advanceErr } = await service.rpc("vault_encrypt", {
           plaintext: "20000",
         });
@@ -664,12 +668,14 @@ if (env) {
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
 
-        // Same seed as the previous test: cycle 1 with 20_000 advance (debt 5_500),
-        // cycle 2 completed.
+        // Same seed as the previous test: cycle 1 with 15_000 contribs +
+        // 20_000 advance (debt 5_500 under the PR D formula), cycle 2 active.
         const seeded = await seedMemberWithCycleBounds(userClient, service, c.userId, {
           startDate: "2026-04-01",
           endDate: "2026-04-30",
         });
+        // Story 12.5 PR D — seed cycle 1 contribs first.
+        await seedFullCycleContribs(userClient, seeded.memberId, seeded.cycleId, 30, 500);
         const { data: advanceSecret } = await service.rpc("vault_encrypt", {
           plaintext: "20000",
         });

@@ -395,8 +395,19 @@ export interface OpeningBalanceCycle {
 }
 
 /**
- * Story 12.3 — opening_balance(cycle) returns the unpaid debt of the
- * previous unsettled cycle (0 when none). Recursion bottoms out at:
+ * Story 12.5 PR D — opening_balance now derives from the PREVIOUS
+ * cycle's CURRENT balance, not its theoretical projection.
+ *
+ *   prev_balance = prev_contributedTotal − daily − prev_advances − prev_opening
+ *   opening_balance(current) = max(0, −prev_balance)
+ *
+ * Same shape as PR A/B/C settle() / canAcceptAdvance / currentBalance —
+ * everything keys off actual contributedTotal under the cotisation-libre
+ * model. PR A/B/C left this helper alone (still on `daily × contribDays`
+ * internally) for safety; PR D closes that gap.
+ *
+ * Returns: ≥ 0. Positive = debt carried over (saver still owes).
+ * Recursion bottoms out at:
  *   - cycle is the first cycle of the member (cycle_number = 1), OR
  *   - the previous cycle's status is 'settled' (the chain restarts).
  *
@@ -404,19 +415,16 @@ export interface OpeningBalanceCycle {
  *   - `cycles`: ALL cycles of the member (the recursion walks the chain
  *     backward via cycle_number − 1; cycles outside the chain are
  *     ignored). Order doesn't matter.
- *   - `advancesByCycleId`: a Map<cycleId, Σ(advances excluding undone)>
- *     — the caller is responsible for the exclusion. Missing entries
- *     default to 0.
- *   - `dailyAmount`: the member's daily contribution amount (constant
- *     across cycles per current schema — if this ever changes, this
- *     helper must take a per-cycle daily amount).
+ *   - `advancesByCycleId`: Map<cycleId, Σ(advances excluding undone)>.
+ *   - `contributedByCycleId`: Map<cycleId, Σ(contributions+rattrapage excluding undone)>.
+ *     NEW in PR D — this is what `prev_balance` reads now.
+ *   - `dailyAmount`: the member's daily commission (constant across cycles).
  *   - `cycleId`: the cycle whose opening_balance we want.
- *
- * Returns: ≥ 0. Positive = debt carried over. Zero = no carry-over.
  */
 export function computeOpeningBalance(
   cycles: ReadonlyArray<OpeningBalanceCycle>,
   advancesByCycleId: ReadonlyMap<string, number>,
+  contributedByCycleId: ReadonlyMap<string, number>,
   dailyAmount: number,
   cycleId: string,
 ): number {
@@ -428,9 +436,16 @@ export function computeOpeningBalance(
   if (prev.status === "settled") return 0;
 
   const prevAdvances = advancesByCycleId.get(prev.id) ?? 0;
-  const prevOpening = computeOpeningBalance(cycles, advancesByCycleId, dailyAmount, prev.id);
-  const prevContribDays = cycleLengthDays(prev.startDate, prev.endDate) - 1;
-  const prevBalance = dailyAmount * prevContribDays - prevAdvances - prevOpening;
+  const prevContributed = contributedByCycleId.get(prev.id) ?? 0;
+  const prevOpening = computeOpeningBalance(
+    cycles,
+    advancesByCycleId,
+    contributedByCycleId,
+    dailyAmount,
+    prev.id,
+  );
+  // Story 12.5 PR D — currentBalance formula on the previous cycle.
+  const prevBalance = prevContributed - dailyAmount - prevAdvances - prevOpening;
 
   return prevBalance >= 0 ? 0 : -prevBalance;
 }

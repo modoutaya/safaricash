@@ -82,9 +82,18 @@ export function deriveCycleSummaryRows(
     cyclesByMemberId.set(c.member_id, list);
   }
   const advancesByCycleId = new Map<string, number>();
+  // Story 12.5 PR D — computeOpeningBalance also reads contributedTotal
+  // per cycle now (prev_balance uses the new currentBalance formula).
+  const contributedByCycleId = new Map<string, number>();
   for (const tx of transactions) {
-    if (tx.kind !== "advance") continue;
-    advancesByCycleId.set(tx.cycle_id, (advancesByCycleId.get(tx.cycle_id) ?? 0) + tx.amount);
+    if (tx.kind === "advance") {
+      advancesByCycleId.set(tx.cycle_id, (advancesByCycleId.get(tx.cycle_id) ?? 0) + tx.amount);
+    } else if (COLLECTED_KINDS.has(tx.kind)) {
+      contributedByCycleId.set(
+        tx.cycle_id,
+        (contributedByCycleId.get(tx.cycle_id) ?? 0) + tx.amount,
+      );
+    }
   }
 
   return cycles.map((cycle) => {
@@ -112,6 +121,7 @@ export function deriveCycleSummaryRows(
     const opening_balance = computeOpeningBalance(
       openingBalanceCycles,
       advancesByCycleId,
+      contributedByCycleId,
       dailyAmount,
       cycle.id,
     );

@@ -127,13 +127,22 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
   // Story 12.3 — opening_balance for the cycle being settled is
   // recomputed from THIS cycle (not from currentCycle as data.stats
   // exposes). Identical TS↔SQL helper as the rest of the math.
+  // Story 12.5 PR D — computeOpeningBalance now also reads contributedTotal
+  // per cycle (prev_balance = contributed − daily − advances − opening).
   const settleCycleAdvancesByCycleId = new Map<string, number>();
+  const settleCycleContributedByCycleId = new Map<string, number>();
   for (const tx of data.allTransactions) {
-    if (tx.kind !== "advance") continue;
-    settleCycleAdvancesByCycleId.set(
-      tx.cycle_id,
-      (settleCycleAdvancesByCycleId.get(tx.cycle_id) ?? 0) + tx.amount,
-    );
+    if (tx.kind === "advance") {
+      settleCycleAdvancesByCycleId.set(
+        tx.cycle_id,
+        (settleCycleAdvancesByCycleId.get(tx.cycle_id) ?? 0) + tx.amount,
+      );
+    } else if (tx.kind === "contribution" || tx.kind === "rattrapage") {
+      settleCycleContributedByCycleId.set(
+        tx.cycle_id,
+        (settleCycleContributedByCycleId.get(tx.cycle_id) ?? 0) + tx.amount,
+      );
+    }
   }
   const settleOpeningBalance = computeOpeningBalance(
     [...data.previousCycles, ...(data.currentCycle ? [data.currentCycle] : []), settleCycle].map(
@@ -146,6 +155,7 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
       }),
     ),
     settleCycleAdvancesByCycleId,
+    settleCycleContributedByCycleId,
     data.member.daily_amount,
     settleCycle.id,
   );

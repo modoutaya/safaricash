@@ -141,10 +141,20 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
   // computeOpeningBalance. Mirrors SQL `compute_opening_balance` —
   // cross-checked by compute-opening-balance.contract.test.ts.
   const advancesByCycleId = new Map<string, number>();
+  // Story 12.5 PR D — also aggregate contributions+rattrapage per cycle
+  // because compute_opening_balance now reads prev_cycle's contributedTotal
+  // instead of projecting from daily × contribDays.
+  const contributedByCycleId = new Map<string, number>();
   for (const tx of allTransactions) {
-    if (tx.kind !== "advance") continue;
-    // undone advances are already excluded by transactions_decrypted view.
-    advancesByCycleId.set(tx.cycle_id, (advancesByCycleId.get(tx.cycle_id) ?? 0) + tx.amount);
+    // undone txs are already excluded by transactions_decrypted view.
+    if (tx.kind === "advance") {
+      advancesByCycleId.set(tx.cycle_id, (advancesByCycleId.get(tx.cycle_id) ?? 0) + tx.amount);
+    } else if (tx.kind === "contribution" || tx.kind === "rattrapage") {
+      contributedByCycleId.set(
+        tx.cycle_id,
+        (contributedByCycleId.get(tx.cycle_id) ?? 0) + tx.amount,
+      );
+    }
   }
   const openingBalanceCycles: OpeningBalanceCycle[] = cleanedCycles.map((c) => ({
     id: c.id,
@@ -157,6 +167,7 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
     ? computeOpeningBalance(
         openingBalanceCycles,
         advancesByCycleId,
+        contributedByCycleId,
         member.daily_amount,
         currentCycle.id,
       )
@@ -206,6 +217,7 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
         computeOpeningBalance(
           openingBalanceCycles,
           advancesByCycleId,
+          contributedByCycleId,
           member.daily_amount,
           cycleAwaitingSettlement.id,
         ),
