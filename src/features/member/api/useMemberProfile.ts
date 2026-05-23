@@ -173,8 +173,17 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
       )
     : 0;
 
+  // HOTFIX 2026-05-22 — computeMemberStats only handles contribution /
+  // rattrapage / advance. After Story 7.4 added 'settlement' to the
+  // DB enum, any settled cycle's settlement tx would leak into this
+  // call and the kind narrow union no longer accepts it. Type-predicate
+  // filter narrows kind back to the 3 stats-relevant kinds.
+  const statsInput = transactions.filter(
+    (tx): tx is TransactionRow & { kind: "contribution" | "rattrapage" | "advance" } =>
+      tx.kind === "contribution" || tx.kind === "rattrapage" || tx.kind === "advance",
+  );
   const stats = computeMemberStats(
-    transactions,
+    statsInput,
     { dailyAmount: member.daily_amount },
     currentCycle ? { startDate: currentCycle.start_date, endDate: currentCycle.end_date } : null,
     undefined,

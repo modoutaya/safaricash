@@ -60,10 +60,12 @@ const KIND_LABEL_KEY: Record<
   | "members.profile.transactions.kind_contribution"
   | "members.profile.transactions.kind_rattrapage"
   | "members.profile.transactions.kind_advance"
+  | "members.profile.transactions.kind_settlement"
 > = {
   contribution: "members.profile.transactions.kind_contribution",
   rattrapage: "members.profile.transactions.kind_rattrapage",
   advance: "members.profile.transactions.kind_advance",
+  settlement: "members.profile.transactions.kind_settlement",
 };
 
 export function MemberProfile({

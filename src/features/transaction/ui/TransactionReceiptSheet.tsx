@@ -47,6 +47,10 @@ const KIND_LABEL_KEY: Record<TransactionKind, TranslationKey> = {
   contribution: "members.profile.transactions.kind_contribution",
   rattrapage: "members.profile.transactions.kind_rattrapage",
   advance: "members.profile.transactions.kind_advance",
+  // HOTFIX 2026-05-22 — receipt sheet doesn't typically open on settlement
+  // (Story 7.4 has its own EnvelopeHandover ceremony), but the Record
+  // must be exhaustive over TransactionKind.
+  settlement: "members.profile.transactions.kind_settlement",
 };
 
 export function TransactionReceiptSheet({

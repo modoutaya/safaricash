@@ -61,7 +61,19 @@ export type TransactionTimestamp = z.infer<typeof transactionTimestampSchema>;
 
 // Story 2.4 — full transaction row (decrypted via transactions_decrypted view).
 // Mirrors public.transactions_kind_enum (migration 0001 line 49).
-export const transactionKindSchema = z.enum(["contribution", "rattrapage", "advance"]);
+// HOTFIX 2026-05-22 — 'settlement' was added to the DB enum by Story 7.4
+// (migration 20260514000001) but never propagated to this Zod schema.
+// Side-effect: any useMembers query firing AFTER a settlement crashed
+// with a silent Zod parse error — `kind` value 'settlement' wasn't an
+// allowed enum, the whole transactions_decrypted SELECT failed parsing,
+// and the members list rendered the generic "Impossible de charger"
+// error. Caught in prod by the pilot (Khadim) the moment he settled.
+export const transactionKindSchema = z.enum([
+  "contribution",
+  "rattrapage",
+  "advance",
+  "settlement",
+]);
 export type TransactionKind = z.infer<typeof transactionKindSchema>;
 
 export const transactionRowSchema = z.object({

@@ -17,7 +17,9 @@
     "npm:@supabase/realtime-js@2.103.3": "2.103.3",
     "npm:@supabase/storage-js@2.103.3": "2.103.3",
     "npm:@supabase/supabase-js@^2.103.3": "2.103.3",
-    "npm:@tanstack/react-query@^5.99.1": "5.99.2_react@18.3.1",
+    "npm:@tanstack/query-sync-storage-persister@^5.100.10": "5.100.10",
+    "npm:@tanstack/react-query-persist-client@^5.100.10": "5.100.10_@tanstack+react-query@5.100.10__react@18.3.1_react@18.3.1",
+    "npm:@tanstack/react-query@^5.99.1": "5.100.10_react@18.3.1",
     "npm:@testing-library/jest-dom@^6.9.1": "6.9.1",
     "npm:@testing-library/react@^16.3.2": "16.3.2_@testing-library+dom@10.4.1_@types+react@18.3.28_@types+react-dom@18.3.7__@types+react@18.3.28_react@18.3.1_react-dom@18.3.1__react@18.3.1",
     "npm:@types/jest-axe@^3.5.9": "3.5.9",
@@ -39,9 +41,11 @@
     "npm:eslint-plugin-react-hooks@^7.1.1": "7.1.1_eslint@8.57.1",
     "npm:eslint-plugin-react@^7.37.5": "7.37.5_eslint@8.57.1",
     "npm:eslint@^8.57.1": "8.57.1",
+    "npm:fake-indexeddb@^6.2.5": "6.2.5",
     "npm:fast-check@^4.7.0": "4.7.0",
     "npm:framer-motion@^12.38.0": "12.38.0_react@18.3.1_react-dom@18.3.1__react@18.3.1",
     "npm:husky@^9.1.7": "9.1.7",
+    "npm:idb@^8.0.3": "8.0.3",
     "npm:jest-axe@10": "10.0.0",
     "npm:jsdom@^29.0.2": "29.0.2",
     "npm:lint-staged@^16.4.0": "16.4.0",
@@ -2060,11 +2064,32 @@
         "string.prototype.matchall"
       ]
     },
-    "@tanstack/query-core@5.99.2": {
-      "integrity": "sha512-1HunU0bXVsR1ZJMZbcOPE6VtaBJxsW809RE9xPe4Gz7MlB0GWwQvuTPhMoEmQ/hIzFKJ/DWAuttIe7BOaWx0tA=="
+    "@tanstack/query-core@5.100.10": {
+      "integrity": "sha512-8UR0yJR+GiQ40m3lPhUr0xbfAupe6GSQiksSBSa9SM2NjezFyxXCIA69/lz8cSoNKZLrw1/PktIyQBJcVeMi3w=="
     },
-    "@tanstack/react-query@5.99.2_react@18.3.1": {
-      "integrity": "sha512-vM91UEe45QUS9ED6OklsVL15i8qKcRqNwpWzPTVWvRPRSEgDudDgHpvyTjcdlwHcrKNa80T+xXYcchT2noPnZA==",
+    "@tanstack/query-persist-client-core@5.100.10": {
+      "integrity": "sha512-O9Pey40DhTTDBABS0bHr+KNL5/VMf6PrqjexS8WoDDtnkaoWM+y0MSe0V9E5W+BwvkjM33mB3aYcCxa175gZTQ==",
+      "dependencies": [
+        "@tanstack/query-core"
+      ]
+    },
+    "@tanstack/query-sync-storage-persister@5.100.10": {
+      "integrity": "sha512-DKEQkz7S7gtJ7KFvfAhZOd8p8SKSIgg/jGWzKzEgE8L2ienGx5/qMuTr8S/Al21TC6M9/uOmFOeFJl4J71RZnA==",
+      "dependencies": [
+        "@tanstack/query-core",
+        "@tanstack/query-persist-client-core"
+      ]
+    },
+    "@tanstack/react-query-persist-client@5.100.10_@tanstack+react-query@5.100.10__react@18.3.1_react@18.3.1": {
+      "integrity": "sha512-EImacngLXYEtzlrIPf8IAqKN3foS7cmSj4GWqsHJvc7K+8fy2c3s7mdV8oTJeii/TvrzO4X9fcnXi6tUHMIOHA==",
+      "dependencies": [
+        "@tanstack/query-persist-client-core",
+        "@tanstack/react-query",
+        "react"
+      ]
+    },
+    "@tanstack/react-query@5.100.10_react@18.3.1": {
+      "integrity": "sha512-FLaZf2RCrA/Zgp4aiu5tG3TyasTRO7aZ99skxQpr3Hg/zXOhu6yq5FZCYQ/tRaJtM9ylnoK8tFK7PolXQadv6Q==",
       "dependencies": [
         "@tanstack/query-core",
         "react"
@@ -2340,7 +2365,8 @@
       ]
     },
     "@ungap/structured-clone@1.3.0": {
-      "integrity": "sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g=="
+      "integrity": "sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==",
+      "deprecated": true
     },
     "@unrs/resolver-binding-android-arm-eabi@1.11.1": {
       "integrity": "sha512-ppLRUgHVaGRWUx0R0Ut06Mjo9gBaBkg3v/8AxusGLhsIotbBLuRk51rAzqLC8gq6NyyAojEXglNjzf6R948DNw==",
@@ -3640,6 +3666,9 @@
         "jest-util"
       ]
     },
+    "fake-indexeddb@6.2.5": {
+      "integrity": "sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w=="
+    },
     "fast-check@4.7.0": {
       "integrity": "sha512-NsZRtqvSSoCP0HbNjUD+r1JH8zqZalyp6gLY9e7OYs7NK9b6AHOs2baBFeBG7bVNsuoukh89x2Yg3rPsul8ziQ==",
       "dependencies": [
@@ -3992,6 +4021,9 @@
     },
     "idb@7.1.1": {
       "integrity": "sha512-gchesWBzyvGHRO9W8tzUWFDycow5gwjvFKfyV9FF32Y7F50yZMp7mP+T2mJIWFx49zicqyC4uefHM17o6xKIVQ=="
+    },
+    "idb@8.0.3": {
+      "integrity": "sha512-LtwtVyVYO5BqRvcsKuB2iUMnHwPVByPCXFXOpuU96IZPPoPN6xjOGxZQ74pgSVVLQWtUOYgyeL4GE98BY5D3wg=="
     },
     "ignore@5.3.2": {
       "integrity": "sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g=="
@@ -6164,7 +6196,7 @@
     "workbox-background-sync@7.4.0": {
       "integrity": "sha512-8CB9OxKAgKZKyNMwfGZ1XESx89GryWTfI+V5yEj8sHjFH8MFelUwYXEyldEK6M6oKMmn807GoJFUEA1sC4XS9w==",
       "dependencies": [
-        "idb",
+        "idb@7.1.1",
         "workbox-core"
       ]
     },
@@ -6228,7 +6260,7 @@
     "workbox-expiration@7.4.0": {
       "integrity": "sha512-V50p4BxYhtA80eOvulu8xVfPBgZbkxJ1Jr8UUn0rvqjGhLDqKNtfrDfjJKnLz2U8fO2xGQJTx/SKXNTzHOjnHw==",
       "dependencies": [
-        "idb",
+        "idb@7.1.1",
         "workbox-core"
       ]
     },
@@ -6455,6 +6487,8 @@
         "npm:@playwright/test@^1.59.1",
         "npm:@radix-ui/react-slot@^1.2.4",
         "npm:@supabase/supabase-js@^2.103.3",
+        "npm:@tanstack/query-sync-storage-persister@^5.100.10",
+        "npm:@tanstack/react-query-persist-client@^5.100.10",
         "npm:@tanstack/react-query@^5.99.1",
         "npm:@testing-library/jest-dom@^6.9.1",
         "npm:@testing-library/react@^16.3.2",
@@ -6477,9 +6511,11 @@
         "npm:eslint-plugin-react-hooks@^7.1.1",
         "npm:eslint-plugin-react@^7.37.5",
         "npm:eslint@^8.57.1",
+        "npm:fake-indexeddb@^6.2.5",
         "npm:fast-check@^4.7.0",
         "npm:framer-motion@^12.38.0",
         "npm:husky@^9.1.7",
+        "npm:idb@^8.0.3",
         "npm:jest-axe@10",
         "npm:jsdom@^29.0.2",
         "npm:lint-staged@^16.4.0",
