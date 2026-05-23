@@ -293,6 +293,7 @@
         "kind_contribution": "Cotisation",
         "kind_rattrapage": "Rattrapage",
         "kind_advance": "Avance",
+        "kind_settlement": "Paiement",
         "cycle_day_chip": "J{n}"
       },
       "error": {

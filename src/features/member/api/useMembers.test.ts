@@ -8,7 +8,13 @@ import { renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 
-import { MEMBERS_QUERY_KEY, type CycleRow, type MemberRow, type MemberWithMeta } from "../types";
+import {
+  MEMBERS_QUERY_KEY,
+  transactionKindSchema,
+  type CycleRow,
+  type MemberRow,
+  type MemberWithMeta,
+} from "../types";
 import { deriveMembersWithMeta, useMembers, type RawMembersData } from "./useMembers";
 
 const NOW = new Date("2026-04-21T12:00:00Z");
@@ -236,6 +242,21 @@ describe("deriveMembersWithMeta", () => {
     // Dev-warn is expected here; we don't assert on it since the pure
     // derivation test for deriveMemberStatus already covers that surface.
     expect(out[0]!.currentCycle).toBeNull();
+  });
+
+  // HOTFIX 2026-05-22 regression — 'settlement' was added to the DB enum
+  // by Story 7.4 but not to the TS Zod schema. Any useMembers fetch
+  // AFTER the first prod settlement returned a transactions_decrypted
+  // row with kind='settlement', failed Zod parse, errored the whole
+  // query, and the members list rendered "Impossible de charger".
+  // Pin the Zod schema accepts the enum directly so a future regression
+  // surfaces here (not via a silent prod crash).
+  it("HOTFIX — transactionKindSchema accepts 'settlement' (regression: Story 7.4 enum drift)", () => {
+    expect(() => transactionKindSchema.parse("settlement")).not.toThrow();
+    expect(() => transactionKindSchema.parse("contribution")).not.toThrow();
+    expect(() => transactionKindSchema.parse("rattrapage")).not.toThrow();
+    expect(() => transactionKindSchema.parse("advance")).not.toThrow();
+    expect(() => transactionKindSchema.parse("nonsense")).toThrow();
   });
 });
 

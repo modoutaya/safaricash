@@ -97,8 +97,15 @@ export function applyOptimisticTransactionUpdate(
     // carry-over (which is a snapshot of the PREVIOUS cycle's debt);
     // useMemberProfile's next refetch will re-derive the authoritative
     // value if anything has changed on the server.
+    // HOTFIX 2026-05-22 — filter 'settlement' kind out (computeMemberStats
+    // expects only contribution/rattrapage/advance). See useMemberProfile.ts
+    // for the same shim. Type predicate narrows the union.
+    const statsInput = nextTransactions.filter(
+      (tx): tx is typeof tx & { kind: "contribution" | "rattrapage" | "advance" } =>
+        tx.kind === "contribution" || tx.kind === "rattrapage" || tx.kind === "advance",
+    );
     const nextStats = computeMemberStats(
-      nextTransactions,
+      statsInput,
       { dailyAmount: previousProfile.member.daily_amount },
       previousProfile.currentCycle
         ? {
