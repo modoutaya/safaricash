@@ -72,18 +72,20 @@ describe("deriveCycleSummaryRows", () => {
 
   it("final_payout falls back to the current cumul when a settled cycle has no settlement tx", () => {
     const rows = deriveCycleSummaryRows([cycle({ status: "settled" })], [MEMBER], []);
-    // Story 12.5 PR C — currentBalance = contributedTotal(0) − daily(500) = −500.
-    expect(rows[0]!.final_payout).toBe(-500);
+    // 2026-05-24 — commission = min(contributed=0, daily=500) = 0.
+    // currentBalance = 0 − 0 − 0 = 0. Pre-change returned −500.
+    expect(rows[0]!.final_payout).toBe(0);
   });
 
-  it("final_payout for a non-settled cycle = current cumul (Story 12.5 PR C)", () => {
+  it("final_payout for a non-settled cycle = current cumul (2026-05-24 — commission capped at contributed)", () => {
     const rows = deriveCycleSummaryRows(
       [cycle({ status: "with_advance" })],
       [MEMBER],
       [tx({ kind: "advance", amount: 2000 })],
     );
-    // currentBalance = contributedTotal(0) − daily(500) − advances(2000) = −2500.
-    expect(rows[0]!.final_payout).toBe(-2500);
+    // commission = min(0, 500) = 0; currentBalance = 0 − 0 − 2000 = −2000.
+    // Pre-change: −2500.
+    expect(rows[0]!.final_payout).toBe(-2000);
   });
 
   it("only the cycle's own transactions are aggregated", () => {
@@ -98,14 +100,15 @@ describe("deriveCycleSummaryRows", () => {
     expect(rows[0]!.total_contributions).toBe(500);
   });
 
-  it("final_payout for a completed (non-settled) cycle = the current cumul (Story 12.5 PR C)", () => {
+  it("final_payout for a completed (non-settled) cycle = the current cumul (2026-05-24 — commission capped at contributed)", () => {
     const rows = deriveCycleSummaryRows(
       [cycle({ status: "completed" })],
       [MEMBER],
       [tx({ kind: "advance", amount: 1000 })],
     );
-    // currentBalance = contributedTotal(0) − daily(500) − advances(1000) = −1500.
-    expect(rows[0]!.final_payout).toBe(-1500);
+    // commission = min(0, 500) = 0; currentBalance = 0 − 0 − 1000 = −1000.
+    // Pre-change: −1500.
+    expect(rows[0]!.final_payout).toBe(-1000);
   });
 
   it("carries cycle metadata + a member-name fallback when the member is absent", () => {

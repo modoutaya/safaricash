@@ -132,15 +132,25 @@ export function commission(dailyAmount: number): number {
  * a final amount, but we CAN report what the collector currently owes
  * if the cycle were settled this instant.
  *
- *   currentBalance = contributedTotal − dailyAmount − Σ(advances) − openingBalance
+ *   commission     = min(contributedTotal, dailyAmount)
+ *   currentBalance = contributedTotal − commission − Σ(advances) − openingBalance
  *
  * That's identical to settle() — `currentBalance` IS the running
  * settlement amount evaluated at the current moment.
  *
+ * 2026-05-24 — commission is min(contributedTotal, dailyAmount), NOT a
+ * flat dailyAmount. Business rule (pilot feedback): if the saver hasn't
+ * cotised at all (or less than 1 day worth) the collector takes only
+ * what was actually cotised — the saver never "owes" pre-paid commission.
+ * Pre-change formula `contributedTotal - dailyAmount - ...` produced
+ * alarming negative balances on freshly-opened cycles (e.g. day 3 of 10
+ * with 0 contributions showed `-2 000 FCFA`), which broke the collector's
+ * mental model.
+ *
  * Drives the MemberCard / MemberProfile / AdvanceSimulationPanel
- * "Solde à reverser" row. Per ADR-004 Q1: returns the raw value
- * (may be negative when advances + commission exceed contributions);
- * UI decides presentation.
+ * "Solde à reverser" row. May still be negative when advances or
+ * openingBalance exceed (contributedTotal − commission); UI decides
+ * presentation. Always ≥ 0 when advances = opening = 0.
  */
 export function computeCurrentBalance(
   contributedTotal: number,
@@ -148,7 +158,8 @@ export function computeCurrentBalance(
   advancesSoFar: number,
   openingBalance: number = 0,
 ): number {
-  return contributedTotal - dailyAmount - advancesSoFar - openingBalance;
+  const commission = Math.min(contributedTotal, dailyAmount);
+  return contributedTotal - commission - advancesSoFar - openingBalance;
 }
 
 /**
@@ -188,29 +199,34 @@ export function canAcceptAdvance(
  * of `daily_amount` (1 day's worth of suggested savings) minus any
  * mid-cycle advances minus any opening_balance debt carried over.
  *
- *     payout = contributedTotal − dailyAmount − Σ(advances) − openingBalance
+ *     commission = min(contributedTotal, dailyAmount)
+ *     payout     = contributedTotal − commission − Σ(advances) − openingBalance
  *
  * Where:
  *  - `contributedTotal` = Σ kind ∈ {contribution, rattrapage} amounts
  *    booked in THIS cycle (undone excluded). The actual money the
  *    collector physically holds.
- *  - `dailyAmount` = the collector's commission (1 day's worth, fixed).
+ *  - `commission` = the collector's fee. Capped at 1 day's worth of
+ *    `dailyAmount` BUT never more than what was actually cotisé —
+ *    a saver who put nothing in the cycle owes nothing in commission.
  *  - `advances` = mid-cycle prêts already disbursed.
  *  - `openingBalance` = carry-over from the previous unsettled cycle
  *    (≥ 0). Story 12.3 / Phase A. Optional, defaults to 0.
  *
- * The result may be negative — saver owes the collector when advances
- * + commission > contributions. The UI / Edge Function decides how to
- * present that (could become opening_balance of the next cycle).
+ * The result may still be negative when advances + openingBalance
+ * exceed (contributedTotal − commission) — saver owes the collector,
+ * becomes the opening_balance of the next cycle (Story 12.3).
+ *
+ * 2026-05-24 — commission flipped from flat `dailyAmount` to
+ * `min(contributedTotal, dailyAmount)`. Business rule (pilot feedback):
+ * no cotisation ⇒ no commission. Pre-change formula billed full
+ * commission upfront, producing alarming negative payouts when the
+ * saver hadn't yet cotisé a full day (e.g. cotisé=500, daily=2000:
+ * old → −1500, new → 0).
  *
  * NFR-R3 zero-tolerance: mirrors SQL `commit_cycle_settlement` exactly.
  * Cross-checked by compute-opening-balance.contract.test.ts and the
  * settlement happy-path unit test.
- *
- * Pre-12.5 signature `settle(dailyAmount, advances, contributionDays,
- * openingBalance)` was wrong — it assumed savers always paid the full
- * daily × contributionDays. Migration to the new signature is tracked
- * in PR A of the 12.5 refactor.
  */
 export function settle(
   contributedTotal: number,
@@ -218,7 +234,8 @@ export function settle(
   advances: ReadonlyArray<number>,
   openingBalance: number = 0,
 ): number {
-  return contributedTotal - dailyAmount - sum(advances) - openingBalance;
+  const commission = Math.min(contributedTotal, dailyAmount);
+  return contributedTotal - commission - sum(advances) - openingBalance;
 }
 
 /**
