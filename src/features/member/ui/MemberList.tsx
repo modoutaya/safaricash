@@ -36,9 +36,20 @@ const CYCLES_ENDING_FILTER = "cycles-ending";
  *  settlement post-Phase-B cron). Treated as an additional OR term in
  *  the chip filter. */
 const TO_SETTLE_CHIP = "a_regler" as const;
-type ChipValue = DisplayStatus | typeof TO_SETTLE_CHIP;
+/** 2026-05-23 — "Déjà payés" virtual chip. Same shape as TO_SETTLE_CHIP
+ *  (not a displayStatus): matches members with a non-null lastSettlementAt
+ *  AND no awaiting cycle. Sits next to TO_SETTLE so the action-required /
+ *  done pair reads together. */
+const SETTLED_CHIP = "deja_paye" as const;
+type ChipValue = DisplayStatus | typeof TO_SETTLE_CHIP | typeof SETTLED_CHIP;
 
-const ALL_CHIPS: readonly ChipValue[] = ["actif", "avance", TO_SETTLE_CHIP, "termine"] as const;
+const ALL_CHIPS: readonly ChipValue[] = [
+  "actif",
+  "avance",
+  TO_SETTLE_CHIP,
+  SETTLED_CHIP,
+  "termine",
+] as const;
 
 const CHIP_I18N_KEY: Record<
   ChipValue,
@@ -46,11 +57,13 @@ const CHIP_I18N_KEY: Record<
   | "members.filter_avance"
   | "members.filter_termine"
   | "members.filter_a_regler"
+  | "members.filter_deja_paye"
 > = {
   actif: "members.filter_actif",
   avance: "members.filter_avance",
   termine: "members.filter_termine",
   [TO_SETTLE_CHIP]: "members.filter_a_regler",
+  [SETTLED_CHIP]: "members.filter_deja_paye",
 };
 
 function useFilteredMembers(
@@ -64,7 +77,10 @@ function useFilteredMembers(
     return members.filter((m) => {
       if (selectedChips.size > 0) {
         // OR-logic across chips. "À régler" matches awaitingSettlement!=null;
-        // the others match displayStatus equality.
+        // "Déjà payés" matches lastSettlementAt!=null AND awaitingSettlement==null
+        // (mirrors the MemberCard badge condition — a member who was paid
+        // last cycle but now has a new pending cycle counts as "À régler",
+        // not "Déjà payés"); the others match displayStatus equality.
         const matches =
           // Loose `!= null` catches BOTH null AND undefined. The latter
           // shows up on stale TanStack-persisted MemberWithMeta objects
@@ -72,6 +88,9 @@ function useFilteredMembers(
           // the pre-12.4 shape on first paint, which is missing this
           // field). Crash repro 2026-05-21.
           (selectedChips.has(TO_SETTLE_CHIP) && m.awaitingSettlement != null) ||
+          (selectedChips.has(SETTLED_CHIP) &&
+            m.lastSettlementAt != null &&
+            m.awaitingSettlement == null) ||
           selectedChips.has(m.displayStatus);
         if (!matches) return false;
       }
