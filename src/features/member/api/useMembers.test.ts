@@ -80,11 +80,12 @@ describe("deriveMembersWithMeta", () => {
     expect(out[0]!.projectedBalance).toBe(11_000);
   });
 
-  it("projectedBalance with empty contributedByCycle = −daily (Story 12.5 PR C)", () => {
+  it("projectedBalance with empty contributedByCycle = 0 (2026-05-24 — commission capped at contributed)", () => {
     const out = deriveMembersWithMeta(makeData(), NOW);
     expect(out[0]!.cycleAdvancesTotal).toBe(0);
-    // Empty contributedByCycle → 0 contributed; currentBalance = 0 − 500 − 0 − 0 = −500.
-    expect(out[0]!.projectedBalance).toBe(-500);
+    // 2026-05-24 — commission = min(contributed=0, daily=500) = 0.
+    // currentBalance = 0 − 0 − 0 − 0 = 0. Pre-change returned −500.
+    expect(out[0]!.projectedBalance).toBe(0);
   });
 
   it("projectedBalance is null when the member has no current cycle", () => {

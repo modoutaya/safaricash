@@ -78,12 +78,12 @@ function firstDayOfNextMonth(isoDate: string): string {
 // ---------------------------------------------------------------------------
 
 describe("cycleEngine — property tests (ADR-004 invariants)", () => {
-  it("INV-1 (12.5 PR C rewrite): currentBalance depends only on its 4 inputs — not on cycleDay/now", () => {
+  it("INV-1 (2026-05-24 rewrite): currentBalance depends only on its 4 inputs — not on cycleDay/now", () => {
     // The pre-12.5 invariant was structural to the engine API: the
-    // projection had no time input. Story 12.5 PR C keeps that property
-    // (computeCurrentBalance still has no `now` argument) but the
-    // formula itself moves from daily×contribDays to contributedTotal −
-    // daily − Σ(advances) − openingBalance.
+    // projection had no time input. computeCurrentBalance still has no
+    // `now` argument; the formula now uses commission = min(contributed,
+    // daily) instead of flat daily (no-cotisation cycles produce 0
+    // commission, not −dailyAmount).
     fc.assert(
       fc.property(
         fc.record({
@@ -105,18 +105,18 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
             sum(advances),
             openingBalance,
           );
-          return a === b && a === contributedTotal - dailyAmount - sum(advances) - openingBalance;
+          const commission = Math.min(contributedTotal, dailyAmount);
+          return a === b && a === contributedTotal - commission - sum(advances) - openingBalance;
         },
       ),
     );
   });
 
-  it("INV-2 (12.5 rewrite): settle returns contributedTotal − daily − Σadvances − openingBalance (cotisation libre)", () => {
-    // Pre-12.5 INV-2 claimed settle === projected at cycle end for
-    // fully-paid cycles. That invariant assumed the saver versed
-    // daily × contributionDays exactly, which doesn't match the real
-    // model (cotisation libre). The new property: settle is the pure
-    // arithmetic of what the collector physically owes the saver.
+  it("INV-2 (2026-05-24 rewrite): settle returns contributedTotal − min(contributedTotal, daily) − Σadvances − openingBalance", () => {
+    // Pre-12.5 INV-2 assumed daily × contributionDays. Story 12.5
+    // moved to contributedTotal − daily flat. 2026-05-24 caps the
+    // commission at what was actually cotisé so no-cotisation cycles
+    // settle to 0, not −dailyAmount.
     fc.assert(
       fc.property(
         fc.record({
@@ -127,7 +127,8 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
         }),
         ({ contributedTotal, dailyAmount, advances, openingBalance }) => {
           const settled = settle(contributedTotal, dailyAmount, advances, openingBalance);
-          return settled === contributedTotal - dailyAmount - sum(advances) - openingBalance;
+          const commission = Math.min(contributedTotal, dailyAmount);
+          return settled === contributedTotal - commission - sum(advances) - openingBalance;
         },
       ),
     );
@@ -275,7 +276,10 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
   // Story 12.3 — opening_balance carry-over property tests.
   // -------------------------------------------------------------------------
 
-  it("INV-1 (extended, 12.5 PR C): currentBalance = contributedTotal − daily − Σ(advances) − openingBalance", () => {
+  it("INV-1 (extended, 2026-05-24): currentBalance = contributedTotal − min(contributedTotal, daily) − Σ(advances) − openingBalance", () => {
+    // 2026-05-24 — commission flipped from flat dailyAmount to
+    // min(contributedTotal, dailyAmount). No-cotisation cycles never
+    // produce pre-paid commission debt. Same formula as settle().
     fc.assert(
       fc.property(
         fc.record({
@@ -291,7 +295,8 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
             sum(advances),
             openingBalance,
           );
-          return current === contributedTotal - dailyAmount - sum(advances) - openingBalance;
+          const commission = Math.min(contributedTotal, dailyAmount);
+          return current === contributedTotal - commission - sum(advances) - openingBalance;
         },
       ),
     );
@@ -645,6 +650,27 @@ describe("cycleEngine — example tests", () => {
     it("returns a negative value when advances + commission > contributedTotal (saver owes — carry-over candidate)", () => {
       expect(computeCurrentBalance(5_000, 1_000, 5_000)).toBe(-1_000);
     });
+
+    it("2026-05-24 — contributedTotal=0 → balance=0 (no cotisation ⇒ no commission, no debt)", () => {
+      // Pilot UX bug: pre-change formula returned −dailyAmount on a
+      // brand-new cycle, alarming the collector. New rule: commission
+      // capped at what was actually cotisé.
+      expect(computeCurrentBalance(0, 2_000, 0)).toBe(0);
+      expect(computeCurrentBalance(0, 7_000, 0)).toBe(0);
+    });
+
+    it("2026-05-24 — partial cotisation (contributed < daily) → commission = contributed (saver gets 0, owes 0)", () => {
+      // Cotisé 500 with daily=2000: collector keeps the 500 as partial
+      // commission, saver gets 0. No debt either way.
+      expect(computeCurrentBalance(500, 2_000, 0)).toBe(0);
+      expect(computeCurrentBalance(1_999, 2_000, 0)).toBe(0);
+    });
+
+    it("2026-05-24 — partial cotisation + opening balance: only the opening is owed (no extra commission debt)", () => {
+      // Cotisé 500, daily 2000, opening 300 → balance = 0 − 300 = −300.
+      // Pre-change: 500 − 2000 − 0 − 300 = −1800 (overstated debt).
+      expect(computeCurrentBalance(500, 2_000, 0, 300)).toBe(-300);
+    });
   });
 
   describe("settle (Story 12.5 — cotisation libre)", () => {
@@ -677,6 +703,22 @@ describe("cycleEngine — example tests", () => {
       // The UI / commit_cycle_settlement decide what to do with debts
       // (carry to next cycle via opening_balance, or reject).
       expect(settle(5_000, 1_000, [5_000])).toBe(-1_000);
+    });
+
+    it("2026-05-24 — contributedTotal=0 with no advances/opening → payout=0 (no commission billed)", () => {
+      // Settling a cycle the saver never cotised in: payout is 0, NOT
+      // −dailyAmount. The collector takes no commission they didn't earn.
+      expect(settle(0, 2_000, [])).toBe(0);
+      expect(settle(0, 7_000, [], 0)).toBe(0);
+    });
+
+    it("2026-05-24 — partial cotisation (contrib < daily) caps commission at contrib", () => {
+      // Cotisé 500 with daily 2 000: commission = 500 (the full cotisation
+      // goes to commission), payout = 0. Pre-change: payout = −1500.
+      expect(settle(500, 2_000, [])).toBe(0);
+      // Same with an advance: 500 − 500(commission) − 200(advance) = −200.
+      // Pre-change: 500 − 2000 − 200 = −1700.
+      expect(settle(500, 2_000, [200])).toBe(-200);
     });
   });
 
@@ -919,11 +961,13 @@ describe("cycleEngine — example tests", () => {
       expect(stats.currentBalance).toBe(1500 - 500 - 3000);
     });
 
-    it("a 24-day partial cycle with 0 contribs gives negative currentBalance (saver owes daily commission)", () => {
+    it("a 24-day partial cycle with 0 contribs gives currentBalance=0 (no cotisation ⇒ no commission)", () => {
       const partial = { startDate: "2026-04-07", endDate: "2026-04-30" };
       const stats = computeMemberStats([], { dailyAmount: 500 }, partial, NOW);
-      // Story 12.5 PR C — no contribs yet → currentBalance = 0 − 500 − 0 − 0 = −500.
-      expect(stats.currentBalance).toBe(-500);
+      // 2026-05-24 — commission = min(0, 500) = 0. Saver hasn't cotisé,
+      // so the collector takes no commission and the saver owes nothing.
+      // Pre-change: returned −500 (alarming on the members-list card).
+      expect(stats.currentBalance).toBe(0);
     });
 
     it("uses the parameter default for `now` when omitted (boundary safety)", () => {
