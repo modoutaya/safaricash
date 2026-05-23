@@ -245,6 +245,35 @@ describe("MemberProfile", () => {
     expect(screen.queryByLabelText("Cette transaction est contestée")).not.toBeInTheDocument();
   });
 
+  it("2026-05-23 — settled cycle: heading flips to 'Cycle réglé' and shows 'Reversé : X FCFA' (not the projected balance)", () => {
+    const settledCycle: CycleRow = { ...CYCLE, status: "settled" };
+    const txSettlement: TransactionRow = {
+      id: "55555555-5555-4555-8555-555555555555",
+      member_id: MEMBER.id,
+      cycle_id: CYCLE.id,
+      kind: "settlement",
+      amount: 14_500,
+      cycle_day: 30,
+      created_at: "2026-05-12T10:00:00Z",
+    };
+    render(
+      <MemberProfile
+        member={MEMBER}
+        currentCycle={settledCycle}
+        transactions={[txContrib, txSettlement]}
+        stats={STATS_NO_ADVANCES}
+      />,
+    );
+    // Title flipped (past tense).
+    expect(screen.getByRole("heading", { name: /^Cycle réglé/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /^Cycle en cours/i })).not.toBeInTheDocument();
+    // Balance line shows the settlement amount, past tense.
+    expect(screen.getByText(/Reversé\s*:\s*14\s500 FCFA/)).toBeInTheDocument();
+    // The "Solde à reverser" forward-looking label must be GONE on a
+    // settled cycle (this was the bug — same amount + misleading copy).
+    expect(screen.queryByText(/Solde à reverser/)).not.toBeInTheDocument();
+  });
+
   it("Story 10.3 — shows the dispute banner + a per-row dispute icon for disputed transactions", () => {
     const onDisputeBannerTap = vi.fn();
     render(

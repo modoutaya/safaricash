@@ -2,7 +2,7 @@
 //
 // Pure presentation: parent route owns data fetching + navigation.
 
-import { Flag } from "lucide-react";
+import { CheckCircle2, Flag } from "lucide-react";
 
 import { StatusBadge } from "@/components/domain/StatusBadge";
 import { CycleProgressBar } from "@/features/cycle";
@@ -93,6 +93,14 @@ export function MemberProfile({
   // unsettled cycle. Hidden when 0 (most members, especially first cycles).
   const showOpeningBalanceRow = stats.openingBalance > 0;
 
+  // 2026-05-23 — when the picked cycle has already been settled (member
+  // just paid + the Phase-B cron hasn't rolled to the next cycle yet),
+  // `pickCurrentCycle` falls back to the settled cycle. Switch the title
+  // + balance label to past tense so it doesn't read like there's still
+  // money owed. The settlement transaction holds the authoritative amount.
+  const isCycleSettled = currentCycle?.status === "settled";
+  const settlementTx = sortedTransactions.find((tx) => tx.kind === "settlement");
+
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-6 p-4">
       <LocalDataNote />
@@ -120,16 +128,21 @@ export function MemberProfile({
       </section>
 
       {/* Story 12.5 PR E — current cycle section. Skipped when there is
-          no currentCycle (member just created, etc.). */}
+          no currentCycle (member just created, etc.). 2026-05-23 — title
+          + balance label flip to past tense when the cycle is `settled`
+          (see isCycleSettled / settlementTx above). */}
       {currentCycle ? (
         <section
           className="flex flex-col gap-3 rounded-lg border border-hairline bg-card p-4"
           aria-labelledby="current-cycle-heading"
         >
           <h2 id="current-cycle-heading" className="text-title-2 text-text-primary">
-            {t("members.profile.cycle_in_progress_title", {
-              month: formatCycleMonth(currentCycle.start_date),
-            })}
+            {t(
+              isCycleSettled
+                ? "members.profile.cycle_settled_title"
+                : "members.profile.cycle_in_progress_title",
+              { month: formatCycleMonth(currentCycle.start_date) },
+            )}
           </h2>
           <div className="flex flex-col gap-2">
             <p className="text-body-2 text-text-secondary">
@@ -177,14 +190,28 @@ export function MemberProfile({
               </div>
             ) : null}
           </dl>
-          <p
-            className="text-display text-primary-700"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          >
-            {t("members.profile.field.projected_balance", {
-              amount: formatFcfaAmount(stats.currentBalance),
-            })}
-          </p>
+          {isCycleSettled && settlementTx ? (
+            <p
+              className="flex items-center gap-2 text-display text-primary-700"
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              <CheckCircle2 size={24} aria-hidden className="flex-none" />
+              <span>
+                {t("members.profile.field.settled_amount", {
+                  amount: formatFcfaAmount(settlementTx.amount),
+                })}
+              </span>
+            </p>
+          ) : (
+            <p
+              className="text-display text-primary-700"
+              style={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              {t("members.profile.field.projected_balance", {
+                amount: formatFcfaAmount(stats.currentBalance),
+              })}
+            </p>
+          )}
         </section>
       ) : null}
 

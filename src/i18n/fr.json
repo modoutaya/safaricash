@@ -291,9 +291,11 @@
         "outstanding_advances": "Avances en cours : {amount} FCFA",
         "opening_balance": "Solde reporté du cycle précédent : {amount} FCFA",
         "awaiting_settlement": "À régler au membre : {amount} FCFA",
-        "projected_balance": "Solde à reverser : {amount} FCFA"
+        "projected_balance": "Solde à reverser : {amount} FCFA",
+        "settled_amount": "Reversé : {amount} FCFA"
       },
       "cycle_in_progress_title": "Cycle en cours — {month}",
+      "cycle_settled_title": "Cycle réglé — {month}",
       "awaiting": {
         "title": "Paiement en attente",
         "cycle_closed_label": "Cycle clos le {date}",
