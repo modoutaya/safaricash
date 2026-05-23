@@ -160,16 +160,6 @@ describe("MemberTransactionRoute", () => {
     expect(screen.getByTestId("profile-route")).toBeInTheDocument();
   });
 
-  it("redirects to the profile when the member is terminé (closed-cycle guard)", () => {
-    useMembersMock.mockReturnValue({
-      data: [memberFixture({ displayStatus: "termine" })],
-      isLoading: false,
-      isError: false,
-    });
-    renderRoute();
-    expect(screen.getByTestId("profile-route")).toBeInTheDocument();
-  });
-
   it("redirects to /members when the member id is not in the list", () => {
     useMembersMock.mockReturnValue({ data: [], isLoading: false, isError: false });
     renderRoute();

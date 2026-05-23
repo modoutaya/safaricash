@@ -45,30 +45,25 @@ describe("deriveDashboardStats", () => {
     });
   });
 
-  it("active-members count excludes finished (termine) members", () => {
+  it("active-members count sums actif + avance members", () => {
     const s = deriveDashboardStats(
-      [
-        member({ displayStatus: "actif" }),
-        member({ displayStatus: "avance" }),
-        member({ displayStatus: "termine" }),
-      ],
+      [member({ displayStatus: "actif" }), member({ displayStatus: "avance" })],
       [],
       [],
     );
     expect(s.activeMembersCount).toBe(2);
   });
 
-  it("commission = Σ commission(dailyAmount) over active members only", () => {
+  it("commission = Σ commission(dailyAmount) over actif + avance members", () => {
     const s = deriveDashboardStats(
       [
         member({ displayStatus: "actif", dailyAmount: 500 }),
         member({ displayStatus: "avance", dailyAmount: 1000 }),
-        member({ displayStatus: "termine", dailyAmount: 2000 }),
       ],
       [],
       [],
     );
-    // commission() = dailyAmount × 1 — termine member excluded.
+    // commission() = dailyAmount × 1.
     expect(s.commissionThisCycle).toBe(1500);
   });
 

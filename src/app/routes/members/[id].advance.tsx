@@ -44,10 +44,10 @@ function AdvanceRouteBody({ memberId }: { memberId: string }): JSX.Element {
 
   const data = profileQuery.data;
 
-  // The member <select> only offers members eligible for an advance —
-  // an active cycle, not flagged terminé.
+  // The member <select> only offers members eligible for an advance — those
+  // with an active cycle.
   const eligibleMembers = (membersQuery.data ?? [])
-    .filter((m) => m.currentCycle !== null && m.displayStatus !== "termine")
+    .filter((m) => m.currentCycle !== null)
     .map((m) => ({ id: m.id, name: m.name, dailyAmount: m.dailyAmount }));
 
   const handleConfirm = async (payload: AdvanceConfirmPayload) => {

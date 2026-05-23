@@ -15,7 +15,6 @@ export function selectMembersWithCycleEndingSoon(
 ): MemberWithMeta[] {
   return members.filter((m) => {
     if (m.currentCycle === null) return false;
-    if (m.displayStatus === "termine") return false;
     return isCycleInUpcomingEndWindow(
       m.currentCycle.dayNumber,
       windowDays,

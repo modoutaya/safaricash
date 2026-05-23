@@ -37,15 +37,15 @@ describe("selectMembersWithCycleEndingSoon", () => {
     expect(selectMembersWithCycleEndingSoon([], 7)).toEqual([]);
   });
 
-  it("all members termine → []", () => {
+  it("all members have no current cycle → []", () => {
     const members = [
-      mkMember({ id: "m1", name: "A", displayStatus: "termine" }),
-      mkMember({ id: "m2", name: "B", displayStatus: "termine" }),
+      mkMember({ id: "m1", name: "A", currentCycle: null }),
+      mkMember({ id: "m2", name: "B", currentCycle: null }),
     ];
     expect(selectMembersWithCycleEndingSoon(members, 7)).toEqual([]);
   });
 
-  it("mix of in-window / out-of-window / null cycle / termine — keeps in-window non-termine, preserves order", () => {
+  it("mix of in-window / out-of-window / null cycle — keeps in-window, preserves order", () => {
     const inWindow = mkMember({
       id: "in1",
       name: "InWindow1",
@@ -71,19 +71,6 @@ describe("selectMembersWithCycleEndingSoon", () => {
       },
     });
     const nullCycle = mkMember({ id: "null1", name: "NullCycle", currentCycle: null });
-    const termine = mkMember({
-      id: "t1",
-      name: "Termine",
-      displayStatus: "termine",
-      currentCycle: {
-        id: "c-t",
-        startDate: "2026-04-01",
-        endDate: "2026-04-30",
-        cycleLength: 30,
-        dayNumber: 30,
-        openingBalance: 0,
-      },
-    });
     const inWindow2 = mkMember({
       id: "in2",
       name: "InWindow2",
@@ -98,7 +85,7 @@ describe("selectMembersWithCycleEndingSoon", () => {
     });
 
     const result = selectMembersWithCycleEndingSoon(
-      [inWindow, outOfWindow, nullCycle, termine, inWindow2],
+      [inWindow, outOfWindow, nullCycle, inWindow2],
       7,
     );
 
