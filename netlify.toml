@@ -1,0 +1,29 @@
+# Skip Netlify builds for commits that don't touch the React app.
+#
+# Why: the dashboard's "Active builds" setting triggers a build on every
+# push (main + every deploy-preview branch). Many commits in this repo
+# only touch planning artifacts (_bmad-output/), Supabase migrations
+# (deployed via `supabase db push --linked`, not Netlify), Edge Functions
+# (deployed via the supabase CLI), Cloudflare worker code (workers/,
+# deployed via wrangler), or tests — none of which change the built
+# `dist/` artifact. Each of those builds eats Netlify minutes for nothing.
+#
+# How the ignore contract works:
+#   - exit 0   → SKIP the build
+#   - exit 1+  → run the build
+# `git diff --quiet A B -- <paths>` is exactly that: 0 when no listed
+# path changed between A and B, 1 when at least one did.
+#
+# CACHED_COMMIT_REF = the commit of the last SUCCESSFUL build for this
+# branch (main or the PR's head). COMMIT_REF = the current commit. So
+# the ignore-check covers exactly the delta a build would actually
+# reflect. On the first build of a new branch CACHED_COMMIT_REF is
+# empty, the script errors with a non-zero exit code, and Netlify builds
+# — that's the safe default.
+#
+# Build settings (command="npm run build", publish="dist", env vars,
+# redirects, etc.) stay in the Netlify dashboard — this file ONLY adds
+# the ignore rule. Adding `command`/`publish` here would override them
+# silently, so we deliberately don't.
+[build]
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- src public index.html package.json package-lock.json vite.config.ts tailwind.config.ts postcss.config.js tsconfig.json tsconfig.node.json .nvmrc netlify.toml"
