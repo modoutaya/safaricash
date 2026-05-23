@@ -154,6 +154,7 @@
     "filter_avance": "Avance",
     "filter_termine": "Terminé",
     "filter_a_regler": "À régler",
+    "filter_deja_paye": "Déjà payés",
     "filter_cycles_ending_active": "Cycles à clôturer",
     "filter_cycles_ending_dismiss_aria": "Retirer le filtre cycles à clôturer",
     "count_label_zero": "Aucun membre",

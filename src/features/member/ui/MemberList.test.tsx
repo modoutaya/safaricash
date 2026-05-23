@@ -202,6 +202,51 @@ describe("MemberList", () => {
     expect(screen.queryByRole("heading", { level: 2, name: "C" })).not.toBeInTheDocument();
   });
 
+  it("the 'Déjà payés' chip filters to members with a recent settlement and no pending one", () => {
+    // 2026-05-23 — companion to the "À régler" chip. A member who was
+    // settled previously but already has a new awaiting cycle counts
+    // as "À régler", not "Déjà payés" — same condition as the inline
+    // "Payé le …" badge on MemberCard.
+    useMembersMock.mockReturnValue({
+      data: [
+        // Just paid, no new pending cycle → counted.
+        makeMember({
+          id: "1",
+          name: "Paid",
+          displayStatus: "actif",
+          lastSettlementAt: "2026-05-20T10:00:00Z",
+          awaitingSettlement: null,
+        }),
+        // Paid before, but a new cycle is already awaiting → NOT counted.
+        makeMember({
+          id: "2",
+          name: "PaidThenPending",
+          displayStatus: "actif",
+          lastSettlementAt: "2026-04-20T10:00:00Z",
+          awaitingSettlement: { cycleId: "cy2", payout: 5000 },
+        }),
+        // Never settled → NOT counted.
+        makeMember({
+          id: "3",
+          name: "Fresh",
+          displayStatus: "actif",
+          lastSettlementAt: null,
+          awaitingSettlement: null,
+        }),
+      ],
+      isLoading: false,
+      isError: false,
+      error: null,
+    });
+    renderWithRouter();
+    fireEvent.click(screen.getByRole("button", { name: "Déjà payés" }));
+    expect(screen.getByRole("heading", { level: 2, name: "Paid" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 2, name: "PaidThenPending" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "Fresh" })).not.toBeInTheDocument();
+  });
+
   it("applies multiple chips with OR semantics", () => {
     useMembersMock.mockReturnValue({
       data: [
