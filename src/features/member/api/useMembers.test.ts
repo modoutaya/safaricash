@@ -6,7 +6,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   MEMBERS_QUERY_KEY,
@@ -88,15 +88,23 @@ describe("deriveMembersWithMeta", () => {
   });
 
   it("projectedBalance is null when the member has no current cycle", () => {
-    const out = deriveMembersWithMeta(
-      makeData({
-        members: [{ ...baseMember, status: "completed" }],
-        cyclesByMember: new Map([[baseMember.id, [{ ...activeCycle, status: "completed" }]]]),
-      }),
-      NOW,
-    );
-    expect(out[0]!.projectedBalance).toBeNull();
-    expect(out[0]!.cycleAdvancesTotal).toBe(0);
+    // Use a non-hidden member status so the row reaches the output; the
+    // null currentCycle comes from cycle.status='completed'. Triggers the
+    // "active member, no current cycle" dev-warn — silenced inline.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const out = deriveMembersWithMeta(
+        makeData({
+          members: [{ ...baseMember, status: "active" }],
+          cyclesByMember: new Map([[baseMember.id, [{ ...activeCycle, status: "completed" }]]]),
+        }),
+        NOW,
+      );
+      expect(out[0]!.projectedBalance).toBeNull();
+      expect(out[0]!.cycleAdvancesTotal).toBe(0);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 
   it("falls back to members.created_at when no transactions exist", () => {
@@ -128,18 +136,25 @@ describe("deriveMembersWithMeta", () => {
     expect(out[0]!.displayStatus).toBe("avance");
   });
 
-  it("maps members.status='completed' to displayStatus='termine' even with an active cycle", () => {
+  it("filters members.status='completed' out of the list (2026-05-23 — hidden alongside deleted/paused)", () => {
+    // No code path writes members.status='completed' today; the enum value
+    // is reserved for a future graduation feature. Until that ships, such
+    // members are hidden, same as deleted/paused.
     const out = deriveMembersWithMeta(
       makeData({ members: [{ ...baseMember, status: "completed" }] }),
       NOW,
     );
-    expect(out[0]!.displayStatus).toBe("termine");
+    expect(out).toEqual([]);
   });
 
   it("returns null currentCycle when no active/with_advance cycle exists", () => {
     const out = deriveMembersWithMeta(
       makeData({
-        members: [{ ...baseMember, status: "completed" }],
+        // Test the no-cycle case via a non-hidden status so the filter
+        // doesn't strip the row — 'active' member + cycle in 'completed'
+        // state forces pickCurrentCycle to return null without changing
+        // displayStatus to hidden.
+        members: [{ ...baseMember, status: "active" }],
         cyclesByMember: new Map([[baseMember.id, [{ ...activeCycle, status: "completed" }]]]),
       }),
       NOW,

@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 // StatusBadge owns its own `kind` string-union so it doesn't depend on a
 // feature. features/member re-exports `DisplayStatus = StatusBadgeKind`
 // for convenience so callers don't need two imports.
-export type StatusBadgeKind = "actif" | "avance" | "termine";
+export type StatusBadgeKind = "actif" | "avance";
 
 export interface StatusBadgeProps {
   kind: StatusBadgeKind;
@@ -27,16 +27,14 @@ export interface StatusBadgeProps {
 const STATUS_CLASSES: Record<StatusBadgeKind, string> = {
   actif: "bg-primary-100 text-primary-700",
   avance: "bg-warning-bg text-warning-text",
-  termine: "bg-info-bg text-info-text",
 };
 
 const STATUS_I18N_KEY: Record<
   StatusBadgeKind,
-  "members.status_badge_actif" | "members.status_badge_avance" | "members.status_badge_termine"
+  "members.status_badge_actif" | "members.status_badge_avance"
 > = {
   actif: "members.status_badge_actif",
   avance: "members.status_badge_avance",
-  termine: "members.status_badge_termine",
 };
 
 export function StatusBadge({ kind, className }: StatusBadgeProps): JSX.Element {

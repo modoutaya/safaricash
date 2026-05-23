@@ -47,25 +47,17 @@ const TO_SETTLE_CHIP = "a_regler" as const;
 const SETTLED_CHIP = "deja_paye" as const;
 type ChipValue = DisplayStatus | typeof TO_SETTLE_CHIP | typeof SETTLED_CHIP;
 
-const ALL_CHIPS: readonly ChipValue[] = [
-  "actif",
-  "avance",
-  TO_SETTLE_CHIP,
-  SETTLED_CHIP,
-  "termine",
-] as const;
+const ALL_CHIPS: readonly ChipValue[] = ["actif", "avance", TO_SETTLE_CHIP, SETTLED_CHIP] as const;
 
 const CHIP_I18N_KEY: Record<
   ChipValue,
   | "members.filter_actif"
   | "members.filter_avance"
-  | "members.filter_termine"
   | "members.filter_a_regler"
   | "members.filter_deja_paye"
 > = {
   actif: "members.filter_actif",
   avance: "members.filter_avance",
-  termine: "members.filter_termine",
   [TO_SETTLE_CHIP]: "members.filter_a_regler",
   [SETTLED_CHIP]: "members.filter_deja_paye",
 };

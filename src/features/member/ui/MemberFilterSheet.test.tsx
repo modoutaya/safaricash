@@ -27,12 +27,12 @@ beforeEach(() => {
   };
 });
 
-type DemoValue = "actif" | "avance" | "termine";
+type DemoValue = "actif" | "avance" | "a_regler";
 
 const OPTIONS: readonly MemberFilterOption<DemoValue>[] = [
   { value: "actif", labelKey: "members.filter_actif" as TranslationKey },
   { value: "avance", labelKey: "members.filter_avance" as TranslationKey },
-  { value: "termine", labelKey: "members.filter_termine" as TranslationKey },
+  { value: "a_regler", labelKey: "members.filter_a_regler" as TranslationKey },
 ];
 
 function renderSheet(
@@ -61,10 +61,10 @@ describe("MemberFilterSheet", () => {
     renderSheet();
     const actif = screen.getByRole("checkbox", { name: "Actif" });
     const avance = screen.getByRole("checkbox", { name: "Avance" });
-    const termine = screen.getByRole("checkbox", { name: "Terminé" });
+    const aRegler = screen.getByRole("checkbox", { name: "À régler" });
     expect(actif).not.toBeChecked();
     expect(avance).not.toBeChecked();
-    expect(termine).not.toBeChecked();
+    expect(aRegler).not.toBeChecked();
   });
 
   it("checkboxes reflect the `selected` prop", () => {

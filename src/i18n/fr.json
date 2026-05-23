@@ -152,7 +152,6 @@
     "search_placeholder": "Rechercher un membre…",
     "filter_actif": "Actif",
     "filter_avance": "Avance",
-    "filter_termine": "Terminé",
     "filter_a_regler": "À régler",
     "filter_deja_paye": "Déjà payés",
     "filter_cycles_ending_active": "Cycles à clôturer",
@@ -175,7 +174,6 @@
     "no_search_match_subtext": "Vérifiez l'orthographe ou effacez la recherche.",
     "status_badge_actif": "Actif",
     "status_badge_avance": "Avance",
-    "status_badge_termine": "Terminé",
     "amount_per_day": "{amount} F CFA / jour",
     "card": {
       "cycle_day": "Jour {day} — cycle de {total} jours",

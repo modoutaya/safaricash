@@ -78,11 +78,8 @@ function TransactionRouteBody({ memberId }: { memberId: string }): JSX.Element {
   if (member === undefined) {
     return <Navigate to="/members" replace />;
   }
-  // No active cycle — OR a member flagged terminé even with a stale active
-  // cycle row (the data-inconsistency case the old MemberActionSheet wiring
-  // guarded via displayStatus → isCycleClosedForTransactions). Either way,
-  // no transaction is possible; the profile is the destination.
-  if (member.currentCycle === null || member.displayStatus === "termine") {
+  // No active cycle → no transaction possible; the profile is the destination.
+  if (member.currentCycle === null) {
     return <Navigate to={`/members/${memberId}`} replace />;
   }
 
@@ -156,9 +153,9 @@ function TransactionRouteBody({ memberId }: { memberId: string }): JSX.Element {
   };
 
   // The member <select> only offers members a transaction can target —
-  // an active cycle, not flagged terminé (same gate as the redirect above).
+  // those with an active cycle (same gate as the redirect above).
   const eligibleMembers = (members ?? [])
-    .filter((m) => m.currentCycle !== null && m.displayStatus !== "termine")
+    .filter((m) => m.currentCycle !== null)
     .map((m) => ({ id: m.id, name: m.name, dailyAmount: m.dailyAmount }));
 
   return (

@@ -9,11 +9,13 @@ export function deriveMemberStatus(
   member: Pick<MemberRow, "status">,
   currentCycle: Pick<CycleRow, "status"> | null | undefined,
 ): DerivedStatus {
-  if (member.status === "deleted" || member.status === "paused") {
+  // 2026-05-23 — 'completed' folded in here. No code path writes
+  // members.status='completed' today; the enum value is reserved for a
+  // future graduation/archive feature, and members in that state are
+  // hidden from the active list until that feature ships with its own
+  // UI surface.
+  if (member.status === "deleted" || member.status === "paused" || member.status === "completed") {
     return "hidden";
-  }
-  if (member.status === "completed") {
-    return "termine";
   }
   // member.status === "active" from here on.
   if (currentCycle?.status === "with_advance") {

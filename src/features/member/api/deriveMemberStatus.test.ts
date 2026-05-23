@@ -17,11 +17,10 @@ describe("deriveMemberStatus", () => {
     expect(deriveMemberStatus(m("paused"), c("active"))).toBe("hidden");
   });
 
-  it("maps member.status='completed' to 'termine'", () => {
-    expect(deriveMemberStatus(m("completed"), null)).toBe("termine");
-    // Even with an active cycle the member-level completed wins (admin
-    // corrections, settlement edge cases).
-    expect(deriveMemberStatus(m("completed"), c("active"))).toBe("termine");
+  it("maps member.status='completed' to 'hidden' (no UI path writes this status today; reserved for a future graduation feature)", () => {
+    expect(deriveMemberStatus(m("completed"), null)).toBe("hidden");
+    // Even with an active cycle the member-level completed wins.
+    expect(deriveMemberStatus(m("completed"), c("active"))).toBe("hidden");
   });
 
   it("maps active member with cycle.status='with_advance' to 'avance'", () => {

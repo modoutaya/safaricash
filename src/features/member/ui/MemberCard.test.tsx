@@ -91,7 +91,7 @@ describe("MemberCard", () => {
       <MemberCard
         member={makeMember({
           currentCycle: null,
-          displayStatus: "termine",
+          displayStatus: "actif",
           projectedBalance: null,
           awaitingSettlement: null,
           lastSettlementAt: null,

@@ -198,7 +198,6 @@ describe("MemberList", () => {
       data: [
         makeMember({ id: "1", name: "A", displayStatus: "actif" }),
         makeMember({ id: "2", name: "B", displayStatus: "avance" }),
-        makeMember({ id: "3", name: "C", displayStatus: "termine" }),
       ],
       isLoading: false,
       isError: false,
@@ -209,7 +208,6 @@ describe("MemberList", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Avance" }));
     expect(screen.queryByRole("heading", { level: 2, name: "A" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "B" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: "C" })).not.toBeInTheDocument();
   });
 
   it("the 'Déjà payés' chip filters to members with a recent settlement and no pending one", () => {
@@ -259,11 +257,20 @@ describe("MemberList", () => {
   });
 
   it("applies multiple chips with OR semantics", () => {
+    // OR across two different chip kinds: a status chip (Actif) and the
+    // virtual À régler chip. B (avance, no awaiting cycle) matches
+    // neither and is excluded; A (actif) matches the status chip; C
+    // (avance + awaiting cycle) matches the À régler chip.
     useMembersMock.mockReturnValue({
       data: [
-        makeMember({ id: "1", name: "A", displayStatus: "actif" }),
-        makeMember({ id: "2", name: "B", displayStatus: "avance" }),
-        makeMember({ id: "3", name: "C", displayStatus: "termine" }),
+        makeMember({ id: "1", name: "A", displayStatus: "actif", awaitingSettlement: null }),
+        makeMember({ id: "2", name: "B", displayStatus: "avance", awaitingSettlement: null }),
+        makeMember({
+          id: "3",
+          name: "C",
+          displayStatus: "avance",
+          awaitingSettlement: { cycleId: "cy", payout: 5000 },
+        }),
       ],
       isLoading: false,
       isError: false,
@@ -272,10 +279,10 @@ describe("MemberList", () => {
     renderWithRouter();
     fireEvent.click(screen.getByRole("button", { name: /^Filtres/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Actif" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Avance" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "À régler" }));
     expect(screen.getByRole("heading", { level: 2, name: "A" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 2, name: "B" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: "C" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "B" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "C" })).toBeInTheDocument();
   });
 
   it("combines chip AND search with AND semantics", () => {
