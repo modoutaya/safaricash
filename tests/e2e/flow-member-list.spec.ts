@@ -63,12 +63,20 @@ test.describe("Flow — /members list + search + filters (Story 2.1)", () => {
     await searchBox.fill("");
     await expect(page.getByRole("heading", { level: 2 })).toHaveCount(3);
 
-    // --- Status-chip filter: "Avance" narrows to the escalated member. ---
-    await page.getByRole("button", { name: /^avance$/i }).click();
+    // --- Status filter via the bottom-sheet (2026-05-23 refactor): open
+    // the "Filtres" trigger, check "Avance" → 1 result, uncheck → 3 again.
+    // The CTA "Voir N membres" closes the sheet between assertions. ---
+    await page.getByRole("button", { name: /^filtres/i }).click();
+    const avanceCheckbox = page.getByRole("checkbox", { name: /^avance$/i });
+    await avanceCheckbox.check();
+    // Sheet stays open while toggling; the live result count drives the CTA.
+    await page.getByRole("button", { name: /voir 1 membre/i }).click();
     await expect(page.getByRole("heading", { level: 2 })).toHaveCount(1);
 
-    // Toggle chip off → back to 3.
-    await page.getByRole("button", { name: /^avance$/i }).click();
+    // Re-open and uncheck → back to 3.
+    await page.getByRole("button", { name: /^filtres/i }).click();
+    await page.getByRole("checkbox", { name: /^avance$/i }).uncheck();
+    await page.getByRole("button", { name: /voir 3 membres/i }).click();
     await expect(page.getByRole("heading", { level: 2 })).toHaveCount(3);
   });
 });

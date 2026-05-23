@@ -156,6 +156,17 @@
     "filter_a_regler": "À régler",
     "filter_deja_paye": "Déjà payés",
     "filter_cycles_ending_active": "Cycles à clôturer",
+    "filter_sheet": {
+      "trigger_label": "Filtres",
+      "trigger_count_aria": "{n} filtre(s) actif(s)",
+      "title": "Filtrer les membres",
+      "close_label": "Fermer",
+      "options_aria": "Options de filtrage",
+      "clear": "Effacer",
+      "apply_zero": "Aucun membre",
+      "apply_one": "Voir 1 membre",
+      "apply_many": "Voir {n} membres"
+    },
     "filter_cycles_ending_dismiss_aria": "Retirer le filtre cycles à clôturer",
     "count_label_zero": "Aucun membre",
     "count_label_one": "1 membre",
