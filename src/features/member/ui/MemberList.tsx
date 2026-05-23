@@ -21,13 +21,17 @@ import { EmptyState } from "@/components/domain/EmptyState";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_CYCLE_ENDING_WINDOW_DAYS, isCycleInUpcomingEndWindow } from "@/domain/cycle";
 import { useT } from "@/i18n/useT";
-import { cn } from "@/lib/utils";
 
 import { normalizeForSearch } from "../api/normalizeForSearch";
 import { useMembers } from "../api/useMembers";
 import { MEMBER_HEADER_CTA_THRESHOLD, type DisplayStatus, type MemberWithMeta } from "../types";
 import { LocalDataNote } from "./LocalDataNote";
 import { MemberCard } from "./MemberCard";
+import {
+  MemberFilterSheet,
+  MemberFilterTrigger,
+  type MemberFilterOption,
+} from "./MemberFilterSheet";
 
 const CYCLES_ENDING_FILTER = "cycles-ending";
 
@@ -65,6 +69,11 @@ const CHIP_I18N_KEY: Record<
   [TO_SETTLE_CHIP]: "members.filter_a_regler",
   [SETTLED_CHIP]: "members.filter_deja_paye",
 };
+
+const FILTER_OPTIONS: readonly MemberFilterOption<ChipValue>[] = ALL_CHIPS.map((chip) => ({
+  value: chip,
+  labelKey: CHIP_I18N_KEY[chip],
+}));
 
 function useFilteredMembers(
   members: readonly MemberWithMeta[],
@@ -123,6 +132,7 @@ export function MemberList(): JSX.Element {
   const [selectedChips, setSelectedChips] = useState<ReadonlySet<ChipValue>>(
     () => new Set<ChipValue>(),
   );
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   // Story 3.5 — URL-driven cycles-ending filter (entry point: dashboard alert
   // CTA). When set, filters the list to members whose cycle ends within the
   // default window. Composes with the chip filters via AND.
@@ -175,6 +185,8 @@ export function MemberList(): JSX.Element {
     });
   };
 
+  const clearChips = () => setSelectedChips(new Set<ChipValue>());
+
   // Story 2.2 — "Ajouter un membre" CTA placement: header button at ≤10
   // members, FAB at >10. Threshold lives in types.ts for one-line tweaks.
   // Driven by the TOTAL members count (not the filtered/search subset) so
@@ -222,28 +234,19 @@ export function MemberList(): JSX.Element {
         </button>
       ) : null}
 
-      <div role="group" aria-label="Filtres" className="flex flex-wrap gap-2">
-        {ALL_CHIPS.map((chip) => {
-          const active = selectedChips.has(chip);
-          return (
-            <button
-              key={chip}
-              type="button"
-              aria-pressed={active}
-              data-chip={chip}
-              onClick={() => toggleChip(chip)}
-              className={cn(
-                "inline-flex min-h-[44px] items-center rounded-full border px-4 text-body-2 font-medium transition-colors",
-                active
-                  ? "border-primary-500 bg-primary-500 text-primary-foreground"
-                  : "border-hairline bg-card text-text-primary hover:bg-primary-50",
-              )}
-            >
-              {t(CHIP_I18N_KEY[chip])}
-            </button>
-          );
-        })}
-      </div>
+      <MemberFilterTrigger
+        onClick={() => setFilterSheetOpen(true)}
+        activeCount={selectedChips.size}
+      />
+      <MemberFilterSheet
+        open={filterSheetOpen}
+        onOpenChange={setFilterSheetOpen}
+        options={FILTER_OPTIONS}
+        selected={selectedChips}
+        onToggle={toggleChip}
+        onClear={clearChips}
+        resultCount={filtered.length}
+      />
 
       {filtered.length === 0 ? (
         <div role="status" aria-live="polite" className="flex flex-col gap-2 py-8 text-center">

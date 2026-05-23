@@ -58,6 +58,15 @@ const renderWithRouter = () =>
 describe("MemberList", () => {
   beforeEach(() => {
     useMembersMock.mockReset();
+    // jsdom <dialog> shim for MemberFilterSheet — same pattern as
+    // TransactionReceiptSheet.test.tsx.
+    HTMLDialogElement.prototype.showModal = function () {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close = function () {
+      this.removeAttribute("open");
+      this.dispatchEvent(new Event("close"));
+    };
   });
 
   afterEach(() => {
@@ -196,7 +205,8 @@ describe("MemberList", () => {
       error: null,
     });
     renderWithRouter();
-    fireEvent.click(screen.getByRole("button", { name: "Avance", pressed: false }));
+    fireEvent.click(screen.getByRole("button", { name: /^Filtres/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Avance" }));
     expect(screen.queryByRole("heading", { level: 2, name: "A" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "B" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: "C" })).not.toBeInTheDocument();
@@ -239,7 +249,8 @@ describe("MemberList", () => {
       error: null,
     });
     renderWithRouter();
-    fireEvent.click(screen.getByRole("button", { name: "Déjà payés" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Filtres/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Déjà payés" }));
     expect(screen.getByRole("heading", { level: 2, name: "Paid" })).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { level: 2, name: "PaidThenPending" }),
@@ -259,8 +270,9 @@ describe("MemberList", () => {
       error: null,
     });
     renderWithRouter();
-    fireEvent.click(screen.getByRole("button", { name: "Actif" }));
-    fireEvent.click(screen.getByRole("button", { name: "Avance" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Filtres/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Actif" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Avance" }));
     expect(screen.getByRole("heading", { level: 2, name: "A" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "B" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: "C" })).not.toBeInTheDocument();
@@ -278,7 +290,8 @@ describe("MemberList", () => {
       error: null,
     });
     renderWithRouter();
-    fireEvent.click(screen.getByRole("button", { name: "Avance" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Filtres/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Avance" }));
     fireEvent.change(screen.getByLabelText(/rechercher un membre/i), { target: { value: "fa" } });
     expect(screen.getByRole("heading", { level: 2, name: "Fatou" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: "Bah" })).not.toBeInTheDocument();
@@ -511,7 +524,8 @@ describe("MemberList", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    fireEvent.click(screen.getByRole("button", { name: /^avance$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Filtres/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /^avance$/i }));
     expect(screen.getByRole("heading", { level: 2, name: /AvanceInWindow/ })).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { level: 2, name: /ActifInWindow/ }),
