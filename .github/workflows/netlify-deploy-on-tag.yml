@@ -1,0 +1,96 @@
+# Tag-only Netlify deploy via Netlify CLI (bypasses Netlify build infra).
+#
+# Why this approach (vs the PR #147 build-hook attempt that was rolled
+# back in PR #149):
+# - "Stopped builds" mode silently drops build-hook POSTs. Confirmed in
+#   prod: 3 tags fired hooks that returned HTTP 200 OK but Netlify never
+#   queued a build.
+# - The Netlify CLI's `deploy --prod --dir=<artifact>` command is NOT a
+#   build trigger — it's an API call that uploads a pre-built artifact.
+#   "Stopped builds" doesn't block it.
+#
+# So we build the React app HERE (in GHA, free minutes on public repos)
+# and push the resulting `dist/` straight to Netlify. Netlify only sees
+# an artifact upload, never a build request.
+#
+# Setup (one-time, before merging this workflow's PR):
+# - Netlify: create a Personal Access Token at
+#     https://app.netlify.com/user/applications/personal
+#   and add it to the GitHub repo as the NETLIFY_AUTH_TOKEN secret.
+# - GitHub: replicate the 6 VITE_* env vars from the Netlify dashboard
+#   to GitHub repo secrets (they get inlined into the bundle at build
+#   time by Vite, so they MUST be available during this workflow).
+# - Netlify dashboard: switch Build status → "Stopped builds" so no
+#   accidental push triggers a Netlify-side build. The CLI deploy keeps
+#   working regardless.
+#
+# Release ritual:
+#   git checkout main && git pull
+#   git tag v0.3.0
+#   git push origin v0.3.0
+# → this workflow fires, builds, deploys. Total cost: ~3 min GHA + 0
+# Netlify build minutes.
+#
+# IMPORTANT: actions/checkout@v4 checks out the TAG's commit (not main
+# HEAD), so unlike the old build-hook approach, you CAN safely tag an
+# older commit and ship exactly that commit's code.
+name: Deploy to Netlify on tag
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+# A second tag push for the same ref cancels the in-flight deploy.
+concurrency:
+  group: netlify-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout tag commit
+        uses: actions/checkout@v4
+
+      - name: Setup Node from .nvmrc
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        # VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY are REQUIRED — Vite
+        # inlines them at build time and the Zod env validator throws if
+        # they're missing (see src/infrastructure/supabase/env.ts).
+        #
+        # Other VITE_* vars in the codebase have fallbacks (see
+        # src/lib/contact.ts and shareReceipt.ts) or are explicitly
+        # optional in the env schema. If the prod Netlify dashboard
+        # adds any of them later, mirror them as GitHub secrets and add
+        # one line per var here. DO NOT add empty/missing secrets as
+        # env entries — empty strings break the `??` fallback in
+        # contact.ts (only `undefined` triggers fallback, not `""`).
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: npm run build
+
+      - name: Deploy dist/ to Netlify (prod)
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: 957b47ed-f33d-4e4c-8466-fc6b4be5c663
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          npx --yes netlify-cli@17 deploy \
+            --prod \
+            --dir=dist \
+            --message="Tag ${TAG_NAME}"
+          echo "Deployed tag ${TAG_NAME} to https://safaricash.netlify.app"
