@@ -67,17 +67,20 @@ jobs:
         run: npm ci
 
       - name: Build
-        # All VITE_* env vars get inlined into the bundle by Vite at
-        # build time. Missing vars produce a broken bundle in prod
-        # (blank screen, no Supabase connectivity). Add them as GitHub
-        # secrets — list mirrored from the Netlify dashboard.
+        # VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY are REQUIRED — Vite
+        # inlines them at build time and the Zod env validator throws if
+        # they're missing (see src/infrastructure/supabase/env.ts).
+        #
+        # Other VITE_* vars in the codebase have fallbacks (see
+        # src/lib/contact.ts and shareReceipt.ts) or are explicitly
+        # optional in the env schema. If the prod Netlify dashboard
+        # adds any of them later, mirror them as GitHub secrets and add
+        # one line per var here. DO NOT add empty/missing secrets as
+        # env entries — empty strings break the `??` fallback in
+        # contact.ts (only `undefined` triggers fallback, not `""`).
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_SUPABASE_FUNCTIONS_GATEWAY_URL: ${{ secrets.VITE_SUPABASE_FUNCTIONS_GATEWAY_URL }}
-          VITE_RECEIPT_URL_BASE: ${{ secrets.VITE_RECEIPT_URL_BASE }}
-          VITE_FOUNDER_SUPPORT_PHONE: ${{ secrets.VITE_FOUNDER_SUPPORT_PHONE }}
-          VITE_FOUNDER_SUPPORT_PHONE_DISPLAY: ${{ secrets.VITE_FOUNDER_SUPPORT_PHONE_DISPLAY }}
         run: npm run build
 
       - name: Deploy dist/ to Netlify (prod)
