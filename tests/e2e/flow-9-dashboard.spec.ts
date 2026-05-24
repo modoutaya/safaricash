@@ -42,13 +42,17 @@ test.describe("Flow 9 — dashboard polled stats (Story 9.1)", () => {
     await expect(page.getByText("2", { exact: true })).toBeVisible();
 
     // --- Commission this cycle = Σ commission(dailyAmount) = 2 × 500 = 1000.
-    // Today's collection (2 seed contributions × 500) is also 1000, so the
-    // "1 000" figure renders on both cards — assert at least one shows. ---
+    // Today's collection (2 seed contributions × 500) is also 1000.
+    // 2026-05-24 — Collecté + Commission tiles are masked by default
+    // (`*******`) for privacy; tap each to reveal then assert the value. ---
     await expect(page.getByText("Commission")).toBeVisible();
-    await expect(page.getByText(/1[\s ]?000/).first()).toBeVisible();
-
-    // --- Today's collection — the 2 seed contributions landed today. ---
     await expect(page.getByText("Collecté")).toBeVisible();
+    // Default-masked state.
+    expect(await page.getByText("*******").count()).toBe(2);
+    // Reveal both, assert the 1 000 figure shows.
+    await page.getByRole("button", { name: /afficher le montant collecté/i }).click();
+    await page.getByRole("button", { name: /afficher la commission/i }).click();
+    await expect(page.getByText(/1[\s ]?000/).first()).toBeVisible();
 
     // --- Recent activity — the seed contributions show as Cotisation rows. ---
     await expect(page.getByRole("heading", { level: 2, name: /activité récente/i })).toBeVisible();

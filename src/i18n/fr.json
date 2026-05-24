@@ -105,7 +105,11 @@
     "stat": {
       "active_members": "Membres actifs",
       "collected": "Collecté",
-      "commission": "Commission"
+      "commission": "Commission",
+      "collected_reveal_aria": "Afficher le montant collecté",
+      "collected_hide_aria": "Masquer le montant collecté",
+      "commission_reveal_aria": "Afficher la commission",
+      "commission_hide_aria": "Masquer la commission"
     },
     "activity": {
       "title": "Activité récente",
