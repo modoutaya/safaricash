@@ -97,7 +97,10 @@ export function JournalMemberSection({
         ) : dayRows.length > 0 ? (
           <ul className="py-1">
             {dayRows.map((row) => (
-              <JournalDayRow key={`${row.cycleId}#${row.cycleDay}`} row={row} />
+              <JournalDayRow
+                key={row.tx ? row.tx.id : `${row.cycleId}#${row.cycleDay}-missing`}
+                row={row}
+              />
             ))}
           </ul>
         ) : (

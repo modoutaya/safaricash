@@ -147,10 +147,21 @@ describe("buildJournalDayRows — advance day", () => {
     expect(day7?.kind).toBe("advance");
   });
 
-  it("day with BOTH a contribution AND an advance → contribution wins", () => {
+  it("day with BOTH a contribution AND an advance → BOTH rows emitted (no precedence drop)", () => {
+    // Regression guard — the pre-2026-06 builder dropped the advance via an
+    // if/else if precedence pick, which silently hid the advance from the
+    // journal even though the saver clearly made it. Now every transaction
+    // gets its own row.
     const transactions: JournalTransaction[] = [
-      makeTx({ kind: "contribution", cycleId: CYCLE_PREV.id, cycleDay: 5 }),
-      makeTx({ kind: "advance", cycleId: CYCLE_PREV.id, cycleDay: 5 }),
+      // Contribution at 10:00, advance at 14:00 — same cycle-day.
+      {
+        ...makeTx({ kind: "contribution", cycleId: CYCLE_PREV.id, cycleDay: 5 }),
+        createdAt: "2026-04-05T10:00:00Z",
+      },
+      {
+        ...makeTx({ kind: "advance", cycleId: CYCLE_PREV.id, cycleDay: 5 }),
+        createdAt: "2026-04-05T14:00:00Z",
+      },
     ];
     const rows = buildJournalDayRows({
       transactions,
@@ -158,8 +169,52 @@ describe("buildJournalDayRows — advance day", () => {
       member,
       todayIso: "2026-05-01",
     });
-    const day5 = rows.find((r) => r.cycleDay === 5);
-    expect(day5?.kind).toBe("contribution");
+    const day5Rows = rows.filter((r) => r.cycleDay === 5);
+    expect(day5Rows).toHaveLength(2);
+    // Most-recent-first within the same day → advance (14:00) before contribution (10:00).
+    expect(day5Rows.map((r) => r.kind)).toEqual(["advance", "contribution"]);
+    // Day 5 contributes 2 visible rows + 28 missings for the rest of cycle = 30 total.
+    expect(rows).toHaveLength(30);
+  });
+
+  it("day with BOTH a contribution AND a rattrapage → BOTH rows emitted (Ndeye Marieme prod case)", () => {
+    // Real prod-bug shape: cycle_day 6 had a 30k contribution at 01:30 then
+    // a 120k rattrapage at 02:02 on the SAME calendar day. Pre-fix, only the
+    // contribution rendered and the 120k rattrapage was invisible — exactly
+    // what made "À régler: 240 000" look unexplainable in the dashboard.
+    const transactions: JournalTransaction[] = [
+      {
+        ...makeTx({ kind: "contribution", cycleId: CYCLE_PREV.id, cycleDay: 6, amount: 30000 }),
+        createdAt: "2026-04-06T01:30:00Z",
+      },
+      {
+        ...makeTx({
+          kind: "rattrapage",
+          cycleId: CYCLE_PREV.id,
+          cycleDay: 6,
+          daysCovered: 4,
+          amount: 120000,
+        }),
+        createdAt: "2026-04-06T02:02:00Z",
+      },
+    ];
+    const rows = buildJournalDayRows({
+      transactions,
+      period: "cycle_previous",
+      member,
+      todayIso: "2026-05-01",
+    });
+    const day6Rows = rows.filter((r) => r.cycleDay === 6);
+    expect(day6Rows).toHaveLength(2);
+    // Rattrapage at 02:02 sorts before contribution at 01:30 in desc order.
+    expect(day6Rows[0]?.kind).toBe("rattrapage");
+    expect(day6Rows[0]?.daysCovered).toBe(4);
+    expect(day6Rows[1]?.kind).toBe("contribution");
+    // Suppression still applies — cycle-days 7, 8, 9 don't emit missing rows.
+    const cycleDays = rows.map((r) => r.cycleDay);
+    expect(cycleDays).not.toContain(7);
+    expect(cycleDays).not.toContain(8);
+    expect(cycleDays).not.toContain(9);
   });
 });
 
