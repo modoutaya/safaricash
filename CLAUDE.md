@@ -18,6 +18,22 @@
 - **Layering.** `domain/` (pure, zero infra) ← `infrastructure/` ← `features/` ← `components/`. Cross-feature imports go through `index.ts` (ESLint enforced).
 - **Cite sources.** Implementation that derives from architecture/UX/PRD must cite the section in the story's Dev Notes.
 - **Tests first.** Every story follows red-green-refactor; cycle-engine domain (Story 3.2 onward) has a 100% coverage gate.
+- **Explicit GRANTs for new `public` tables.** Default privileges on `public` were revoked in migration `20260529160730_revoke_default_privileges_public.sql` (opt-in to Supabase changelog #45329, which enforces on all projects 2026-10-30). Any new table in `public` that the Data API (PostgREST / GraphQL / supabase-js) must reach needs the three-step snippet below — bundle GRANT + RLS + policy in the **same** migration:
+
+  ```sql
+  -- 1. Grant the privileges the role needs
+  grant select on public.your_table to anon;
+  grant select, insert, update, delete on public.your_table to authenticated;
+  grant select, insert, update, delete on public.your_table to service_role;
+
+  -- 2. Enable RLS
+  alter table public.your_table enable row level security;
+
+  -- 3. Add the policies you need
+  create policy "..." on public.your_table for select to authenticated using (...);
+  ```
+
+  If the GRANT is missing, PostgREST returns `code: 42501` with a `hint:` showing the exact missing grant. Views and sequences are also affected — explicit `grant select on public.your_view to authenticated;` / `grant usage, select on public.your_sequence to ...;` as needed.
 
 ## Local-DB workflow (preserve manually-seeded data)
 
@@ -38,6 +54,7 @@ CI (the GitHub Actions workflow) starts from a clean Supabase stack on every run
 - Wire Supabase client outside `src/infrastructure/supabase/` (Story 1.2 owns the singleton).
 - Default shadcn components to neutral greys — re-skin to SafariCash primary-green.
 - Run `npm run db:reset` during normal story dev — it wipes any manually-seeded data. Use `npm run db:migrate` to apply new migrations incrementally.
+- Rely on Supabase's implicit default grants when creating a table in `public`. As of migration `20260529160730_revoke_default_privileges_public.sql`, those defaults are revoked — a new table without explicit `GRANT` is invisible to `supabase-js` (`code: 42501 — permission denied`). Bundle the three-step GRANT/RLS/policy snippet (see Operating Principles) in the same migration as the `CREATE TABLE`.
 
 ## TODO
 
