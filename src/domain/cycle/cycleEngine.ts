@@ -165,28 +165,48 @@ export function computeCurrentBalance(
 /**
  * Story 12.5 — advance capacity (NEW MODEL, PR B).
  *
- * The collector never advances more than the saver has versed so far —
- * no lending against the daily-amount "contract" (which doesn't exist
- * under the cotisation-libre model). Capacity is bounded by actual
- * contributions held by the collector, minus advances already disbursed.
+ * 2026-06-07 — the COMMISSION IS NOT BORROWABLE. Pilot rule confirmed by
+ * the collectors: a saver can never borrow into the part that becomes the
+ * collector's commission. The borrowable ceiling is exactly the amount
+ * that would be reversible to the saver if settled now — i.e.
+ * `computeCurrentBalance`, NOT the raw `contributedTotal`.
  *
- *     allowed iff Σ(existing) + new ≤ contributedTotal
+ *     capacity   = contributedTotal − min(contributedTotal, dailyAmount)
+ *                  − Σ(existing) − openingBalance
+ *     allowed iff new ≤ capacity
  *
- * Where `contributedTotal` is the sum of (contribution + rattrapage)
- * booked in this cycle so far (undone excluded), i.e. the cash the
- * collector physically holds for this saver.
+ * Consequence: until the saver has cotisé at least one full day, the
+ * whole contribution is reserved for the commission and nothing can be
+ * borrowed (e.g. cotisé 1 000, daily 2 000 → commission 1 000 → capacity 0).
+ * Because advances can therefore never exceed `contributedTotal − commission`,
+ * a settlement balance can never go negative on advances alone — which is
+ * precisely why a real carry-over `openingBalance` should never arise from
+ * borrowing (see `computeOpeningBalance`).
  *
- * Pre-12.5 signature `canAcceptAdvance(dailyAmount, existing, new,
- * contributionDays, openingBalance)` capped by the projected daily ×
- * contributionDays which over-credited savers who hadn't paid every
- * day yet (the model corrected by Story 12.5 PR A).
+ * Pre-2026-06-07 capacity was the raw `contributedTotal` (commission
+ * borrowable), which let the commission "leak" out as an advance and then
+ * reappear as a phantom Report on the next cycle. Pre-12.5 it was the
+ * projected `daily × contributionDays`.
+ *
+ * `contributedTotal` = Σ (contribution + rattrapage) booked this cycle
+ * (undone excluded); `existingAdvances` = advances already disbursed this
+ * cycle; `openingBalance` = carry-over debt from the previous unsettled
+ * cycle (default 0).
  */
 export function canAcceptAdvance(
   contributedTotal: number,
+  dailyAmount: number,
   existingAdvances: ReadonlyArray<number>,
   newAdvanceAmount: number,
+  openingBalance: number = 0,
 ): boolean {
-  return sum(existingAdvances) + newAdvanceAmount <= contributedTotal;
+  const capacity = computeCurrentBalance(
+    contributedTotal,
+    dailyAmount,
+    sum(existingAdvances),
+    openingBalance,
+  );
+  return newAdvanceAmount <= capacity;
 }
 
 /**
@@ -462,7 +482,17 @@ export function computeOpeningBalance(
     prev.id,
   );
   // Story 12.5 PR D — currentBalance formula on the previous cycle.
-  const prevBalance = prevContributed - dailyAmount - prevAdvances - prevOpening;
+  // 2026-06-07 — commission capped at min(prevContributed, dailyAmount),
+  // mirroring settle() / computeCurrentBalance. Pilot rule "no cotisation ⇒
+  // no commission": a cycle with zero (or sub-day) contributions must NOT
+  // carry a full day of commission as phantom debt. The May-24 commission
+  // cap swept settle / receipt SMS / projected balance but missed this
+  // helper — that gap produced "Report : <1 day>" on members who had not
+  // versé anything. With this cap (and the commission-not-borrowable rule
+  // in canAcceptAdvance) the carry-over is 0 unless real advances exceed
+  // what was actually cotisé minus commission.
+  const prevCommission = Math.min(prevContributed, dailyAmount);
+  const prevBalance = prevContributed - prevCommission - prevAdvances - prevOpening;
 
   return prevBalance >= 0 ? 0 : -prevBalance;
 }

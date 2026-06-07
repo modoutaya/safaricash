@@ -531,16 +531,16 @@ if (env) {
           .eq("id", cycleId);
         if (pinErr) throw new Error(`pin cycle: ${pinErr.message}`);
 
-        // Story 12.5 PR B — cap = actual contributedTotal, NOT daily × contribDays.
-        // Seed 23 contribs of 5000 = 115_000 contributedTotal so the legacy
-        // capacity-115_000 assertions still hold.
+        // 2026-06-07 — cap = contributedTotal − commission. Seed 23 contribs
+        // of 5000 = 115_000 contributedTotal; the (non-borrowable) commission
+        // is one day = 5_000, so the exact capacity is 110_000.
         await seedContribsForAdvanceTests(userClient, memberId, cycleId, 23, 5000);
 
-        // Advance of exactly capacity is accepted (≤ boundary inclusive per INV-3).
+        // Advance of exactly capacity (115_000 − 5_000 commission) is accepted.
         const { data: txId1, error: errAccept } = await userClient.rpc("record_advance", {
           p_member_id: memberId,
           p_cycle_id: cycleId,
-          p_amount: 115_000,
+          p_amount: 110_000,
           p_cycle_day: 10,
           p_motive: "boundary test",
           p_saver_acknowledged: true,
@@ -590,9 +590,10 @@ if (env) {
           .eq("id", cycleId);
         if (pinErr) throw new Error(`pin cycle: ${pinErr.message}`);
 
-        // Story 12.5 PR B — seed a contribution so the advance fits the
-        // contributedTotal cap. 1 contrib of 5_000 covers the 1_000 advance.
-        await seedContribsForAdvanceTests(userClient, memberId, cycleId, 1, 5_000);
+        // 2026-06-07 — capacity = contributedTotal − commission(one day).
+        // Seed 2 contribs of 5_000 = 10_000; commission 5_000 → capacity
+        // 5_000, enough for the 1_000 advance below.
+        await seedContribsForAdvanceTests(userClient, memberId, cycleId, 2, 5_000);
 
         // cycle_day = 31 is now accepted (was rejected pre-11.3).
         const { data: txId, error: errAccept } = await userClient.rpc("record_advance", {

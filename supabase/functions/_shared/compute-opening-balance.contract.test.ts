@@ -494,4 +494,57 @@ if (env) {
       }
     },
   });
+
+  Deno.test({
+    name: "2026-06-07 #6 — prev cycle ZERO cotisation, no advance → SQL 0 == TS 0 (commission capped, no phantom debt)",
+    ...denoOpts,
+    fn: async () => {
+      const c = await seedCollector(service, anon, "oc6");
+      try {
+        const seeded = await seedMember(c, [
+          {
+            cycleNumber: 1,
+            startDate: "2026-04-01",
+            endDate: "2026-04-30",
+            status: "completed",
+            advancesTotal: 0,
+            contributedTotal: 0, // nothing versé — pre-fix this carried DAILY (500)
+          },
+          {
+            cycleNumber: 2,
+            startDate: "2026-05-01",
+            endDate: "2026-05-30",
+            status: "active",
+            advancesTotal: 0,
+            contributedTotal: 0,
+          },
+        ]);
+        const cycle2Id = seeded.cycles[1]!.id;
+        const sql = await callSql(c, seeded.memberId, cycle2Id);
+        const { cycles, advancesByCycleId, contributedByCycleId } = tsInputs(
+          seeded,
+          [
+            { cycleNumber: 1, status: "completed" },
+            { cycleNumber: 2, status: "active" },
+          ],
+          [],
+          [
+            { cycleNumber: 1, contributed: 0 },
+            { cycleNumber: 2, contributed: 0 },
+          ],
+        );
+        const ts = computeOpeningBalance(
+          cycles,
+          advancesByCycleId,
+          contributedByCycleId,
+          DAILY,
+          cycle2Id,
+        );
+        assertEquals(sql, 0n, "zero-cotisation cycle must carry no commission debt");
+        assertEquals(BigInt(ts), sql, "SQL/TS mismatch on zero-cotisation case");
+      } finally {
+        await cleanup(c);
+      }
+    },
+  });
 }
