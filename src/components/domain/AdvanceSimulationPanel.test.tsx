@@ -53,7 +53,26 @@ describe("AdvanceSimulationPanel", () => {
     expect(screen.getByText(/110[\s\u00a0]000 FCFA/)).toBeInTheDocument();
   });
 
-  it("boundary — candidate hits exactly capacity (dailyAmount × contributionDays = 5000 × 29 = 145 000 for cycleLength=30) → final = 0; state=valid", () => {
+  it("boundary — candidate hits exactly capacity (contributedTotal − commission = 145 000 − 5 000 = 140 000) → final = 0; state=valid", () => {
+    // 2026-06-07 — commission (one day = 5 000) is reserved and NOT
+    // borrowable, so the exact capacity is 140 000, not the full 145 000.
+    const { container } = render(
+      <AdvanceSimulationPanel
+        dailyAmount={5000}
+        cycleLength={30}
+        contributedTotal={145_000}
+        existingAdvances={[]}
+        candidateAmount={140_000}
+      />,
+    );
+    expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "valid");
+    // Match exactly "0 FCFA" (boundary: row 4 only). The leading whitespace
+    // ensures we don't match "...000 FCFA" suffixes from the other rows.
+    expect(screen.getByText(/^0 FCFA$/)).toBeInTheDocument();
+  });
+
+  it("commission not borrowable — candidate = full contributedTotal (145 000) → over-limit", () => {
+    // Taking the whole contribution would eat into the 5 000 commission.
     const { container } = render(
       <AdvanceSimulationPanel
         dailyAmount={5000}
@@ -63,10 +82,7 @@ describe("AdvanceSimulationPanel", () => {
         candidateAmount={145_000}
       />,
     );
-    expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "valid");
-    // Match exactly "0 FCFA" (boundary: row 4 only). The leading whitespace
-    // ensures we don't match "...000 FCFA" suffixes from the other rows.
-    expect(screen.getByText(/^0 FCFA$/)).toBeInTheDocument();
+    expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "over-limit");
   });
 
   it("over-limit — candidate=200_000 → row 3 warning + row 4 = 0 FCFA + explanatory note", () => {

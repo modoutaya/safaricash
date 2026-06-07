@@ -42,11 +42,21 @@ type SimulationState = "empty" | "valid" | "over-limit";
 
 function deriveState(
   contributedTotal: number,
+  dailyAmount: number,
   existingAdvances: ReadonlyArray<number>,
   candidateAmount: number,
+  openingBalance: number,
 ): SimulationState {
   if (candidateAmount === 0) return "empty";
-  return canAcceptAdvance(contributedTotal, existingAdvances, candidateAmount)
+  // 2026-06-07 — capacity reserves the (non-borrowable) commission, so the
+  // candidate is over-limit as soon as it eats into the commission.
+  return canAcceptAdvance(
+    contributedTotal,
+    dailyAmount,
+    existingAdvances,
+    candidateAmount,
+    openingBalance,
+  )
     ? "valid"
     : "over-limit";
 }
@@ -67,7 +77,13 @@ export function AdvanceSimulationPanel({
   className,
 }: AdvanceSimulationPanelProps): JSX.Element {
   const t = useT();
-  const state = deriveState(contributedTotal, existingAdvances, candidateAmount);
+  const state = deriveState(
+    contributedTotal,
+    dailyAmount,
+    existingAdvances,
+    candidateAmount,
+    openingBalance,
+  );
 
   const totalProjected = dailyAmount * cycleLength;
   const commissionAmount = commission(dailyAmount);

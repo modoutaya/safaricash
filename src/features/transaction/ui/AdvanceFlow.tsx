@@ -111,10 +111,17 @@ export function AdvanceFlow({
 
   const handleChipTap = (n: number) => setRawAmount(String(n));
 
-  // Story 12.5 PR B — capacity bounded by ACTUAL contributedTotal.
-  // The collector never advances more than what's been versed so far.
+  // Story 12.5 PR B + 2026-06-07 — capacity = contributedTotal minus the
+  // (non-borrowable) commission, existing advances and any carry-over. The
+  // collector never advances the commission nor more than what's versed.
   const canAcceptCheck = (n: number): boolean =>
-    canAcceptAdvance(data.stats.contributedTotal, existingAdvanceAmounts, n);
+    canAcceptAdvance(
+      data.stats.contributedTotal,
+      data.member.daily_amount,
+      existingAdvanceAmounts,
+      n,
+      data.stats.openingBalance,
+    );
   // Simulation panel still needs cycleLength for its row-1 totalProjected
   // display + openingBalance for the projected-balance display. PR C
   // collapses those props as it renames projected → currentBalance.

@@ -134,20 +134,34 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
     );
   });
 
-  it("INV-3 (12.5 PR B rewrite): advance accepted iff Σ(existing) + new ≤ contributedTotal", () => {
-    // Pre-12.5 INV-3 capped by dailyAmount × contributionDays (the
-    // contract projection). The new model caps by ACTUAL contributedTotal:
-    // the collector never advances more than what's been versed so far.
+  it("INV-3 (2026-06-07): advance accepted iff new ≤ contributedTotal − commission − Σ(existing) − opening", () => {
+    // Pre-12.5 INV-3 capped by dailyAmount × contributionDays. Story 12.5
+    // PR B capped by raw contributedTotal. 2026-06-07: the commission is
+    // NOT borrowable, so the cap is the reversible balance
+    // (computeCurrentBalance) — contributedTotal minus commission, existing
+    // advances and any carry-over.
     fc.assert(
       fc.property(
         fc.record({
           contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
+          dailyAmount: fc.integer({ min: 100, max: 100_000 }),
           existing: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 20 }),
           newAdvance: fc.integer({ min: 1, max: 100_000 }),
+          openingBalance: fc.integer({ min: 0, max: 1_000_000 }),
         }),
-        ({ contributedTotal, existing, newAdvance }) => {
-          const expected = sum(existing) + newAdvance <= contributedTotal;
-          return canAcceptAdvance(contributedTotal, existing, newAdvance) === expected;
+        ({ contributedTotal, dailyAmount, existing, newAdvance, openingBalance }) => {
+          const commission = Math.min(contributedTotal, dailyAmount);
+          const capacity = contributedTotal - commission - sum(existing) - openingBalance;
+          const expected = newAdvance <= capacity;
+          return (
+            canAcceptAdvance(
+              contributedTotal,
+              dailyAmount,
+              existing,
+              newAdvance,
+              openingBalance,
+            ) === expected
+          );
         },
       ),
     );
@@ -305,13 +319,15 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
   it("Story 12.5 PR B — when contributedTotal = 0, every positive advance is rejected", () => {
     // Symmetric to the pre-12.5 Q2bis property (which gated on
     // openingBalance ≥ daily × contribDays). The new model: nothing
-    // versed yet → nothing to lend against.
+    // versed yet → nothing to lend against (commission = min(0, daily) = 0,
+    // capacity = 0 − Σ(existing) ≤ 0).
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 100_000 }),
+        fc.integer({ min: 100, max: 100_000 }),
         fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 20 }),
-        (newAdvance, existing) => {
-          return canAcceptAdvance(0, existing, newAdvance) === false;
+        (newAdvance, dailyAmount, existing) => {
+          return canAcceptAdvance(0, dailyAmount, existing, newAdvance) === false;
         },
       ),
     );
@@ -479,6 +495,44 @@ describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", ()
     const advances = new Map<string, number>([["c1", 14_500]]);
     const contributed = new Map<string, number>([["c1", LEGACY_CONTRIB]]);
     expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c2")).toBe(0);
+  });
+
+  // 2026-06-07 — commission capped at min(prevContributed, daily): a cycle
+  // with zero / sub-day cotisation must NOT carry a phantom day of
+  // commission. Regression for the "Report : <1 day>" seen on members who
+  // had not versé anything (BOBO / Baye Mot / Mame Mor).
+  it("prev cycle with ZERO cotisation and no advance → 0 (no phantom commission debt)", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
+      makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
+    ];
+    // contrib 0 → commission min(0,500)=0 → prevBalance 0 → no debt.
+    // Pre-fix this returned DAILY (500) — the bug.
+    const contributed = new Map<string, number>([["c1", 0]]);
+    expect(computeOpeningBalance(cycles, new Map(), contributed, DAILY, "c2")).toBe(0);
+  });
+
+  it("prev cycle cotisation below one full day → commission capped → 0", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
+      makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
+    ];
+    // contrib 300, daily 500 → commission min(300,500)=300 → prevBalance
+    // 300 − 300 − 0 = 0. Pre-fix: 300 − 500 = −200 → phantom 200.
+    const contributed = new Map<string, number>([["c1", 300]]);
+    expect(computeOpeningBalance(cycles, new Map(), contributed, DAILY, "c2")).toBe(0);
+  });
+
+  it("prev cycle with real uncovered advance still carries that debt", () => {
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
+      makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
+    ];
+    // contrib 2_000, advances 5_000 → commission min(2_000,500)=500 →
+    // prevBalance 2_000 − 500 − 5_000 = −3_500 → carry-over 3_500.
+    const advances = new Map<string, number>([["c1", 5_000]]);
+    const contributed = new Map<string, number>([["c1", 2_000]]);
+    expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c2")).toBe(3_500);
   });
 });
 
@@ -756,29 +810,46 @@ describe("cycleEngine — example tests", () => {
     });
   });
 
-  describe("canAcceptAdvance (Story 12.5 PR B — contributedTotal cap)", () => {
-    it("accepts an advance that exactly hits contributedTotal", () => {
-      expect(canAcceptAdvance(14_500, [], 14_500)).toBe(true);
+  describe("canAcceptAdvance (2026-06-07 — commission not borrowable)", () => {
+    // capacity = contributedTotal − min(contributedTotal, daily) − Σ(existing) − opening
+    const DAILY = 500;
+
+    it("accepts an advance that exactly hits capacity (contributed − commission)", () => {
+      // 15_000 versé, commission 500 → capacity 14_500.
+      expect(canAcceptAdvance(15_000, DAILY, [], 14_500)).toBe(true);
     });
 
-    it("rejects an advance over by 1 FCFA", () => {
-      expect(canAcceptAdvance(14_500, [], 14_501)).toBe(false);
+    it("rejects an advance over capacity by 1 FCFA", () => {
+      expect(canAcceptAdvance(15_000, DAILY, [], 14_501)).toBe(false);
+    });
+
+    it("the commission itself is never borrowable — can't take the full contributedTotal", () => {
+      // The whole 15_000 would eat into the 500 commission → rejected.
+      expect(canAcceptAdvance(15_000, DAILY, [], 15_000)).toBe(false);
     });
 
     it("respects existing advances", () => {
-      expect(canAcceptAdvance(14_500, [10_000], 4_500)).toBe(true); // total 14_500 = cap
-      expect(canAcceptAdvance(14_500, [10_000], 4_501)).toBe(false); // over by 1
+      expect(canAcceptAdvance(15_000, DAILY, [10_000], 4_500)).toBe(true); // 10_000 + 4_500 = 14_500 = cap
+      expect(canAcceptAdvance(15_000, DAILY, [10_000], 4_501)).toBe(false); // over by 1
     });
 
-    it("capacity = contributedTotal regardless of cycle length", () => {
-      // 11 500 versé so far → max advance 11 500 minus existing.
-      expect(canAcceptAdvance(11_500, [], 11_500)).toBe(true);
-      expect(canAcceptAdvance(11_500, [], 11_501)).toBe(false);
+    it("subtracts the opening-balance carry-over from capacity", () => {
+      // capacity = 15_000 − 500 − 0 − 2_000 = 12_500.
+      expect(canAcceptAdvance(15_000, DAILY, [], 12_500, 2_000)).toBe(true);
+      expect(canAcceptAdvance(15_000, DAILY, [], 12_501, 2_000)).toBe(false);
+    });
+
+    it("cotisation below one full day → commission reserves all of it → capacity 0", () => {
+      // cotisé 300, daily 500 → commission min(300,500)=300 → capacity 0.
+      expect(canAcceptAdvance(300, DAILY, [], 1)).toBe(false);
+      expect(canAcceptAdvance(300, DAILY, [], 0)).toBe(true);
+      // exactly one day cotisé → still nothing borrowable.
+      expect(canAcceptAdvance(500, DAILY, [], 1)).toBe(false);
     });
 
     it("0 versé so far → no advance possible", () => {
-      expect(canAcceptAdvance(0, [], 1)).toBe(false);
-      expect(canAcceptAdvance(0, [], 0)).toBe(true);
+      expect(canAcceptAdvance(0, DAILY, [], 1)).toBe(false);
+      expect(canAcceptAdvance(0, DAILY, [], 0)).toBe(true);
     });
   });
 
