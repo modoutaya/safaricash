@@ -124,6 +124,23 @@ export function commission(dailyAmount: number): number {
 }
 
 /**
+ * 2026-06-07 — commission ACTUALLY earned so far on a cycle, under the
+ * cotisation-libre rule: capped at what the saver has versed.
+ *
+ *     earnedCommission = min(contributedTotal, dailyAmount)
+ *
+ * Identical to the commission term inside settle() / computeCurrentBalance.
+ * Differs from `commission(dailyAmount)` (the flat contractual 1-day fee):
+ * a saver who hasn't cotisé a full day owes only what was versed, and a
+ * saver who cotisé nothing owes 0. Drives the dashboard "real commission"
+ * tile (Σ over members) so it reflects money actually retained at
+ * settlement, not the projection `Σ dailyAmount` over every active member.
+ */
+export function earnedCommission(contributedTotal: number, dailyAmount: number): number {
+  return Math.min(contributedTotal, dailyAmount);
+}
+
+/**
  * Story 12.5 PR C — current "to-reverse" balance (NEW MODEL).
  *
  * Renamed from `computeProjectedFinalBalance` because the pre-12.5
