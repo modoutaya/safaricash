@@ -41,8 +41,9 @@ test.describe("Flow 9 — dashboard polled stats (Story 9.1)", () => {
     await expect(page.getByText("Membres actifs")).toBeVisible();
     await expect(page.getByText("2", { exact: true })).toBeVisible();
 
-    // --- Commission this cycle = Σ commission(dailyAmount) = 2 × 500 = 1000.
-    // Today's collection (2 seed contributions × 500) is also 1000.
+    // --- Commission this cycle = Σ min(cotisé, daily) = 2 × min(500, 500) = 1000
+    // (each member cotisé exactly one day). Today's collection (2 seed
+    // contributions × 500) is also 1000.
     // 2026-05-24 — Collecté + Commission tiles are masked by default
     // (`*******`) for privacy; tap each to reveal then assert the value. ---
     await expect(page.getByText("Commission")).toBeVisible();

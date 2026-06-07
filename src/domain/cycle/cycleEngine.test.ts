@@ -19,6 +19,7 @@ import {
   RATTRAPAGE_DAY_OPTIONS,
   canAcceptAdvance,
   commission,
+  earnedCommission,
   computeMemberStats,
   computeOpeningBalance,
   computeCurrentBalance,
@@ -784,6 +785,22 @@ describe("cycleEngine — example tests", () => {
 
     it("COMMISSION_DAYS is 1", () => {
       expect(COMMISSION_DAYS).toBe(1);
+    });
+  });
+
+  describe("earnedCommission (2026-06-07 — real commission = min(cotisé, daily))", () => {
+    it("caps at one day when cotisé ≥ daily", () => {
+      expect(earnedCommission(14_000, 2000)).toBe(2000);
+      expect(earnedCommission(2000, 2000)).toBe(2000);
+    });
+
+    it("equals what was versed when cotisé < one day", () => {
+      expect(earnedCommission(600, 1000)).toBe(600);
+      expect(earnedCommission(300, 500)).toBe(300);
+    });
+
+    it("is 0 when nothing cotisé", () => {
+      expect(earnedCommission(0, 5000)).toBe(0);
     });
   });
 

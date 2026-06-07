@@ -54,17 +54,43 @@ describe("deriveDashboardStats", () => {
     expect(s.activeMembersCount).toBe(2);
   });
 
-  it("commission = Σ commission(dailyAmount) over actif + avance members", () => {
+  it("commission = Σ min(cotisé, daily) earned — capped at 1 day, 0 when nothing cotisé", () => {
     const s = deriveDashboardStats(
       [
-        member({ displayStatus: "actif", dailyAmount: 500 }),
-        member({ displayStatus: "avance", dailyAmount: 1000 }),
+        member({ id: "m1", displayStatus: "actif", dailyAmount: 500 }), // cotisé 2000 → cap 500
+        member({ id: "m2", displayStatus: "avance", dailyAmount: 1000 }), // cotisé 600 (< 1 day) → 600
+        member({ id: "m3", displayStatus: "actif", dailyAmount: 2000 }), // cotisé 0 → 0
+      ],
+      [
+        tx({ member_id: "m1", kind: "contribution", amount: 1500 }),
+        tx({ member_id: "m1", kind: "rattrapage", amount: 500 }), // m1 total 2000 → min(2000,500)=500
+        tx({ member_id: "m2", kind: "contribution", amount: 600 }), // m2 total 600 → min(600,1000)=600
+        // m3 cotisé nothing → 0
       ],
       [],
+    );
+    expect(s.commissionThisCycle).toBe(500 + 600); // 1100 — m3 adds 0
+  });
+
+  it("commission counts a cotisé member once (1 day), and excludes members who didn't cotise", () => {
+    // Mirrors the collectors' rule: 2 active members, daily 2000; only the
+    // first cotisé (7 × 2000 = 14 000), the second cotisé nothing.
+    const s = deriveDashboardStats(
+      [member({ id: "a", dailyAmount: 2000 }), member({ id: "b", dailyAmount: 2000 })],
+      [tx({ member_id: "a", kind: "contribution", amount: 14_000 })],
       [],
     );
-    // commission() = dailyAmount × 1.
-    expect(s.commissionThisCycle).toBe(1500);
+    // a → min(14 000, 2000) = 2000 (1 day) ; b → 0. Commission = 2000, NOT 4000.
+    expect(s.commissionThisCycle).toBe(2000);
+  });
+
+  it("an advance does NOT count toward earned commission", () => {
+    const s = deriveDashboardStats(
+      [member({ id: "m1", dailyAmount: 2000 })],
+      [tx({ member_id: "m1", kind: "advance", amount: 5000 })], // advances excluded from cotisé
+      [],
+    );
+    expect(s.commissionThisCycle).toBe(0);
   });
 
   it("cycleCollected sums contribution + rattrapage amounts", () => {

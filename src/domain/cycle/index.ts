@@ -9,6 +9,7 @@ export {
   RATTRAPAGE_DAY_OPTIONS,
   canAcceptAdvance,
   commission,
+  earnedCommission,
   computeMemberStats,
   computeOpeningBalance,
   computeCurrentBalance,
