@@ -7,10 +7,11 @@
 // Supabase Realtime); `refetchIntervalInBackground` stays false and the
 // default networkMode no-ops the interval while offline.
 //
-// "Collected" is the running cumulative for the cycles in progress: the
-// query filters transactions_decrypted by `cycle_id IN (active cycle ids)`,
-// so the figure pairs with the per-cycle commission tile (NOT a single
-// day's collection).
+// 2026-06-08 — "Collected" + "commission" aggregate over the CURRENT
+// CALENDAR MONTH (1st of the month → now), NOT the cycle: the query filters
+// transactions_decrypted by `created_at >= <1st of month>`. This is robust
+// to the monthly cycle-restart not having run — the dashboard always shows
+// this month's real figures regardless of each member's cycle state.
 //
 // The four-stat math lives in the pure `deriveDashboardStats` module.
 
@@ -32,6 +33,13 @@ export const DASHBOARD_QUERY_KEY = ["dashboard", "transactions"] as const;
 /** Architecture Q-ARCH6 — 60 s polling cadence. */
 export const DASHBOARD_POLL_INTERVAL_MS = 60_000;
 
+/** First day of `now`'s month at 00:00 UTC, ISO string — the start of the
+ *  dashboard's aggregate window. Senegal = UTC+0, so this is local midnight
+ *  on the 1st. Exported so tests can reproduce the query key deterministically. */
+export function currentMonthStartIso(now: Date = new Date()): string {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+}
+
 /** Transaction kinds that count as money collected. */
 const COLLECTED_KINDS = ["contribution", "rattrapage"] as const;
 
@@ -52,22 +60,21 @@ interface DashboardTxData {
   recent: DashboardTxRow[];
 }
 
-async function fetchDashboardTransactions(activeCycleIds: string[]): Promise<DashboardTxData> {
+async function fetchDashboardTransactions(monthStart: string): Promise<DashboardTxData> {
   const [recentResult, collectedResult] = await Promise.all([
     supabase
       .from("transactions_decrypted")
       .select("id, member_id, kind, amount, created_at")
       .order("created_at", { ascending: false })
       .limit(5),
-    // Cumulative collection for the cycles in progress. No active cycle →
-    // skip the round-trip.
-    activeCycleIds.length > 0
-      ? supabase
-          .from("transactions_decrypted")
-          .select("id, member_id, kind, amount, created_at")
-          .in("cycle_id", activeCycleIds)
-          .in("kind", COLLECTED_KINDS)
-      : Promise.resolve({ data: [], error: null }),
+    // Current-month collection (1st of month → now), NOT cycle-scoped — so
+    // the figures are correct even when a member's cycle hasn't restarted.
+    // RLS scopes rows to the authenticated collector.
+    supabase
+      .from("transactions_decrypted")
+      .select("id, member_id, kind, amount, created_at")
+      .gte("created_at", monthStart)
+      .in("kind", COLLECTED_KINDS),
   ]);
 
   if (recentResult.error) {
@@ -98,17 +105,13 @@ export function useDashboardStats(): UseDashboardStatsResult {
   const membersQuery = useMembers();
   const members = membersQuery.data ?? [];
 
-  // Active cycle ids scope the collected total. Sorted so the query key is
-  // stable across renders regardless of member ordering.
-  const activeCycleIds = members
-    .map((m) => m.currentCycle?.id)
-    .filter((id): id is string => typeof id === "string")
-    .sort();
+  // Aggregate window = the current calendar month (1st → now), independent of
+  // any member's cycle state. Stable within the month → stable query key.
+  const monthStart = currentMonthStartIso();
 
   const txQuery = useQuery({
-    queryKey: [...DASHBOARD_QUERY_KEY, activeCycleIds],
-    queryFn: () => fetchDashboardTransactions(activeCycleIds),
-    enabled: !membersQuery.isLoading,
+    queryKey: [...DASHBOARD_QUERY_KEY, monthStart],
+    queryFn: () => fetchDashboardTransactions(monthStart),
     refetchInterval: DASHBOARD_POLL_INTERVAL_MS,
     // No `staleTime` — the refetchInterval owns the 60 s cadence; leaving
     // data immediately stale lets a focus / invalidation refresh promptly.

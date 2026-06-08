@@ -5,10 +5,10 @@
 //
 // Inputs:
 //   - members              : the collector's MemberWithMeta[] (useMembers).
-//   - collectedTransactions : transactions_decrypted rows for the active
-//     cycles, kind ∈ {contribution, rattrapage} — the query filters by
-//     `cycle_id IN (active cycle ids)` so this is the running cumulative
-//     collection for the cycle in progress (NOT a single day).
+//   - collectedTransactions : transactions_decrypted rows for the CURRENT
+//     CALENDAR MONTH (created_at ≥ 1st of month), kind ∈ {contribution,
+//     rattrapage} — the running cumulative collection for the month, robust
+//     to the cycle-restart state (NOT cycle-scoped, NOT a single day).
 //   - recentTransactions   : the 5 most recent transactions_decrypted rows.
 // `transactions_decrypted` already excludes undone rows (the view has
 // `where undone_at is null`), so no undone filtering is needed here.
@@ -35,7 +35,7 @@ export interface DashboardActivity {
 
 export interface DashboardStats {
   activeMembersCount: number;
-  /** Cumulative contributions + rattrapages collected for the active cycles. */
+  /** Cumulative contributions + rattrapages collected this calendar month. */
   cycleCollected: number;
   commissionThisCycle: number;
   recentActivity: DashboardActivity[];

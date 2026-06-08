@@ -9,6 +9,7 @@ import { MEMBERS_QUERY_KEY, type MemberWithMeta } from "@/features/member";
 
 import type { DashboardTxRow } from "./deriveDashboardStats";
 import {
+  currentMonthStartIso,
   DASHBOARD_POLL_INTERVAL_MS,
   DASHBOARD_QUERY_KEY,
   useDashboardStats,
@@ -51,13 +52,26 @@ describe("useDashboardStats", () => {
     expect(DASHBOARD_POLL_INTERVAL_MS).toBe(60_000);
   });
 
+  it("currentMonthStartIso → 1st of the month at 00:00 UTC", () => {
+    expect(currentMonthStartIso(new Date("2026-06-08T13:59:00.000Z"))).toBe(
+      "2026-06-01T00:00:00.000Z",
+    );
+    expect(currentMonthStartIso(new Date("2026-01-31T23:59:59.000Z"))).toBe(
+      "2026-01-01T00:00:00.000Z",
+    );
+    // Already the 1st at midnight → unchanged.
+    expect(currentMonthStartIso(new Date("2026-12-01T00:00:00.000Z"))).toBe(
+      "2026-12-01T00:00:00.000Z",
+    );
+  });
+
   it("offline + pre-seeded caches → derives the stats without erroring", () => {
     setOnline(false);
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     client.setQueryData(MEMBERS_QUERY_KEY, [MEMBER]);
-    // MEMBER has no active cycle → the hook's activeCycleIds is []; seed the
-    // matching cycle-scoped query key.
-    client.setQueryData([...DASHBOARD_QUERY_KEY, []], {
+    // 2026-06-08 — the collected query is now scoped by month-start, not
+    // cycle ids; seed the matching month-keyed query key.
+    client.setQueryData([...DASHBOARD_QUERY_KEY, currentMonthStartIso()], {
       collected: [COLLECTED_TX],
       recent: [COLLECTED_TX],
     });
