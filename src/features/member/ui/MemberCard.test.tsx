@@ -86,6 +86,19 @@ describe("MemberCard", () => {
     expect(screen.queryByLabelText(/solde prévu/i)).not.toBeInTheDocument();
   });
 
+  it('renders the "À régler" inline only when the payout is > 0', () => {
+    const { rerender } = render(
+      <MemberCard member={makeMember({ awaitingSettlement: { cycleId: "c1", payout: 50000 } })} />,
+    );
+    expect(screen.getByText(/À régler : 50\s?000 F CFA/)).toBeInTheDocument();
+
+    // payout 0 → the line is noise, not an action signal → hidden.
+    rerender(
+      <MemberCard member={makeMember({ awaitingSettlement: { cycleId: "c1", payout: 0 } })} />,
+    );
+    expect(screen.queryByText(/À régler/)).not.toBeInTheDocument();
+  });
+
   it("hides the cycle block when there is no current cycle", () => {
     render(
       <MemberCard
