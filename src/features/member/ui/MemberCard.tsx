@@ -118,7 +118,11 @@ export function MemberCard({ member, onSelect, className }: MemberCardProps): JS
                 })}
               </p>
             ) : null}
-            {member.awaitingSettlement != null ? (
+            {/* Hide the "À régler" row when there is nothing to pay out
+                (payout 0 — e.g. the saver only cotised the commission day or
+                borrowed it all back). A zero amount is noise, not an action
+                signal. Loose `> 0` also guards the defensive negative case. */}
+            {member.awaitingSettlement != null && member.awaitingSettlement.payout > 0 ? (
               <p
                 className="text-caption font-semibold text-warning-text"
                 style={{ fontVariantNumeric: "tabular-nums" }}
