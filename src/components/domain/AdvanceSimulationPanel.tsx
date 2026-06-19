@@ -10,7 +10,7 @@
 // ux-design-specification.md:509-510 (warning + destructive palettes),
 // docs/ADR/004-cycle-invariants.md (INV-1 — projection independent of cycleDay).
 
-import { canAcceptAdvance, commission, computeCurrentBalance } from "@/domain/cycle";
+import { canAcceptAdvance, commission } from "@/domain/cycle";
 import { formatFcfaAmount } from "@/features/member/api/formatAmount";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
@@ -18,21 +18,17 @@ import { cn } from "@/lib/utils";
 export interface AdvanceSimulationPanelProps {
   /** FCFA integer; expected positive. */
   dailyAmount: number;
-  /** Story 12.5 PR B — actual sum of (contribution + rattrapage) booked
-   *  in the cycle so far (undone excluded). The collector's physically
-   *  held cash for this saver. Drives the new capacity cap. */
-  contributedTotal: number;
   /** FCFA integers; each positive. Empty array = no prior advances. */
   existingAdvances: ReadonlyArray<number>;
   /** FCFA integer. 0 when the input is empty (caller normalises). */
   candidateAmount: number;
   /** Inclusive day count of the member's current cycle (Story 11.2 —
-   *  variable length). Still used for the row-1 totalProjected display
-   *  pending Story 12.5 PR C's projected → currentBalance rename. */
+   *  variable length). Drives both the row-1 projected total AND the
+   *  capacity cap (2026-06-19 — projected-monthly-contribution rule). */
   cycleLength: number;
   /** Story 12.3 — carry-over of unpaid debt from the previous unsettled
    *  cycle. Defaults to 0 for backward compatibility. Subtracted from
-   *  the projected-balance display only (PR C will revisit). */
+   *  both the capacity cap and the projected-balance display. */
   openingBalance?: number;
   /** Caller-side spacing/sizing tweaks. */
   className?: string;
@@ -41,18 +37,19 @@ export interface AdvanceSimulationPanelProps {
 type SimulationState = "empty" | "valid" | "over-limit";
 
 function deriveState(
-  contributedTotal: number,
   dailyAmount: number,
+  cycleLength: number,
   existingAdvances: ReadonlyArray<number>,
   candidateAmount: number,
   openingBalance: number,
 ): SimulationState {
   if (candidateAmount === 0) return "empty";
-  // 2026-06-07 — capacity reserves the (non-borrowable) commission, so the
-  // candidate is over-limit as soon as it eats into the commission.
+  // 2026-06-19 — capacity = projected monthly contribution
+  // (dailyAmount × cycleLength) − advances − carry-over. The candidate is
+  // over-limit once it exceeds what the saver is planned to cotise.
   return canAcceptAdvance(
-    contributedTotal,
     dailyAmount,
+    cycleLength,
     existingAdvances,
     candidateAmount,
     openingBalance,
@@ -69,7 +66,6 @@ function sumAdvances(existingAdvances: ReadonlyArray<number>, candidateAmount: n
 
 export function AdvanceSimulationPanel({
   dailyAmount,
-  contributedTotal,
   existingAdvances,
   candidateAmount,
   cycleLength,
@@ -78,8 +74,8 @@ export function AdvanceSimulationPanel({
 }: AdvanceSimulationPanelProps): JSX.Element {
   const t = useT();
   const state = deriveState(
-    contributedTotal,
     dailyAmount,
+    cycleLength,
     existingAdvances,
     candidateAmount,
     openingBalance,
@@ -87,19 +83,18 @@ export function AdvanceSimulationPanel({
 
   const totalProjected = dailyAmount * cycleLength;
   const commissionAmount = commission(dailyAmount);
-  // Story 12.5 PR C — final balance = actual cumul minus the candidate
-  // advance (= what the saver would receive if settled now WITH the new
-  // advance taken). The engine returns the raw value (may be negative
-  // when commission alone exceeds residual); the simulation display
-  // clamps at 0 for both over-limit AND valid states — the saver-facing
-  // amount can't be < 0 (commission is silently absorbed).
-  const currentRaw = computeCurrentBalance(
-    contributedTotal,
-    dailyAmount,
-    sumAdvances(existingAdvances, candidateAmount),
-    openingBalance,
-  );
-  const finalBalance = Math.max(0, currentRaw);
+  // 2026-06-19 — projected final balance = projected total minus the
+  // (flat 1-day) commission, all advances and any carry-over. Consistent
+  // with the displayed rows (projected − commission − advance) and with
+  // the projected-monthly-contribution cap. Clamped at 0: the saver-facing
+  // amount can't be < 0 (borrowing the full projection silently absorbs
+  // the commission, which then carries over as next cycle's opening_balance).
+  const finalRaw =
+    totalProjected -
+    commissionAmount -
+    sumAdvances(existingAdvances, candidateAmount) -
+    openingBalance;
+  const finalBalance = Math.max(0, finalRaw);
 
   return (
     <div

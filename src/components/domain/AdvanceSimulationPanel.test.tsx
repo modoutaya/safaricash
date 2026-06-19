@@ -7,13 +7,15 @@ import { AdvanceSimulationPanel } from "./AdvanceSimulationPanel";
 
 expect.extend(toHaveNoViolations);
 
+// 2026-06-19 — cap + final balance derive from the PROJECTED total
+// (dailyAmount × cycleLength). dailyAmount 5000 × cycleLength 30 = 150 000;
+// commission (one day) = 5 000.
 describe("AdvanceSimulationPanel", () => {
   it("empty state — candidateAmount=0 shows placeholder, row 4 dimmed", () => {
     const { container } = render(
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
-        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={0}
       />,
@@ -22,12 +24,11 @@ describe("AdvanceSimulationPanel", () => {
     expect(screen.getByText(/— FCFA/)).toBeInTheDocument();
   });
 
-  it("valid state — dailyAmount=5000, no existing, candidate=20_000 → final balance = 120 000 (Story 12.5 PR C)", () => {
+  it("valid state — candidate=20_000 → final = 150 000 − 5 000 − 20 000 = 125 000", () => {
     const { container } = render(
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
-        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={20_000}
       />,
@@ -36,50 +37,48 @@ describe("AdvanceSimulationPanel", () => {
     expect(screen.getByText(/150[\s\u00a0]000 FCFA/)).toBeInTheDocument();
     expect(screen.getByText(/− 5[\s\u00a0]000 FCFA/)).toBeInTheDocument();
     expect(screen.getByText(/− 20[\s\u00a0]000 FCFA/)).toBeInTheDocument();
-    expect(screen.getByText(/120[\s\u00a0]000 FCFA/)).toBeInTheDocument();
+    expect(screen.getByText(/125[\s\u00a0]000 FCFA/)).toBeInTheDocument();
   });
 
-  it("valid state with existing advances — final = dailyAmount × contributionDays − (existing + candidate)", () => {
+  it("valid state with existing advances — final = projected − commission − (existing + candidate)", () => {
     const { container } = render(
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
-        contributedTotal={145_000}
         existingAdvances={[10_000]}
         candidateAmount={20_000}
       />,
     );
     expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "valid");
-    expect(screen.getByText(/110[\s\u00a0]000 FCFA/)).toBeInTheDocument();
+    // 150 000 − 5 000 − (10 000 + 20 000) = 115 000.
+    expect(screen.getByText(/115[\s\u00a0]000 FCFA/)).toBeInTheDocument();
   });
 
-  it("boundary — candidate hits exactly capacity (contributedTotal − commission = 145 000 − 5 000 = 140 000) → final = 0; state=valid", () => {
-    // 2026-06-07 — commission (one day = 5 000) is reserved and NOT
-    // borrowable, so the exact capacity is 140 000, not the full 145 000.
+  it("boundary — candidate hits exactly the projected cap (150 000) → valid; final clamps to 0", () => {
+    // 2026-06-19 — commission is NOT reserved, so the full projected total
+    // (150 000) is borrowable. The final balance goes to −5 000 (the unpaid
+    // commission) and is clamped to 0 for display.
     const { container } = render(
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
-        contributedTotal={145_000}
         existingAdvances={[]}
-        candidateAmount={140_000}
+        candidateAmount={150_000}
       />,
     );
     expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "valid");
-    // Match exactly "0 FCFA" (boundary: row 4 only). The leading whitespace
-    // ensures we don't match "...000 FCFA" suffixes from the other rows.
+    // Match exactly "0 FCFA" (boundary: row 4 only). Anchors avoid matching
+    // "...000 FCFA" suffixes from the other rows.
     expect(screen.getByText(/^0 FCFA$/)).toBeInTheDocument();
   });
 
-  it("commission not borrowable — candidate = full contributedTotal (145 000) → over-limit", () => {
-    // Taking the whole contribution would eat into the 5 000 commission.
+  it("over the projected cap by 1 FCFA (150 001) → over-limit", () => {
     const { container } = render(
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
-        contributedTotal={145_000}
         existingAdvances={[]}
-        candidateAmount={145_000}
+        candidateAmount={150_001}
       />,
     );
     expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "over-limit");
@@ -90,7 +89,6 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
-        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={200_000}
       />,
@@ -98,8 +96,8 @@ describe("AdvanceSimulationPanel", () => {
     expect(container.querySelector("[data-state]")).toHaveAttribute("data-state", "over-limit");
     expect(screen.getByText(/Dépasse le solde disponible/)).toBeInTheDocument();
     expect(screen.getByText(/Le prêt ne peut pas dépasser le solde projeté\./)).toBeInTheDocument();
-    // Match exactly "0 FCFA" (boundary: row 4 only). The leading whitespace
-    // ensures we don't match "...000 FCFA" suffixes from the other rows.
+    // Match exactly "0 FCFA" (boundary: row 4 only). Anchors avoid matching
+    // "...000 FCFA" suffixes from the other rows.
     expect(screen.getByText(/^0 FCFA$/)).toBeInTheDocument();
   });
 
@@ -108,7 +106,6 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
-        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={20_000}
       />,
@@ -123,7 +120,6 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
-        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={10_000}
       />,
@@ -133,7 +129,6 @@ describe("AdvanceSimulationPanel", () => {
       <AdvanceSimulationPanel
         dailyAmount={5000}
         cycleLength={30}
-        contributedTotal={145_000}
         existingAdvances={[]}
         candidateAmount={20_000}
       />,
@@ -155,7 +150,6 @@ describe("AdvanceSimulationPanel", () => {
           existingAdvances={c.existingAdvances}
           candidateAmount={c.candidateAmount}
           cycleLength={30}
-          contributedTotal={145_000}
         />,
       );
       const results = await axe(container);

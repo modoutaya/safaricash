@@ -18,6 +18,7 @@ import {
   MIN_CYCLE_LENGTH_DAYS,
   RATTRAPAGE_DAY_OPTIONS,
   canAcceptAdvance,
+  computeAdvanceCapacity,
   commission,
   earnedCommission,
   computeMemberStats,
@@ -135,33 +136,27 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
     );
   });
 
-  it("INV-3 (2026-06-07): advance accepted iff new ≤ contributedTotal − commission − Σ(existing) − opening", () => {
+  it("INV-3 (2026-06-19): advance accepted iff new ≤ dailyAmount × cycleLength − Σ(existing) − opening", () => {
     // Pre-12.5 INV-3 capped by dailyAmount × contributionDays. Story 12.5
-    // PR B capped by raw contributedTotal. 2026-06-07: the commission is
-    // NOT borrowable, so the cap is the reversible balance
-    // (computeCurrentBalance) — contributedTotal minus commission, existing
-    // advances and any carry-over.
+    // PR B capped by raw contributedTotal; 2026-06-07 by contributedTotal −
+    // commission. 2026-06-19: the cap is the PROJECTED monthly contribution
+    // (dailyAmount × cycleLength), commission NOT reserved — the saver may
+    // borrow against what they are planned to cotise, not what's versed.
     fc.assert(
       fc.property(
         fc.record({
-          contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
           dailyAmount: fc.integer({ min: 100, max: 100_000 }),
+          cycleLength: fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
           existing: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 20 }),
           newAdvance: fc.integer({ min: 1, max: 100_000 }),
           openingBalance: fc.integer({ min: 0, max: 1_000_000 }),
         }),
-        ({ contributedTotal, dailyAmount, existing, newAdvance, openingBalance }) => {
-          const commission = Math.min(contributedTotal, dailyAmount);
-          const capacity = contributedTotal - commission - sum(existing) - openingBalance;
+        ({ dailyAmount, cycleLength, existing, newAdvance, openingBalance }) => {
+          const capacity = dailyAmount * cycleLength - sum(existing) - openingBalance;
           const expected = newAdvance <= capacity;
           return (
-            canAcceptAdvance(
-              contributedTotal,
-              dailyAmount,
-              existing,
-              newAdvance,
-              openingBalance,
-            ) === expected
+            canAcceptAdvance(dailyAmount, cycleLength, existing, newAdvance, openingBalance) ===
+            expected
           );
         },
       ),
@@ -827,46 +822,53 @@ describe("cycleEngine — example tests", () => {
     });
   });
 
-  describe("canAcceptAdvance (2026-06-07 — commission not borrowable)", () => {
-    // capacity = contributedTotal − min(contributedTotal, daily) − Σ(existing) − opening
-    const DAILY = 500;
+  describe("canAcceptAdvance (2026-06-19 — projected monthly contribution)", () => {
+    // capacity = dailyAmount × cycleLength − Σ(existing) − opening.
+    const DAILY = 1_000;
+    const CYCLE = 30; // projected total = 30_000.
 
-    it("accepts an advance that exactly hits capacity (contributed − commission)", () => {
-      // 15_000 versé, commission 500 → capacity 14_500.
-      expect(canAcceptAdvance(15_000, DAILY, [], 14_500)).toBe(true);
+    it("accepts an advance that exactly hits the projected total", () => {
+      expect(canAcceptAdvance(DAILY, CYCLE, [], 30_000)).toBe(true);
     });
 
-    it("rejects an advance over capacity by 1 FCFA", () => {
-      expect(canAcceptAdvance(15_000, DAILY, [], 14_501)).toBe(false);
+    it("rejects an advance over the projected total by 1 FCFA", () => {
+      expect(canAcceptAdvance(DAILY, CYCLE, [], 30_001)).toBe(false);
     });
 
-    it("the commission itself is never borrowable — can't take the full contributedTotal", () => {
-      // The whole 15_000 would eat into the 500 commission → rejected.
-      expect(canAcceptAdvance(15_000, DAILY, [], 15_000)).toBe(false);
+    it("worked example — day-10 advance of 20 000 with little versé is accepted", () => {
+      // The cap no longer reads contributedTotal: 20 000 ≤ 30 000 projected.
+      expect(canAcceptAdvance(DAILY, CYCLE, [], 20_000)).toBe(true);
     });
 
     it("respects existing advances", () => {
-      expect(canAcceptAdvance(15_000, DAILY, [10_000], 4_500)).toBe(true); // 10_000 + 4_500 = 14_500 = cap
-      expect(canAcceptAdvance(15_000, DAILY, [10_000], 4_501)).toBe(false); // over by 1
+      expect(canAcceptAdvance(DAILY, CYCLE, [25_000], 5_000)).toBe(true); // 25_000 + 5_000 = 30_000 = cap
+      expect(canAcceptAdvance(DAILY, CYCLE, [25_000], 5_001)).toBe(false); // over by 1
     });
 
     it("subtracts the opening-balance carry-over from capacity", () => {
-      // capacity = 15_000 − 500 − 0 − 2_000 = 12_500.
-      expect(canAcceptAdvance(15_000, DAILY, [], 12_500, 2_000)).toBe(true);
-      expect(canAcceptAdvance(15_000, DAILY, [], 12_501, 2_000)).toBe(false);
+      // capacity = 30_000 − 0 − 2_000 = 28_000.
+      expect(canAcceptAdvance(DAILY, CYCLE, [], 28_000, 2_000)).toBe(true);
+      expect(canAcceptAdvance(DAILY, CYCLE, [], 28_001, 2_000)).toBe(false);
     });
 
-    it("cotisation below one full day → commission reserves all of it → capacity 0", () => {
-      // cotisé 300, daily 500 → commission min(300,500)=300 → capacity 0.
-      expect(canAcceptAdvance(300, DAILY, [], 1)).toBe(false);
-      expect(canAcceptAdvance(300, DAILY, [], 0)).toBe(true);
-      // exactly one day cotisé → still nothing borrowable.
-      expect(canAcceptAdvance(500, DAILY, [], 1)).toBe(false);
+    it("a shorter (partial) cycle lowers the projected cap proportionally", () => {
+      // cycleLength 24 → projected 24_000.
+      expect(canAcceptAdvance(DAILY, 24, [], 24_000)).toBe(true);
+      expect(canAcceptAdvance(DAILY, 24, [], 24_001)).toBe(false);
+    });
+  });
+
+  describe("computeAdvanceCapacity", () => {
+    it("= dailyAmount × cycleLength − Σ(advances) − opening", () => {
+      expect(computeAdvanceCapacity(1_000, 30, 5_000, 2_000)).toBe(23_000);
     });
 
-    it("0 versé so far → no advance possible", () => {
-      expect(canAcceptAdvance(0, DAILY, [], 1)).toBe(false);
-      expect(canAcceptAdvance(0, DAILY, [], 0)).toBe(true);
+    it("defaults openingBalance to 0", () => {
+      expect(computeAdvanceCapacity(1_000, 30, 5_000)).toBe(25_000);
+    });
+
+    it("may go negative when advances + opening exceed the projection", () => {
+      expect(computeAdvanceCapacity(1_000, 30, 40_000)).toBe(-10_000);
     });
   });
 
