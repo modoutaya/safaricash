@@ -111,22 +111,21 @@ export function AdvanceFlow({
 
   const handleChipTap = (n: number) => setRawAmount(String(n));
 
-  // Story 12.5 PR B + 2026-06-07 — capacity = contributedTotal minus the
-  // (non-borrowable) commission, existing advances and any carry-over. The
-  // collector never advances the commission nor more than what's versed.
-  const canAcceptCheck = (n: number): boolean =>
-    canAcceptAdvance(
-      data.stats.contributedTotal,
-      data.member.daily_amount,
-      existingAdvanceAmounts,
-      n,
-      data.stats.openingBalance,
-    );
-  // Simulation panel still needs cycleLength for its row-1 totalProjected
-  // display + openingBalance for the projected-balance display. PR C
-  // collapses those props as it renames projected → currentBalance.
   const cycleLength = cycleLengthDays(data.currentCycle.start_date, data.currentCycle.end_date);
   const openingBalance = data.stats.openingBalance;
+
+  // 2026-06-19 — capacity = the projected monthly contribution
+  // (daily_amount × cycleLength) minus advances already taken and any
+  // carry-over. The collector may advance against what the saver is
+  // planned to cotise, not merely what's been versed so far.
+  const canAcceptCheck = (n: number): boolean =>
+    canAcceptAdvance(
+      data.member.daily_amount,
+      cycleLength,
+      existingAdvanceAmounts,
+      n,
+      openingBalance,
+    );
 
   const trimmedMotive = motive.trim();
   const ctaEnabled = candidateAmount > 0 && canAcceptCheck(candidateAmount);
@@ -283,7 +282,6 @@ export function AdvanceFlow({
         {/* Story 5.1 simulation — green "Impact sur le solde final" card. */}
         <AdvanceSimulationPanel
           dailyAmount={data.member.daily_amount}
-          contributedTotal={data.stats.contributedTotal}
           existingAdvances={existingAdvanceAmounts}
           candidateAmount={candidateAmount}
           cycleLength={cycleLength}

@@ -8,6 +8,7 @@ export {
   DEFAULT_CYCLE_ENDING_WINDOW_DAYS,
   RATTRAPAGE_DAY_OPTIONS,
   canAcceptAdvance,
+  computeAdvanceCapacity,
   commission,
   earnedCommission,
   computeMemberStats,

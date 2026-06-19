@@ -77,14 +77,16 @@ Each invariant has 5 fields: **statement**, **mathematical formulation**, **boun
 
 ### INV-3 — Advance capacity bound
 
-- **Statement.** A new advance request `a` MUST be rejected if `Σ(existing_advances) + a > dailyAmount × 29 − Σ(existing_advances)`. Equivalent: the engine cannot accept an advance that would push the projected final balance below 0. This invariant is enforced at the _advance creation_ boundary (Story 4.x); the engine exposes a pure `canAcceptAdvance(...)` predicate this story will name explicitly.
+- **Statement.** A new advance request `a` MUST be rejected if it exceeds the saver's **projected monthly contribution** for the cycle, net of advances already taken and any carry-over debt: `a > dailyAmount × cycleLength − Σ(existing_advances) − openingBalance`. The saver may borrow against what they are _planned_ to cotise over the whole cycle, not merely what has been versed so far. The commission is **not** reserved — the full projection is borrowable. Enforced at the _advance creation_ boundary by the pure `canAcceptAdvance(...)` predicate (TS) and the `record_advance` RPC (SQL), which must agree.
 - **Mathematical formulation.**
   ```
-  canAcceptAdvance(dailyAmount, existingAdvances, a) ≡ (Σ(existingAdvances) + a) ≤ dailyAmount × 29
+  canAcceptAdvance(dailyAmount, cycleLength, existingAdvances, a, openingBalance)
+    ≡ a ≤ dailyAmount × cycleLength − Σ(existingAdvances) − openingBalance
   ```
-- **Boundary conditions.** Reject when `Σ + a` exactly equals `dailyAmount × 29 + 1` (over by 1 FCFA). Accept when `Σ + a` exactly equals `dailyAmount × 29` (final balance lands at 0). At `existingAdvances = []`, accept any `a ∈ [1, dailyAmount × 29]`.
-- **Counterexample bug-class.** Off-by-one at the equality boundary (`<` vs `≤`) leads to a member with 0 FCFA owed at day 30 — fragile but technically valid; the off-by-one in the other direction silently overdraws. INV-3 fixes the inequality once and for all.
-- **Property test skeleton name.** `propAdvanceCapacityBound(dailyAmount, existingAdvances, newAdvanceAmount)`.
+- **Boundary conditions.** Reject when `a` exactly equals `capacity + 1` (over by 1 FCFA). Accept when `a` exactly equals `capacity`. At `existingAdvances = []` and `openingBalance = 0`, accept any `a ∈ [1, dailyAmount × cycleLength]`.
+- **Counterexample bug-class.** Off-by-one at the equality boundary (`<` vs `≤`); or reading `contributedTotal` instead of the projection (would re-block the day-10/20 000-on-a-1 000-plan case this rule exists to allow).
+- **History.** Pre-12.5: `dailyAmount × contributionDays` (projected, commission reserved). Story 12.5 PR B (2026-05-21): raw `contributedTotal`. 2026-06-07: `contributedTotal − commission` (commission not borrowable). **2026-06-19: back to the full projection `dailyAmount × cycleLength`, commission not reserved** — this section.
+- **Property test skeleton name.** `propAdvanceCapacityBound(dailyAmount, cycleLength, existingAdvances, newAdvanceAmount, openingBalance)`.
 
 ### INV-4 — Commission invariance (exactly 1 × dailyAmount)
 

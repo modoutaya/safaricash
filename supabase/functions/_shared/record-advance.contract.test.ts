@@ -106,9 +106,10 @@ async function seedMemberWithCycle(
   return { memberId, cycleId: cycle.id };
 }
 
-/** Story 12.5 PR B — seed contributions before advances since the new
- *  cap is contributedTotal not daily × contribDays. Default seeds 145_000
- *  versed (29 days × dailyAmount=5000), matching the legacy capacity. */
+/** Seed contributions for a member/cycle. Default 145_000 versed
+ *  (29 days × dailyAmount=5000). 2026-06-19 — the advance cap no longer
+ *  reads contributedTotal (it's daily × cycleLength projected), so this is
+ *  only used by tests that exercise the contribution path itself. */
 async function seedContribsForAdvanceTests(
   userClient: SupabaseClient,
   memberId: string,
@@ -167,8 +168,9 @@ if (env) {
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
-        // Story 12.5 PR B — advance requires contributedTotal ≥ amount.
-        // Seed 29 × 5000 = 145_000 so a 50_000 advance fits.
+        // 2026-06-19 — cap = daily(5000) × cycleLength(30) = 150_000 projected,
+        // so a 50_000 advance fits regardless of contributions. Seed some
+        // contributions anyway to exercise the realistic happy path.
         await seedContribsForAdvanceTests(userClient, memberId, cycleId);
 
         const { data: txId, error: rpcErr } = await userClient.rpc("record_advance", {
@@ -327,8 +329,8 @@ if (env) {
           auth: { persistSession: false, autoRefreshToken: false },
           global: { headers: { Authorization: `Bearer ${c.jwt}` } },
         });
-        // Story 12.5 PR B — cap = contributedTotal − existing_advances.
-        // Seed 145_000 contributedTotal then attempt an advance of 200_000.
+        // 2026-06-19 — cap = daily(5000) × cycleLength(30) = 150_000 projected.
+        // An advance of 200_000 exceeds it regardless of contributions.
         const { memberId, cycleId } = await seedMemberWithCycle(userClient, service, c.userId);
         await seedContribsForAdvanceTests(userClient, memberId, cycleId);
 
@@ -510,7 +512,7 @@ if (env) {
   // Story 11.3 AC #11 — partial-cycle capacity bound.
   // -------------------------------------------------------------------------
   Deno.test({
-    name: "11.3 AC #11 — partial cycle (cycleLength 24) — capacity bounded by contributedTotal (Story 12.5 PR B)",
+    name: "11.3 AC #11 — partial cycle (cycleLength 24) — capacity = projected daily × cycleLength (2026-06-19)",
     ...denoOpts,
     fn: async () => {
       const anon = createClient(env.url, env.anonKey, {
@@ -531,16 +533,15 @@ if (env) {
           .eq("id", cycleId);
         if (pinErr) throw new Error(`pin cycle: ${pinErr.message}`);
 
-        // 2026-06-07 — cap = contributedTotal − commission. Seed 23 contribs
-        // of 5000 = 115_000 contributedTotal; the (non-borrowable) commission
-        // is one day = 5_000, so the exact capacity is 110_000.
-        await seedContribsForAdvanceTests(userClient, memberId, cycleId, 23, 5000);
+        // 2026-06-19 — cap = daily(5000) × cycleLength(24) = 120_000 projected,
+        // INDEPENDENT of contributions. No contributions are seeded: the saver
+        // may borrow the full projection up-front.
 
-        // Advance of exactly capacity (115_000 − 5_000 commission) is accepted.
+        // Advance of exactly the projected cap (120_000) is accepted.
         const { data: txId1, error: errAccept } = await userClient.rpc("record_advance", {
           p_member_id: memberId,
           p_cycle_id: cycleId,
-          p_amount: 110_000,
+          p_amount: 120_000,
           p_cycle_day: 10,
           p_motive: "boundary test",
           p_saver_acknowledged: true,
@@ -590,9 +591,9 @@ if (env) {
           .eq("id", cycleId);
         if (pinErr) throw new Error(`pin cycle: ${pinErr.message}`);
 
-        // 2026-06-07 — capacity = contributedTotal − commission(one day).
-        // Seed 2 contribs of 5_000 = 10_000; commission 5_000 → capacity
-        // 5_000, enough for the 1_000 advance below.
+        // 2026-06-19 — capacity = daily(5000) × cycleLength(31) = 155_000
+        // projected, easily enough for the 1_000 advance below. The contrib
+        // seed is incidental (the cap no longer reads contributions).
         await seedContribsForAdvanceTests(userClient, memberId, cycleId, 2, 5_000);
 
         // cycle_day = 31 is now accepted (was rejected pre-11.3).

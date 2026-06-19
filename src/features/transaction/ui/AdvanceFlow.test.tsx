@@ -89,10 +89,9 @@ const mkData = (
       cycleLength: 30,
       // Fixture cycle is 30 days → daysRemaining = cycleLength − cycleDay.
       daysRemaining: 30 - (overrides.cycleDay ?? 10),
-      // Story 12.5 PR B — advance cap = contributedTotal. Default 145_000
-      // matches the legacy daily(5000) × contribDays(29) capacity so the
-      // pre-12.5 test assertions (50K / 100K / 150K chips, 20K / 200K
-      // amounts) keep their accept/reject semantics.
+      // 2026-06-19 — advance cap = projected total (daily × cycleLength),
+      // NOT contributedTotal. This field now only feeds the "Situation
+      // actuelle" display box; the cap derives from daily 5000 × 30 = 150 000.
       contributedTotal: overrides.contributedTotal ?? 145_000,
       outstandingAdvances: overrides.outstandingAdvances ?? 0,
       currentBalance: 0,
@@ -175,7 +174,7 @@ describe("AdvanceFlow", () => {
   it("over-limit amount → CTA disabled", () => {
     useMemberProfileMock.mockReturnValue(mkProfile());
     renderWithRouter();
-    // dailyAmount=5000, no existing → capacity = 145 000. 200 000 over-limits.
+    // dailyAmount=5000, cycleLength 30 → projected cap = 150 000. 200 000 over-limits.
     fireEvent.change(screen.getByLabelText(/montant du prêt/i), { target: { value: "200000" } });
     expect(screen.getByRole("button", { name: /accorder le prêt/i })).toBeDisabled();
   });
@@ -239,8 +238,8 @@ describe("AdvanceFlow", () => {
 
   it("over-limit chip is disabled when N would exceed capacity", () => {
     // dailyAmount=5000, existing advances summing to 130 000.
-    // Capacity = dailyAmount × contributionDays = 5000 × 29 = 145_000 (30-day
-    // fixture → contributionDays 29). Remaining = 15_000.
+    // Projected cap = dailyAmount × cycleLength = 5000 × 30 = 150_000.
+    // Remaining = 20_000 → 50K / 100K / 150K chips all exceed it.
     useMemberProfileMock.mockReturnValue(mkProfile({ data: mkData({ advanceTxs: [130_000] }) }));
     renderWithRouter();
     expect(screen.getByRole("button", { name: /^50K$/i })).toBeDisabled();
