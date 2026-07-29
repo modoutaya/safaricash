@@ -1,13 +1,13 @@
 // Story 9.1 / FR34 — dashboard polled-stats E2E.
 //
-// Loads /dashboard for a seeded collector and asserts the four stats wire
-// up to real data (active-members count, commission this cycle, today's
-// collection, recent activity), then asserts the dashboard stays rendered
-// offline with the "Données locales" note.
+// Loads /dashboard for a seeded collector and asserts the stats wire
+// up to real data (active-members count, today's collection, recent
+// activity), then asserts the dashboard stays rendered offline with the
+// "Données locales" note. 2026-07-28 — the commission tile was removed.
 //
-// The stat ARITHMETIC (advance/undone exclusion, the today boundary, the
-// commission aggregate) is exhaustively unit-tested in
-// deriveDashboardStats.test.ts; this E2E proves the wiring + offline.
+// The stat ARITHMETIC (advance/undone exclusion, the today boundary) is
+// exhaustively unit-tested in deriveDashboardStats.test.ts; this E2E proves
+// the wiring + offline.
 
 import {
   E2E_SEED_READY,
@@ -23,7 +23,7 @@ test.describe("Flow 9 — dashboard polled stats (Story 9.1)", () => {
     "SUPABASE_TEST_SEED_READY not set — needs the Story 1.8 CI seedCollector wiring",
   );
 
-  test("dashboard renders the four stats from real data + stays up offline", async ({
+  test("dashboard renders the stats from real data + stays up offline", async ({
     page,
     context,
     seededCollector,
@@ -41,18 +41,15 @@ test.describe("Flow 9 — dashboard polled stats (Story 9.1)", () => {
     await expect(page.getByText("Membres actifs")).toBeVisible();
     await expect(page.getByText("2", { exact: true })).toBeVisible();
 
-    // --- Commission this cycle = Σ min(cotisé, daily) = 2 × min(500, 500) = 1000
-    // (each member cotisé exactly one day). Today's collection (2 seed
-    // contributions × 500) is also 1000.
-    // 2026-05-24 — Collecté + Commission tiles are masked by default
-    // (`*******`) for privacy; tap each to reveal then assert the value. ---
-    await expect(page.getByText("Commission")).toBeVisible();
+    // --- Today's collection = 2 seed contributions × 500 = 1000.
+    // 2026-05-24 — the Collecté tile is masked by default (`*******`) for
+    // privacy; tap to reveal then assert the value. 2026-07-28 — the
+    // Commission tile was removed, so only one masked money tile remains. ---
     await expect(page.getByText("Collecté")).toBeVisible();
-    // Default-masked state.
-    expect(await page.getByText("*******").count()).toBe(2);
-    // Reveal both, assert the 1 000 figure shows.
+    // Default-masked state (only the Collecté tile is masked now).
+    expect(await page.getByText("*******").count()).toBe(1);
+    // Reveal it, assert the 1 000 figure shows.
     await page.getByRole("button", { name: /afficher le montant collecté/i }).click();
-    await page.getByRole("button", { name: /afficher la commission/i }).click();
     await expect(page.getByText(/1[\s ]?000/).first()).toBeVisible();
 
     // --- Recent activity — the seed contributions show as Cotisation rows. ---

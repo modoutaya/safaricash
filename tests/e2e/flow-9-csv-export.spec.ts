@@ -86,7 +86,7 @@ test.describe("Flow 9 — CSV export (Story 9.3)", () => {
 
     // Cycle-summary CSV — header + the seeded cycle row.
     expect(cyclesCsv.split("\r\n")[0]).toBe(
-      "cycle_id,member_name,cycle_start_date,cycle_end_date,total_contributions,advances_sum,commission,final_payout,status",
+      "cycle_id,member_name,cycle_start_date,cycle_end_date,total_contributions,advances_sum,final_payout,status",
     );
     expect(cyclesCsv).toContain(seed!.cycleId);
     expect(cyclesCsv).toContain("Member EXP-1");

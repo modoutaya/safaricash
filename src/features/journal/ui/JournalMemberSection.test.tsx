@@ -129,9 +129,11 @@ describe("JournalMemberSection", () => {
     });
     renderSection({ now: new Date("2026-05-01T00:00:00Z") });
 
-    // 3 Cotisation rows + 26 missing-day rows (29 - 3 = 26).
+    // 2026-07-28 — commission removed: day 30 is now a normal contribution
+    // day, so the calendar spans days 1..30. 3 Cotisation rows + 27
+    // missing-day rows (30 - 3 = 27).
     expect(screen.getAllByText("Cotisation")).toHaveLength(3);
-    expect(screen.getAllByText("Jour manqué")).toHaveLength(26);
+    expect(screen.getAllByText("Jour manqué")).toHaveLength(27);
   });
 
   it("Story 12.2 — rattrapage with daysCovered=3 → single chip with '· 3 jours' suffix, no row for days 11/12", () => {
@@ -144,7 +146,8 @@ describe("JournalMemberSection", () => {
 
     // One Rattrapage row with the suffix.
     expect(screen.getByText(/Rattrapage\s+·\s+3 jours/)).toBeInTheDocument();
-    // 26 missing rows: cycle days 1..29 minus the 3 covered (10/11/12) = 26.
-    expect(screen.getAllByText("Jour manqué")).toHaveLength(26);
+    // 2026-07-28 — commission removed: cycle days 1..30 minus the 3 covered
+    // (10/11/12) = 27 missing rows.
+    expect(screen.getAllByText("Jour manqué")).toHaveLength(27);
   });
 });

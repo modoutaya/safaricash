@@ -97,8 +97,9 @@ describe("fetchProfile", () => {
     // Story 6.7 — sms_opt_out is exposed on the member shape.
     expect(result?.member.sms_opt_out).toBe(false);
     expect(result?.stats.contributedTotal).toBe(500);
-    // Story 12.5 PR C — currentBalance = contributedTotal(500) − daily(500) = 0.
-    expect(result?.stats.currentBalance).toBe(0);
+    // 2026-07-28 — commission removed: currentBalance = contributedTotal(500)
+    // − advances(0) − opening(0) = 500 (saver refunded 100 %).
+    expect(result?.stats.currentBalance).toBe(500);
   });
 
   it("member-not-found — returns undefined", async () => {

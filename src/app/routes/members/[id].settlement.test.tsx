@@ -104,10 +104,8 @@ function baseData(overrides: Partial<ReturnType<typeof buildBase>> = {}) {
   return { ...buildBase(), ...overrides };
 }
 function buildBase() {
-  // Story 12.5 — settle() now uses actual contributedTotal. Fixture
-  // mixes 29 days × 500 cotised + 1 advance of 3 000 so the payout
-  // matches the legacy 11 500 number with the new formula:
-  // 14 500 − 500(commission) − 3 000(advance) = 11 000. Updated.
+  // 2026-07-28 — commission removed. Fixture mixes 29 days × 500 cotised +
+  // 1 advance of 3 000 → payout = 14 500 − 3 000(advance) = 11 500.
   const contributionTxs = Array.from({ length: 29 }, (_, i) =>
     makeTx(
       "contribution",
@@ -132,9 +130,9 @@ function buildBase() {
       contributedTotal: 14_500,
       outstandingAdvances: 3_000,
       openingBalance: 0,
-      // Story 12.5 — payout = contributedTotal − daily − advances
-      //   = 14 500 − 500 − 3 000 = 11 000.
-      currentBalance: 14_500 - 500 - 3_000,
+      // 2026-07-28 — commission removed. payout = contributedTotal − advances
+      //   = 14 500 − 3 000 = 11 500.
+      currentBalance: 14_500 - 3_000,
     },
     totalTransactionsCount: 30,
   };
@@ -195,10 +193,9 @@ describe("MemberSettlementRoute", () => {
     expect(screen.getByRole("heading", { level: 2, name: /Awa Diallo/ })).toBeInTheDocument();
     // Cycle date range
     expect(screen.getByText(/Cycle du 12\/04\/2026 au 11\/05\/2026/)).toBeInTheDocument();
-    // Fixture cycle (2026-04-12 \u2192 2026-05-11) is 30 days \u2192 contributionDays 29.
-    // Final payout = settle(500, [3000], 29) = 500 \u00d7 29 \u2212 3000 = 11 500 FCFA.
-    // Story 12.5 \u2014 payout = contributedTotal(14 500) \u2212 daily(500) \u2212 advance(3 000) = 11 000.
-    expect(screen.getByText(/11[\s\u00a0]000 FCFA/)).toBeInTheDocument();
+    // 2026-07-28 \u2014 commission removed. Final payout =
+    //   settle(14 500, [3 000]) = 14 500 \u2212 3 000 = 11 500 FCFA.
+    expect(screen.getByText(/11[\s\u00a0]500 FCFA/)).toBeInTheDocument();
     // Both CTAs present
     expect(screen.getByRole("button", { name: /Vérifier les transactions/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Confirmer le paiement/ })).toBeInTheDocument();
@@ -311,7 +308,7 @@ describe("MemberSettlementRoute", () => {
     mutateAsyncMock.mockResolvedValue({
       ok: true,
       settlement_transaction_id: "33333333-3333-4333-8333-333333333333",
-      settled_payout: 11_000,
+      settled_payout: 11_500,
       settled_at: "2026-05-14T12:34:56Z",
     });
     renderRoute(`/members/${VALID_ID}/settlement`);
@@ -325,8 +322,9 @@ describe("MemberSettlementRoute", () => {
         screen.getByRole("heading", { level: 2, name: /Paiement effectué/ }),
       ).toBeInTheDocument(),
     );
-    // Story 12.5 \u2014 payout = contributedTotal(14 500) \u2212 daily(500) \u2212 advance(3 000) = 11 000.
-    expect(screen.getByText(/11[\s\u00a0]000 FCFA/)).toBeInTheDocument();
+    // 2026-07-28 \u2014 commission removed: payout = contributedTotal(14 500) \u2212
+    // advance(3 000) = 11 500.
+    expect(screen.getByText(/11[\s\u00a0]500 FCFA/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Retour aux membres/ })).toBeInTheDocument();
     // Settlement card is gone (no more "Confirmer le paiement" button).
     expect(screen.queryByRole("button", { name: /Confirmer le paiement/ })).not.toBeInTheDocument();

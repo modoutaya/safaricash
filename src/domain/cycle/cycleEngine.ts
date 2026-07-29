@@ -12,13 +12,17 @@
 //
 // A cycle spans [start_date, end_date] inclusive. `cycleLength` is derived
 // per-cycle from those two dates — the engine no longer assumes 30 days.
-// `contributionDays` is always `cycleLength − 1` (one day is the
-// collector's commission, ADR-004 INV-4).
+// Every day of the cycle is a contribution day.
+//
+// 2026-07-28 — commission removed (product decision). The collector no
+// longer retains a day of contribution; the saver is paid back 100 % of
+// what was versed, minus advances and any carry-over debt. The former
+// `commission()` / `earnedCommission()` / `COMMISSION_DAYS` primitives and
+// their deduction inside settle() / computeCurrentBalance() /
+// computeOpeningBalance() are gone. `dailyAmount` survives only as the
+// objective / advance-capacity base.
 
 const MS_PER_DAY = 86_400_000;
-
-/** ADR-004 INV-4 — commission is exactly 1 day, always (never prorated). */
-export const COMMISSION_DAYS = 1;
 
 /**
  * ADR-004 § Amendment A1.5 — roll-forward threshold. A cycle whose
@@ -115,32 +119,6 @@ export function deriveCycleBounds(requestedDate: string): {
 }
 
 /**
- * INV-4 — commission is exactly 1 × dailyAmount, always. The collector
- * earns one day's contribution per cycle — never more, never less, never
- * prorated to the cycle length (a partial cycle still takes a full day).
- */
-export function commission(dailyAmount: number): number {
-  return dailyAmount * COMMISSION_DAYS;
-}
-
-/**
- * 2026-06-07 — commission ACTUALLY earned so far on a cycle, under the
- * cotisation-libre rule: capped at what the saver has versed.
- *
- *     earnedCommission = min(contributedTotal, dailyAmount)
- *
- * Identical to the commission term inside settle() / computeCurrentBalance.
- * Differs from `commission(dailyAmount)` (the flat contractual 1-day fee):
- * a saver who hasn't cotisé a full day owes only what was versed, and a
- * saver who cotisé nothing owes 0. Drives the dashboard "real commission"
- * tile (Σ over members) so it reflects money actually retained at
- * settlement, not the projection `Σ dailyAmount` over every active member.
- */
-export function earnedCommission(contributedTotal: number, dailyAmount: number): number {
-  return Math.min(contributedTotal, dailyAmount);
-}
-
-/**
  * Story 12.5 PR C — current "to-reverse" balance (NEW MODEL).
  *
  * Renamed from `computeProjectedFinalBalance` because the pre-12.5
@@ -149,34 +127,26 @@ export function earnedCommission(contributedTotal: number, dailyAmount: number):
  * a final amount, but we CAN report what the collector currently owes
  * if the cycle were settled this instant.
  *
- *   commission     = min(contributedTotal, dailyAmount)
- *   currentBalance = contributedTotal − commission − Σ(advances) − openingBalance
+ *   currentBalance = contributedTotal − Σ(advances) − openingBalance
  *
  * That's identical to settle() — `currentBalance` IS the running
  * settlement amount evaluated at the current moment.
  *
- * 2026-05-24 — commission is min(contributedTotal, dailyAmount), NOT a
- * flat dailyAmount. Business rule (pilot feedback): if the saver hasn't
- * cotised at all (or less than 1 day worth) the collector takes only
- * what was actually cotised — the saver never "owes" pre-paid commission.
- * Pre-change formula `contributedTotal - dailyAmount - ...` produced
- * alarming negative balances on freshly-opened cycles (e.g. day 3 of 10
- * with 0 contributions showed `-2 000 FCFA`), which broke the collector's
- * mental model.
+ * 2026-07-28 — commission removed (product decision). The saver is paid
+ * back 100 % of what was versed; no fee is deducted. Was
+ * `contributedTotal − min(contributedTotal, dailyAmount) − …`.
  *
  * Drives the MemberCard / MemberProfile / AdvanceSimulationPanel
  * "Solde à reverser" row. May still be negative when advances or
- * openingBalance exceed (contributedTotal − commission); UI decides
- * presentation. Always ≥ 0 when advances = opening = 0.
+ * openingBalance exceed contributedTotal; UI decides presentation.
+ * Always ≥ 0 when advances = opening = 0.
  */
 export function computeCurrentBalance(
   contributedTotal: number,
-  dailyAmount: number,
   advancesSoFar: number,
   openingBalance: number = 0,
 ): number {
-  const commission = Math.min(contributedTotal, dailyAmount);
-  return contributedTotal - commission - advancesSoFar - openingBalance;
+  return contributedTotal - advancesSoFar - openingBalance;
 }
 
 /**
@@ -237,34 +207,26 @@ export function canAcceptAdvance(
  * BUSINESS MODEL CORRECTION (2026-05-21): `daily_amount` is a UX
  * suggestion / objective, NOT a contractual daily obligation. Savers
  * cotise freely — some days 10 000, some days 3 000, some days 0. The
- * collector pays back what was actually versed minus a fixed commission
- * of `daily_amount` (1 day's worth of suggested savings) minus any
- * mid-cycle advances minus any opening_balance debt carried over.
+ * collector pays back what was actually versed minus any mid-cycle
+ * advances minus any opening_balance debt carried over.
  *
- *     commission = min(contributedTotal, dailyAmount)
- *     payout     = contributedTotal − commission − Σ(advances) − openingBalance
+ *     payout = contributedTotal − Σ(advances) − openingBalance
  *
  * Where:
  *  - `contributedTotal` = Σ kind ∈ {contribution, rattrapage} amounts
  *    booked in THIS cycle (undone excluded). The actual money the
  *    collector physically holds.
- *  - `commission` = the collector's fee. Capped at 1 day's worth of
- *    `dailyAmount` BUT never more than what was actually cotisé —
- *    a saver who put nothing in the cycle owes nothing in commission.
  *  - `advances` = mid-cycle prêts already disbursed.
  *  - `openingBalance` = carry-over from the previous unsettled cycle
  *    (≥ 0). Story 12.3 / Phase A. Optional, defaults to 0.
  *
  * The result may still be negative when advances + openingBalance
- * exceed (contributedTotal − commission) — saver owes the collector,
- * becomes the opening_balance of the next cycle (Story 12.3).
+ * exceed contributedTotal — saver owes the collector, becomes the
+ * opening_balance of the next cycle (Story 12.3).
  *
- * 2026-05-24 — commission flipped from flat `dailyAmount` to
- * `min(contributedTotal, dailyAmount)`. Business rule (pilot feedback):
- * no cotisation ⇒ no commission. Pre-change formula billed full
- * commission upfront, producing alarming negative payouts when the
- * saver hadn't yet cotisé a full day (e.g. cotisé=500, daily=2000:
- * old → −1500, new → 0).
+ * 2026-07-28 — commission removed (product decision). The collector no
+ * longer retains a fee; the saver is paid back 100 % of what was versed.
+ * Was `contributedTotal − min(contributedTotal, dailyAmount) − …`.
  *
  * NFR-R3 zero-tolerance: mirrors SQL `commit_cycle_settlement` exactly.
  * Cross-checked by compute-opening-balance.contract.test.ts and the
@@ -272,12 +234,10 @@ export function canAcceptAdvance(
  */
 export function settle(
   contributedTotal: number,
-  dailyAmount: number,
   advances: ReadonlyArray<number>,
   openingBalance: number = 0,
 ): number {
-  const commission = Math.min(contributedTotal, dailyAmount);
-  return contributedTotal - commission - sum(advances) - openingBalance;
+  return contributedTotal - sum(advances) - openingBalance;
 }
 
 /**
@@ -374,8 +334,8 @@ export interface MemberStats {
   /** Story 12.5 PR C — was `currentBalance` until 2026-05-22.
    *  Renamed because the pre-12.5 projection (daily × contribDays) no
    *  longer applies in the cotisation-libre model. Now: what the
-   *  collector owes the saver RIGHT NOW = contributedTotal − daily
-   *  (commission) − advances − opening_balance. Drives the
+   *  collector owes the saver RIGHT NOW = contributedTotal − advances −
+   *  opening_balance (2026-07-28 — commission removed). Drives the
    *  "Solde à reverser" row across UIs. */
   currentBalance: number;
 }
@@ -387,7 +347,6 @@ export interface MemberStatsTransaction {
 
 export function computeMemberStats(
   transactions: ReadonlyArray<MemberStatsTransaction>,
-  member: { dailyAmount: number },
   currentCycle: { startDate: string; endDate: string } | null,
   now: Date = new Date(),
   /** Carry-over from the previous unsettled cycle. Story 12.3 — defaults
@@ -427,12 +386,7 @@ export function computeMemberStats(
     contributedTotal,
     outstandingAdvances,
     openingBalance,
-    currentBalance: computeCurrentBalance(
-      contributedTotal,
-      member.dailyAmount,
-      outstandingAdvances,
-      openingBalance,
-    ),
+    currentBalance: computeCurrentBalance(contributedTotal, outstandingAdvances, openingBalance),
   };
 }
 
@@ -457,13 +411,16 @@ export interface OpeningBalanceCycle {
  * Story 12.5 PR D — opening_balance now derives from the PREVIOUS
  * cycle's CURRENT balance, not its theoretical projection.
  *
- *   prev_balance = prev_contributedTotal − daily − prev_advances − prev_opening
+ *   prev_balance = prev_contributedTotal − prev_advances − prev_opening
  *   opening_balance(current) = max(0, −prev_balance)
  *
- * Same shape as PR A/B/C settle() / canAcceptAdvance / currentBalance —
- * everything keys off actual contributedTotal under the cotisation-libre
- * model. PR A/B/C left this helper alone (still on `daily × contribDays`
- * internally) for safety; PR D closes that gap.
+ * Same shape as settle() / currentBalance — everything keys off actual
+ * contributedTotal under the cotisation-libre model.
+ *
+ * 2026-07-28 — commission removed (product decision). The previous-cycle
+ * balance no longer deducts `min(prevContributed, dailyAmount)`; a saver
+ * carries over debt only when real advances + prior debt exceed what was
+ * cotisé.
  *
  * Returns: ≥ 0. Positive = debt carried over (saver still owes).
  * Recursion bottoms out at:
@@ -476,15 +433,12 @@ export interface OpeningBalanceCycle {
  *     ignored). Order doesn't matter.
  *   - `advancesByCycleId`: Map<cycleId, Σ(advances excluding undone)>.
  *   - `contributedByCycleId`: Map<cycleId, Σ(contributions+rattrapage excluding undone)>.
- *     NEW in PR D — this is what `prev_balance` reads now.
- *   - `dailyAmount`: the member's daily commission (constant across cycles).
  *   - `cycleId`: the cycle whose opening_balance we want.
  */
 export function computeOpeningBalance(
   cycles: ReadonlyArray<OpeningBalanceCycle>,
   advancesByCycleId: ReadonlyMap<string, number>,
   contributedByCycleId: ReadonlyMap<string, number>,
-  dailyAmount: number,
   cycleId: string,
 ): number {
   const current = cycles.find((c) => c.id === cycleId);
@@ -500,21 +454,11 @@ export function computeOpeningBalance(
     cycles,
     advancesByCycleId,
     contributedByCycleId,
-    dailyAmount,
     prev.id,
   );
-  // Story 12.5 PR D — currentBalance formula on the previous cycle.
-  // 2026-06-07 — commission capped at min(prevContributed, dailyAmount),
-  // mirroring settle() / computeCurrentBalance. Pilot rule "no cotisation ⇒
-  // no commission": a cycle with zero (or sub-day) contributions must NOT
-  // carry a full day of commission as phantom debt. The May-24 commission
-  // cap swept settle / receipt SMS / projected balance but missed this
-  // helper — that gap produced "Report : <1 day>" on members who had not
-  // versé anything. With this cap (and the commission-not-borrowable rule
-  // in canAcceptAdvance) the carry-over is 0 unless real advances exceed
-  // what was actually cotisé minus commission.
-  const prevCommission = Math.min(prevContributed, dailyAmount);
-  const prevBalance = prevContributed - prevCommission - prevAdvances - prevOpening;
+  // 2026-07-28 — currentBalance formula on the previous cycle, commission
+  // removed. prev_balance = prevContributed − prevAdvances − prevOpening.
+  const prevBalance = prevContributed - prevAdvances - prevOpening;
 
   return prevBalance >= 0 ? 0 : -prevBalance;
 }

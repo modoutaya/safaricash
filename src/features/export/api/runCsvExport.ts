@@ -50,7 +50,6 @@ const CYCLE_HEADERS = [
   "cycle_end_date",
   "total_contributions",
   "advances_sum",
-  "commission",
   "final_payout",
   "status",
 ] as const;
@@ -110,7 +109,6 @@ export async function runCsvExport(): Promise<CsvExportResult> {
         r.cycle_end_date,
         r.total_contributions,
         r.advances_sum,
-        r.commission,
         r.final_payout,
         r.status,
       ]),

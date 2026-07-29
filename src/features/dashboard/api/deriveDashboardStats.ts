@@ -13,7 +13,6 @@
 // `transactions_decrypted` already excludes undone rows (the view has
 // `where undone_at is null`), so no undone filtering is needed here.
 
-import { earnedCommission } from "@/domain/cycle";
 import type { MemberWithMeta } from "@/features/member";
 
 /** Subset of a `transactions_decrypted` row the dashboard needs. */
@@ -37,7 +36,6 @@ export interface DashboardStats {
   activeMembersCount: number;
   /** Cumulative contributions + rattrapages collected this calendar month. */
   cycleCollected: number;
-  commissionThisCycle: number;
   recentActivity: DashboardActivity[];
 }
 
@@ -61,14 +59,6 @@ export function deriveDashboardStats(
   const collected = collectedTransactions.filter((t) => COLLECTED_KINDS.has(t.kind));
   const cycleCollected = collected.reduce((sum, t) => sum + t.amount, 0);
 
-  // 2026-06-07 — per-member contributedTotal for the active cycle, so the
-  // commission tile reflects what's ACTUALLY earned (Σ min(cotisé, daily))
-  // rather than the projection Σ dailyAmount over every active member.
-  const contributedByMember = new Map<string, number>();
-  for (const t of collected) {
-    contributedByMember.set(t.member_id, (contributedByMember.get(t.member_id) ?? 0) + t.amount);
-  }
-
   // Sort newest-first before the cap — do NOT rely on the caller's ordering
   // (a deserialized persisted cache may not preserve `created_at` order).
   const recentActivity = [...recentTransactions]
@@ -84,14 +74,6 @@ export function deriveDashboardStats(
 
   return {
     activeMembersCount: active.length,
-    // 2026-06-07 — commission effectively earned so far = Σ min(cotisé, daily)
-    // over active members (a member who cotisé < 1 day owes only what was
-    // versed; one who cotisé nothing owes 0). Was Σ commission(daily) — a
-    // projection that over-counted members who hadn't cotisé.
-    commissionThisCycle: active.reduce(
-      (sum, m) => sum + earnedCommission(contributedByMember.get(m.id) ?? 0, m.dailyAmount),
-      0,
-    ),
     cycleCollected,
     recentActivity,
   };

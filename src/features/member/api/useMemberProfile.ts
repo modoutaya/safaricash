@@ -168,7 +168,6 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
         openingBalanceCycles,
         advancesByCycleId,
         contributedByCycleId,
-        member.daily_amount,
         currentCycle.id,
       )
     : 0;
@@ -184,7 +183,6 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
   );
   const stats = computeMemberStats(
     statsInput,
-    { dailyAmount: member.daily_amount },
     currentCycle ? { startDate: currentCycle.start_date, endDate: currentCycle.end_date } : null,
     undefined,
     openingBalance,
@@ -221,13 +219,11 @@ export async function fetchProfile(id: string): Promise<MemberProfileData | unde
   const awaitingSettlementPayout: number | null = cycleAwaitingSettlement
     ? settle(
         awaitingSettlementContributedTotal,
-        member.daily_amount,
         [advancesByCycleId.get(cycleAwaitingSettlement.id) ?? 0],
         computeOpeningBalance(
           openingBalanceCycles,
           advancesByCycleId,
           contributedByCycleId,
-          member.daily_amount,
           cycleAwaitingSettlement.id,
         ),
       )

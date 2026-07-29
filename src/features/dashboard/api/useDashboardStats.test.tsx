@@ -83,7 +83,6 @@ describe("useDashboardStats", () => {
 
     expect(result.current.isError).toBe(false);
     expect(result.current.stats.activeMembersCount).toBe(1);
-    expect(result.current.stats.commissionThisCycle).toBe(500);
     expect(result.current.stats.cycleCollected).toBe(500);
     expect(result.current.stats.recentActivity).toHaveLength(1);
   });

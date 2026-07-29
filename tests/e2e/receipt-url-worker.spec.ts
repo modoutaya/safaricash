@@ -188,10 +188,11 @@ test.describe("receipt-url worker (Story 6.4 — saver-facing receipt page)", ()
       const body = await res.text();
       expect(body).toContain("Fatou");
       expect(body).toContain("500 FCFA");
-      // Story 12.5 PR C — get_receipt_payload's projected_balance now
-      // reflects actual cumul: 1 contrib of 500 − 500 commission = 0.
-      // Worker renders "0 FCFA" for the "Solde projeté en fin de cycle" row.
-      expect(body).toContain("0 FCFA");
+      // 2026-07-28 — commission removed: get_receipt_payload's
+      // projected_balance = actual cumul: 1 contrib of 500 − 0 = 500. The
+      // worker renders "500 FCFA" (asserted above) in the "Solde projeté en
+      // fin de cycle" row, which is present for contribution receipts.
+      expect(body).toContain("Solde projeté en fin de cycle");
       expect(body).toContain("Cette transaction n'est pas moi");
       expect(body).not.toContain("<script");
 

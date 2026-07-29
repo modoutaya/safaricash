@@ -6,7 +6,7 @@
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { commission, settle } from "@/domain/cycle";
+import { settle } from "@/domain/cycle";
 import { formatFcfaAmount } from "@/features/member/api/formatAmount";
 import { memberInitials } from "@/features/member/api/memberInitials";
 import { useT } from "@/i18n/useT";
@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils";
 export interface SettlementSummaryCardProps {
   memberId: string;
   memberName: string;
-  dailyAmount: number;
   /** Sum of contribution + rattrapage amounts captured for THIS cycle. */
   contributedTotal: number;
   /** FCFA integer per booked advance. Order = caller's display order. */
@@ -54,7 +53,6 @@ function sumAdvances(advances: ReadonlyArray<number>): number {
 export function SettlementSummaryCard({
   memberId,
   memberName,
-  dailyAmount,
   contributedTotal,
   advances,
   cycleId,
@@ -67,12 +65,12 @@ export function SettlementSummaryCard({
 }: SettlementSummaryCardProps): JSX.Element {
   const t = useT();
   const firstName = memberName.split(" ")[0] ?? memberName;
-  const commissionAmount = commission(dailyAmount);
   const advancesSum = sumAdvances(advances);
   // Story 12.5 — settle() uses actual contributedTotal (cotisation libre
-  // model). The cycle length still drives the header date range display
-  // but is no longer in the payout formula.
-  const finalPayout = settle(contributedTotal, dailyAmount, advances);
+  // model). 2026-07-28 — commission removed: payout = contributed −
+  // advances − opening. The cycle length still drives the header date
+  // range display but is no longer in the payout formula.
+  const finalPayout = settle(contributedTotal, advances);
   const hasAdvances = advances.length > 0;
   const showAdvancesSubList = advances.length > 1;
 
@@ -102,7 +100,7 @@ export function SettlementSummaryCard({
         </div>
       </header>
 
-      {/* 4-row body. */}
+      {/* 3-row body. */}
       <div className="flex flex-col gap-2">
         {/* Row 1 — contributions (positive). */}
         <div className="flex items-baseline justify-between">
@@ -117,20 +115,7 @@ export function SettlementSummaryCard({
           </span>
         </div>
 
-        {/* Row 2 — commission (deduction). */}
-        <div className="flex items-baseline justify-between">
-          <span className="text-body-2 text-text-secondary">
-            {t("settlement.summary.row_commission")}
-          </span>
-          <span
-            className="text-body-1 text-text-secondary"
-            style={{ fontVariantNumeric: "tabular-nums" }}
-          >
-            − {formatFcfaAmount(commissionAmount)} FCFA
-          </span>
-        </div>
-
-        {/* Row 3 — advances (deduction). */}
+        {/* Row 2 — advances (deduction). */}
         <div className="flex flex-col gap-1">
           <div className="flex items-baseline justify-between">
             <span className="text-body-2 text-text-secondary">
@@ -165,7 +150,7 @@ export function SettlementSummaryCard({
           ) : null}
         </div>
 
-        {/* Row 4 — final payout (large, primary, aria-live). */}
+        {/* Row 3 — final payout (large, primary, aria-live). */}
         <div
           aria-live="polite"
           className="mt-1 flex flex-col gap-1 border-t border-primary-100 pt-2"

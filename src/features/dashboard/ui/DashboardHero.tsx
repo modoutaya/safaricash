@@ -1,6 +1,6 @@
 // Story 9.1 / FR34 — the dashboard hero.
 //
-// Full-bleed green-gradient header: a greeting, a subtitle, and the three
+// Full-bleed green-gradient header: a greeting, a subtitle, and the
 // 60 s-polled stats (DashboardStatCards) as glass tiles. Pure presentation
 // — the route owns the data hook.
 //
@@ -14,14 +14,12 @@ export interface DashboardHeroProps {
   greetingName: string | null;
   activeMembersCount: number;
   cycleCollected: number;
-  commissionThisCycle: number;
 }
 
 export function DashboardHero({
   greetingName,
   activeMembersCount,
   cycleCollected,
-  commissionThisCycle,
 }: DashboardHeroProps): JSX.Element {
   const t = useT();
   const firstName = greetingName?.trim().split(/\s+/)[0];
@@ -31,11 +29,7 @@ export function DashboardHero({
     <header className="bg-gradient-to-br from-primary-500 to-primary-600 px-6 pb-7 pt-6 text-primary-foreground">
       <h1 className="text-title-1">{t("dashboard.hero.greeting", { name: greetingTarget })}</h1>
       <p className="mt-1 text-body-2 text-primary-foreground/80">{t("dashboard.hero.subtitle")}</p>
-      <DashboardStatCards
-        activeMembersCount={activeMembersCount}
-        cycleCollected={cycleCollected}
-        commissionThisCycle={commissionThisCycle}
-      />
+      <DashboardStatCards activeMembersCount={activeMembersCount} cycleCollected={cycleCollected} />
     </header>
   );
 }

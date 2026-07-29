@@ -92,8 +92,10 @@ describe("MemberForm — create mode", () => {
       target: { value: "500" },
     });
     await waitFor(() => expect(screen.getByText("Récapitulatif")).toBeInTheDocument());
-    // Total du cycle = 500 × 30 = 15 000 F CFA.
-    expect(screen.getByText(/15\s?000 F CFA/)).toBeInTheDocument();
+    // Total du cycle = 500 × 30 = 15 000 F CFA. 2026-07-28 — commission
+    // removed: the repayment row now also shows 15 000 (100 % refund), so
+    // the amount appears twice in the recap.
+    expect(screen.getAllByText(/15\s?000 F CFA/)).toHaveLength(2);
   });
 
   it("shows error when amount is below the 100 FCFA floor", async () => {

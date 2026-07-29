@@ -14,7 +14,7 @@ const CYCLE_PREV: JournalCycleBounds = {
   id: "cyc-prev",
   cycleNumber: 1,
   startDate: "2026-04-01",
-  endDate: "2026-04-30", // 30-day cycle, commission day = day 30 = 2026-04-30
+  endDate: "2026-04-30", // 30-day cycle (day 30 = 2026-04-30 is a normal day)
 };
 
 const CYCLE_CURR: JournalCycleBounds = {
@@ -69,16 +69,16 @@ describe("buildJournalDayRows — pilot example (cycle previous, no rattrapage)"
       todayIso: "2026-05-01",
     });
 
-    // Cycle previous = days 1..29 (commission = day 30 skipped).
+    // Cycle previous = days 1..30 (day 30 is now a normal contribution day).
     // Days 17, 13, 12 = contribution; the rest = missing.
-    expect(rows).toHaveLength(29);
+    expect(rows).toHaveLength(30);
     expect(rows.map((r) => r.cycleDay)).toEqual(
-      Array.from({ length: 29 }, (_, i) => 29 - i), // 29, 28, …, 1
+      Array.from({ length: 30 }, (_, i) => 30 - i), // 30, 29, …, 1
     );
     const contributedDays = rows.filter((r) => r.kind === "contribution").map((r) => r.cycleDay);
     expect(contributedDays).toEqual([17, 13, 12]);
     const missingCount = rows.filter((r) => r.kind === "missing").length;
-    expect(missingCount).toBe(29 - 3);
+    expect(missingCount).toBe(30 - 3);
   });
 });
 
@@ -98,8 +98,8 @@ describe("buildJournalDayRows — rattrapage suppression", () => {
       todayIso: "2026-05-01",
     });
 
-    // Cycle days 1..29 minus the suppressed 11, 12 = 27 rows.
-    expect(rows).toHaveLength(27);
+    // Cycle days 1..30 minus the suppressed 11, 12 = 28 rows.
+    expect(rows).toHaveLength(28);
 
     const cycleDays = rows.map((r) => r.cycleDay);
     expect(cycleDays).not.toContain(11);
@@ -173,8 +173,8 @@ describe("buildJournalDayRows — advance day", () => {
     expect(day5Rows).toHaveLength(2);
     // Most-recent-first within the same day → advance (14:00) before contribution (10:00).
     expect(day5Rows.map((r) => r.kind)).toEqual(["advance", "contribution"]);
-    // Day 5 contributes 2 visible rows + 28 missings for the rest of cycle = 30 total.
-    expect(rows).toHaveLength(30);
+    // Day 5 contributes 2 visible rows + 29 missings for the rest of cycle = 31 total.
+    expect(rows).toHaveLength(31);
   });
 
   it("day with BOTH a contribution AND a rattrapage → BOTH rows emitted (Ndeye Marieme prod case)", () => {
@@ -219,11 +219,11 @@ describe("buildJournalDayRows — advance day", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Commission day + future days never appear.
+// Last day is a normal day + future days never appear.
 // ---------------------------------------------------------------------------
 
 describe("buildJournalDayRows — boundary rules", () => {
-  it("commission day (cycle_day === cycleLength) never appears in the output", () => {
+  it("the last day (cycle_day === cycleLength) now appears as a normal day (2026-07-28)", () => {
     const transactions: JournalTransaction[] = [];
     const rows = buildJournalDayRows({
       transactions,
@@ -232,7 +232,8 @@ describe("buildJournalDayRows — boundary rules", () => {
       todayIso: "2026-05-01",
     });
     const days = rows.map((r) => r.cycleDay);
-    expect(days).not.toContain(30);
+    // Commission removed → day 30 is no longer skipped.
+    expect(days).toContain(30);
   });
 
   it("future days (cycle_current beyond today) never appear", () => {
@@ -268,11 +269,11 @@ describe("buildJournalDayRows — boundary rules", () => {
 describe("buildJournalDayRows — last_seven_days", () => {
   it("rolling window spanning previous + current cycle (gap days outside cycles skipped)", () => {
     // Today = 2026-05-03 → window = 2026-04-27 .. 2026-05-03.
-    // CYCLE_PREV ends 2026-04-30 (commission), last contribution = 2026-04-29.
+    // CYCLE_PREV ends 2026-04-30 (now a normal day), contribution = 2026-04-29.
     // CYCLE_CURR starts 2026-05-01.
     // Expected days in calendar: 2026-05-03, 02, 01 (current cycle 3, 2, 1)
-    // + 2026-04-29, 28, 27 (previous cycle 29, 28, 27). Day 2026-04-30 is the
-    // previous cycle's commission day → skipped.
+    // + 2026-04-30, 29, 28, 27 (previous cycle 30, 29, 28, 27). Day 30 now
+    // emits a missing row like any other.
     const transactions: JournalTransaction[] = [
       makeTx({ kind: "contribution", cycleId: CYCLE_CURR.id, cycleDay: 2 }),
       makeTx({ kind: "contribution", cycleId: CYCLE_PREV.id, cycleDay: 29 }),
@@ -287,7 +288,7 @@ describe("buildJournalDayRows — last_seven_days", () => {
       { date: "2026-05-03", kind: "missing" },
       { date: "2026-05-02", kind: "contribution" },
       { date: "2026-05-01", kind: "missing" },
-      // 2026-04-30 = commission day of CYCLE_PREV → omitted.
+      { date: "2026-04-30", kind: "missing" },
       { date: "2026-04-29", kind: "contribution" },
       { date: "2026-04-28", kind: "missing" },
       { date: "2026-04-27", kind: "missing" },
