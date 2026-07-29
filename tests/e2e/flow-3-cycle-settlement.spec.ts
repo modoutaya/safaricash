@@ -37,7 +37,8 @@ test.describe("Flow 3 — cycle settlement (Story 7.4)", () => {
     // Story 12.5 — settle() now uses actual contributedTotal. seedMembers
     // creates 1 contrib of 500 (cycle_day=1) → contributedTotal=500. To
     // get a meaningful payout, seed 28 more contribs of 500 (cycle_days
-    // 2..29) so total = 14_500. Then payout = 14_500 − 500(daily) − 0 = 14_000.
+    // 2..29) so total = 14_500. 2026-07-28 — commission removed: payout =
+    // 14_500 − 0 = 14_500.
     const { data: amountSecret } = await service.rpc("vault_encrypt", { plaintext: "500" });
     for (let d = 2; d <= 29; d++) {
       await service.from("transactions").insert({
@@ -71,8 +72,8 @@ test.describe("Flow 3 — cycle settlement (Story 7.4)", () => {
       page.getByRole("heading", { level: 1, name: /paiement du membre/i }),
     ).toBeVisible();
     await expect(page.getByRole("heading", { level: 2, name: /member settle-1/i })).toBeVisible();
-    // Story 12.5 — payout = contributedTotal(14 500) − daily(500) − 0 = 14 000.
-    await expect(page.getByText(/14[\s\u00a0]000 FCFA/)).toBeVisible();
+    // 2026-07-28 — commission removed: payout = contributedTotal(14 500) − 0 = 14 500.
+    await expect(page.getByText(/14[\s\u00a0]500 FCFA/)).toHaveCount(2);
 
     // --- 3. Tap "Confirmer le paiement" → dialog opens ---
     await page.getByRole("button", { name: /^confirmer le paiement$/i }).click();
@@ -105,7 +106,7 @@ test.describe("Flow 3 — cycle settlement (Story 7.4)", () => {
         timeout: 10_000,
       },
     );
-    await expect(page.getByText(/14[\s\u00a0]000 FCFA/)).toBeVisible();
+    await expect(page.getByText(/14[\s\u00a0]500 FCFA/).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /^retour aux membres$/i })).toBeVisible();
 
     // --- 6. Service-role checks ---
