@@ -1,8 +1,8 @@
 // Story 1.5 — /dashboard route.
-// Story 9.1 — the morning-glance dashboard: a green hero with the three
-// 60 s-polled stats (active members / collected today / commission this
-// cycle), quick-action shortcuts, and a recent-activity list. Offline-
-// functional from the cached read-model.
+// Story 9.1 — the morning-glance dashboard: a green hero with the
+// 60 s-polled stats (active members / collected this month), quick-action
+// shortcuts, and a recent-activity list. Offline-functional from the
+// cached read-model. 2026-07-28 — the commission tile was removed.
 //
 // Story 3.5 — <CycleEndingAlert> renders nothing when no cycles are in
 // the upcoming-end window or when dismissed.
@@ -29,7 +29,6 @@ export default function DashboardRoute() {
         greetingName={collectorName}
         activeMembersCount={stats.activeMembersCount}
         cycleCollected={stats.cycleCollected}
-        commissionThisCycle={stats.commissionThisCycle}
       />
       <div className="flex flex-col gap-4 p-4">
         <CycleEndingAlert />

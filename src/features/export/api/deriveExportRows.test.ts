@@ -55,10 +55,9 @@ describe("deriveCycleSummaryRows", () => {
     expect(rows[0]!.advances_sum).toBe(3000);
   });
 
-  it("commission = commission(dailyAmount) from the cycle engine", () => {
+  it("does not expose a commission field on the summary row", () => {
     const rows = deriveCycleSummaryRows([cycle()], [MEMBER], []);
-    // commission() = dailyAmount × 1.
-    expect(rows[0]!.commission).toBe(500);
+    expect(rows[0]).not.toHaveProperty("commission");
   });
 
   it("final_payout for a settled cycle = the settlement transaction's amount", () => {
@@ -72,19 +71,17 @@ describe("deriveCycleSummaryRows", () => {
 
   it("final_payout falls back to the current cumul when a settled cycle has no settlement tx", () => {
     const rows = deriveCycleSummaryRows([cycle({ status: "settled" })], [MEMBER], []);
-    // 2026-05-24 — commission = min(contributed=0, daily=500) = 0.
-    // currentBalance = 0 − 0 − 0 = 0. Pre-change returned −500.
+    // 2026-07-28 — commission removed. currentBalance = 0 − 0 = 0.
     expect(rows[0]!.final_payout).toBe(0);
   });
 
-  it("final_payout for a non-settled cycle = current cumul (2026-05-24 — commission capped at contributed)", () => {
+  it("final_payout for a non-settled cycle = current cumul (contributed − advances − opening)", () => {
     const rows = deriveCycleSummaryRows(
       [cycle({ status: "with_advance" })],
       [MEMBER],
       [tx({ kind: "advance", amount: 2000 })],
     );
-    // commission = min(0, 500) = 0; currentBalance = 0 − 0 − 2000 = −2000.
-    // Pre-change: −2500.
+    // currentBalance = 0 − 2000 = −2000.
     expect(rows[0]!.final_payout).toBe(-2000);
   });
 
@@ -100,14 +97,13 @@ describe("deriveCycleSummaryRows", () => {
     expect(rows[0]!.total_contributions).toBe(500);
   });
 
-  it("final_payout for a completed (non-settled) cycle = the current cumul (2026-05-24 — commission capped at contributed)", () => {
+  it("final_payout for a completed (non-settled) cycle = the current cumul (contributed − advances − opening)", () => {
     const rows = deriveCycleSummaryRows(
       [cycle({ status: "completed" })],
       [MEMBER],
       [tx({ kind: "advance", amount: 1000 })],
     );
-    // commission = min(0, 500) = 0; currentBalance = 0 − 0 − 1000 = −1000.
-    // Pre-change: −1500.
+    // currentBalance = 0 − 1000 = −1000.
     expect(rows[0]!.final_payout).toBe(-1000);
   });
 

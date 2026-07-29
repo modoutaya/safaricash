@@ -156,7 +156,6 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
     ),
     settleCycleAdvancesByCycleId,
     settleCycleContributedByCycleId,
-    data.member.daily_amount,
     settleCycle.id,
   );
 
@@ -172,12 +171,7 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
         tx.cycle_id === settleCycle.id && (tx.kind === "contribution" || tx.kind === "rattrapage"),
     )
     .reduce((sum, tx) => sum + tx.amount, 0);
-  const expectedPayout = settle(
-    settleContributedTotal,
-    data.member.daily_amount,
-    advances,
-    settleOpeningBalance,
-  );
+  const expectedPayout = settle(settleContributedTotal, advances, settleOpeningBalance);
 
   const handleVerifyTransactions = () => {
     navigate(`/members/${memberId}`);
@@ -234,7 +228,6 @@ function SettlementRouteBody({ memberId }: { memberId: string }): JSX.Element {
       <SettlementSummaryCard
         memberId={memberId}
         memberName={data.member.name}
-        dailyAmount={data.member.daily_amount}
         contributedTotal={data.allTransactions
           .filter(
             (tx) =>

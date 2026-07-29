@@ -1,11 +1,11 @@
 // Story 9.3 / FR37 — pure derivation of the two CSV export datasets.
 //
 // Kept pure + caller-fed (no network) so the per-cycle aggregation is
-// unit-tested on its own. `commission` / `computeCurrentBalance`
+// unit-tested on its own. `computeCurrentBalance` / `computeOpeningBalance`
 // come from the cycle-engine domain — never re-derived inline.
+// 2026-07-28 — commission removed: no `commission` column anymore.
 
 import {
-  commission,
   computeOpeningBalance,
   computeCurrentBalance,
   type OpeningBalanceCycle,
@@ -48,7 +48,6 @@ export interface CycleSummaryRow {
   cycle_end_date: string;
   total_contributions: number;
   advances_sum: number;
-  commission: number;
   final_payout: number;
   status: string;
 }
@@ -98,7 +97,6 @@ export function deriveCycleSummaryRows(
 
   return cycles.map((cycle) => {
     const member = memberById.get(cycle.member_id);
-    const dailyAmount = member?.daily_amount ?? 0;
     const cycleTx = transactions.filter((t) => t.cycle_id === cycle.id);
 
     const total_contributions = cycleTx
@@ -122,7 +120,6 @@ export function deriveCycleSummaryRows(
       openingBalanceCycles,
       advancesByCycleId,
       contributedByCycleId,
-      dailyAmount,
       cycle.id,
     );
 
@@ -137,7 +134,7 @@ export function deriveCycleSummaryRows(
     const final_payout =
       cycle.status === "settled" && settledPayout !== null
         ? settledPayout
-        : computeCurrentBalance(total_contributions, dailyAmount, advances_sum, opening_balance);
+        : computeCurrentBalance(total_contributions, advances_sum, opening_balance);
 
     return {
       cycle_id: cycle.id,
@@ -146,7 +143,6 @@ export function deriveCycleSummaryRows(
       cycle_end_date: cycle.end_date,
       total_contributions,
       advances_sum,
-      commission: commission(dailyAmount),
       final_payout,
       status: cycle.status,
     };

@@ -1,26 +1,27 @@
 // Story 3.2 — cycle engine tests.
 // Story 11.2 — re-parameterized for variable-length (calendar-month) cycles.
+// 2026-07-28 — commission removed (see ADR-004 Amendment A2). The former
+// INV-4 (commission invariance) is retired; INV-2 no longer deducts a
+// commission term; settle/computeCurrentBalance/computeOpeningBalance drop
+// their dailyAmount parameter and computeMemberStats drops `member`.
 //
-// 9 property tests via fast-check (one per ADR-004 invariant, INV-1..INV-9)
+// 8 property tests via fast-check (one per surviving ADR-004 invariant)
 // + example tests for documentation + boundary coverage. Test names quote
 // ADR-004's plain-English statement so failures surface invariant intent
 // at the runner's first line.
 //
-// See: docs/ADR/004-cycle-invariants.md § Amendment A1.
+// See: docs/ADR/004-cycle-invariants.md § Amendment A1 + § Amendment A2.
 
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 
 import {
-  COMMISSION_DAYS,
   DEFAULT_CYCLE_ENDING_WINDOW_DAYS,
   MAX_CYCLE_END_DAY,
   MIN_CYCLE_LENGTH_DAYS,
   RATTRAPAGE_DAY_OPTIONS,
   canAcceptAdvance,
   computeAdvanceCapacity,
-  commission,
-  earnedCommission,
   computeMemberStats,
   computeOpeningBalance,
   computeCurrentBalance,
@@ -76,72 +77,52 @@ function firstDayOfNextMonth(isoDate: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Property tests — one per ADR-004 invariant (INV-1..INV-9, Amendment A1).
+// Property tests — one per surviving ADR-004 invariant (INV-1..INV-3,
+// INV-5..INV-9; INV-4 retired in Amendment A2).
 // ---------------------------------------------------------------------------
 
 describe("cycleEngine — property tests (ADR-004 invariants)", () => {
-  it("INV-1 (2026-05-24 rewrite): currentBalance depends only on its 4 inputs — not on cycleDay/now", () => {
-    // The pre-12.5 invariant was structural to the engine API: the
-    // projection had no time input. computeCurrentBalance still has no
-    // `now` argument; the formula now uses commission = min(contributed,
-    // daily) instead of flat daily (no-cotisation cycles produce 0
-    // commission, not −dailyAmount).
+  it("INV-1 (2026-07-28): currentBalance depends only on its 3 inputs — not on cycleDay/now", () => {
+    // computeCurrentBalance has no `now` argument; the formula is
+    // contributedTotal − advances − openingBalance (commission removed).
     fc.assert(
       fc.property(
         fc.record({
           contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
-          dailyAmount: fc.integer({ min: 100, max: 100_000 }),
           advances: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 31 }),
           openingBalance: fc.integer({ min: 0, max: 1_000_000 }),
         }),
-        ({ contributedTotal, dailyAmount, advances, openingBalance }) => {
-          const a = computeCurrentBalance(
-            contributedTotal,
-            dailyAmount,
-            sum(advances),
-            openingBalance,
-          );
-          const b = computeCurrentBalance(
-            contributedTotal,
-            dailyAmount,
-            sum(advances),
-            openingBalance,
-          );
-          const commission = Math.min(contributedTotal, dailyAmount);
-          return a === b && a === contributedTotal - commission - sum(advances) - openingBalance;
+        ({ contributedTotal, advances, openingBalance }) => {
+          const a = computeCurrentBalance(contributedTotal, sum(advances), openingBalance);
+          const b = computeCurrentBalance(contributedTotal, sum(advances), openingBalance);
+          return a === b && a === contributedTotal - sum(advances) - openingBalance;
         },
       ),
     );
   });
 
-  it("INV-2 (2026-05-24 rewrite): settle returns contributedTotal − min(contributedTotal, daily) − Σadvances − openingBalance", () => {
-    // Pre-12.5 INV-2 assumed daily × contributionDays. Story 12.5
-    // moved to contributedTotal − daily flat. 2026-05-24 caps the
-    // commission at what was actually cotisé so no-cotisation cycles
-    // settle to 0, not −dailyAmount.
+  it("INV-2 (2026-07-28): settle returns contributedTotal − Σadvances − openingBalance", () => {
+    // Commission removed — the saver is paid back 100 % of what was versed,
+    // minus advances and any carry-over debt.
     fc.assert(
       fc.property(
         fc.record({
           contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
-          dailyAmount: fc.integer({ min: 100, max: 100_000 }),
           advances: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 30 }),
           openingBalance: fc.integer({ min: 0, max: 1_000_000 }),
         }),
-        ({ contributedTotal, dailyAmount, advances, openingBalance }) => {
-          const settled = settle(contributedTotal, dailyAmount, advances, openingBalance);
-          const commission = Math.min(contributedTotal, dailyAmount);
-          return settled === contributedTotal - commission - sum(advances) - openingBalance;
+        ({ contributedTotal, advances, openingBalance }) => {
+          const settled = settle(contributedTotal, advances, openingBalance);
+          return settled === contributedTotal - sum(advances) - openingBalance;
         },
       ),
     );
   });
 
   it("INV-3 (2026-06-19): advance accepted iff new ≤ dailyAmount × cycleLength − Σ(existing) − opening", () => {
-    // Pre-12.5 INV-3 capped by dailyAmount × contributionDays. Story 12.5
-    // PR B capped by raw contributedTotal; 2026-06-07 by contributedTotal −
-    // commission. 2026-06-19: the cap is the PROJECTED monthly contribution
-    // (dailyAmount × cycleLength), commission NOT reserved — the saver may
-    // borrow against what they are planned to cotise, not what's versed.
+    // The cap is the PROJECTED monthly contribution (dailyAmount ×
+    // cycleLength): the saver may borrow against what they are planned to
+    // cotise, not what's versed. Unchanged by the commission removal.
     fc.assert(
       fc.property(
         fc.record({
@@ -163,13 +144,8 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
     );
   });
 
-  it("INV-4: commission is exactly 1 × dailyAmount, regardless of cycle length (propCommissionInvariance)", () => {
-    fc.assert(
-      fc.property(fc.integer({ min: 100, max: 100_000 }), (dailyAmount) => {
-        return commission(dailyAmount) === dailyAmount;
-      }),
-    );
-  });
+  // INV-4 (commission invariance) retired 2026-07-28 — Amendment A2. There
+  // is no commission term to be invariant.
 
   it("INV-5: cycleDay is clamped to [1, cycleLength] (propCycleDayClamped)", () => {
     fc.assert(
@@ -219,12 +195,11 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
       fc.property(
         fc.record({
           contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
-          dailyAmount: fc.integer({ min: 100, max: 100_000 }),
           advances: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 30 }),
         }),
         (s) => {
-          const a = settle(s.contributedTotal, s.dailyAmount, s.advances);
-          const b = settle(s.contributedTotal, s.dailyAmount, s.advances);
+          const a = settle(s.contributedTotal, s.advances);
+          const b = settle(s.contributedTotal, s.advances);
           return a === b;
         },
       ),
@@ -236,15 +211,12 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
       fc.property(
         fc.record({
           contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
-          dailyAmount: fc.integer({ min: 100, max: 100_000 }),
           advances: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 30 }),
-          contributionDays: fc.integer({ min: MIN_CYCLE_LENGTH_DAYS - 1, max: 30 }),
         }),
         (s) => {
-          const current = computeCurrentBalance(s.contributedTotal, s.dailyAmount, sum(s.advances));
-          const settled = settle(s.contributedTotal, s.dailyAmount, s.advances);
-          const comm = commission(s.dailyAmount);
-          return [current, settled, comm].every(Number.isInteger);
+          const current = computeCurrentBalance(s.contributedTotal, sum(s.advances));
+          const settled = settle(s.contributedTotal, s.advances);
+          return [current, settled].every(Number.isInteger);
         },
       ),
     );
@@ -286,44 +258,32 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
   // Story 12.3 — opening_balance carry-over property tests.
   // -------------------------------------------------------------------------
 
-  it("INV-1 (extended, 2026-05-24): currentBalance = contributedTotal − min(contributedTotal, daily) − Σ(advances) − openingBalance", () => {
-    // 2026-05-24 — commission flipped from flat dailyAmount to
-    // min(contributedTotal, dailyAmount). No-cotisation cycles never
-    // produce pre-paid commission debt. Same formula as settle().
+  it("INV-1 (extended, 2026-07-28): currentBalance = contributedTotal − Σ(advances) − openingBalance", () => {
     fc.assert(
       fc.property(
         fc.record({
           contributedTotal: fc.integer({ min: 0, max: 10_000_000 }),
-          dailyAmount: fc.integer({ min: 100, max: 100_000 }),
           advances: fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 31 }),
           openingBalance: fc.integer({ min: 0, max: 1_000_000 }),
         }),
-        ({ contributedTotal, dailyAmount, advances, openingBalance }) => {
-          const current = computeCurrentBalance(
-            contributedTotal,
-            dailyAmount,
-            sum(advances),
-            openingBalance,
-          );
-          const commission = Math.min(contributedTotal, dailyAmount);
-          return current === contributedTotal - commission - sum(advances) - openingBalance;
+        ({ contributedTotal, advances, openingBalance }) => {
+          const current = computeCurrentBalance(contributedTotal, sum(advances), openingBalance);
+          return current === contributedTotal - sum(advances) - openingBalance;
         },
       ),
     );
   });
 
-  it("Story 12.5 PR B — when contributedTotal = 0, every positive advance is rejected", () => {
-    // Symmetric to the pre-12.5 Q2bis property (which gated on
-    // openingBalance ≥ daily × contribDays). The new model: nothing
-    // versed yet → nothing to lend against (commission = min(0, daily) = 0,
-    // capacity = 0 − Σ(existing) ≤ 0).
+  it("when projected total is 0 (dailyAmount = 0), every positive advance is rejected", () => {
+    // Nothing planned to cotise → nothing to lend against (capacity =
+    // 0 × cycleLength − Σ(existing) ≤ 0).
     fc.assert(
       fc.property(
         fc.integer({ min: 1, max: 100_000 }),
-        fc.integer({ min: 100, max: 100_000 }),
+        fc.integer({ min: MIN_CYCLE_LENGTH_DAYS, max: 31 }),
         fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 20 }),
-        (newAdvance, dailyAmount, existing) => {
-          return canAcceptAdvance(0, dailyAmount, existing, newAdvance) === false;
+        (newAdvance, cycleLength, existing) => {
+          return canAcceptAdvance(0, cycleLength, existing, newAdvance) === false;
         },
       ),
     );
@@ -333,24 +293,13 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 0, max: 10_000_000 }),
-        fc.integer({ min: 100, max: 100_000 }),
         fc.array(fc.integer({ min: 1, max: 10_000 }), { maxLength: 31 }),
         fc.integer({ min: 0, max: 500_000 }),
         fc.integer({ min: 0, max: 500_000 }),
-        (contributedTotal, dailyAmount, advances, ob1, ob2) => {
+        (contributedTotal, advances, ob1, ob2) => {
           const [low, high] = ob1 <= ob2 ? [ob1, ob2] : [ob2, ob1];
-          const currentLow = computeCurrentBalance(
-            contributedTotal,
-            dailyAmount,
-            sum(advances),
-            low,
-          );
-          const currentHigh = computeCurrentBalance(
-            contributedTotal,
-            dailyAmount,
-            sum(advances),
-            high,
-          );
+          const currentLow = computeCurrentBalance(contributedTotal, sum(advances), low);
+          const currentHigh = computeCurrentBalance(contributedTotal, sum(advances), high);
           return currentHigh <= currentLow;
         },
       ),
@@ -360,16 +309,12 @@ describe("cycleEngine — property tests (ADR-004 invariants)", () => {
 
 // ---------------------------------------------------------------------------
 // Story 12.3 — computeOpeningBalance example tests (recursion behaviour).
+// 2026-07-28 — commission removed: prev_balance = prevContributed −
+// prevAdvances − prevOpening (no `− daily` term).
 // ---------------------------------------------------------------------------
 
-describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", () => {
-  // Story 12.5 PR D — prev_balance now uses contributedTotal, not daily ×
-  // contribDays. To preserve the legacy "14 500 / advances" arithmetic the
-  // older tests asserted on, each fixture below seeds contributedTotal =
-  // 15 000 (= daily + 14 500) so `contrib − daily = 14 500` is the same
-  // residual the OLD formula computed via `daily × contribDays`.
-  const DAILY = 500;
-  const LEGACY_CONTRIB = 15_000; // (= daily × cycleLength = 500 × 30)
+describe("computeOpeningBalance (Story 12.3, commission removed 2026-07-28)", () => {
+  const CONTRIB = 15_000;
   const makeCycle = (
     id: string,
     cycleNumber: number,
@@ -382,7 +327,7 @@ describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", ()
     const cycles: OpeningBalanceCycle[] = [
       makeCycle("c1", 1, "2026-05-01", "2026-05-30", "active"),
     ];
-    expect(computeOpeningBalance(cycles, new Map(), new Map(), DAILY, "c1")).toBe(0);
+    expect(computeOpeningBalance(cycles, new Map(), new Map(), "c1")).toBe(0);
   });
 
   it("previous cycle is 'settled' → 0 (chain restarts)", () => {
@@ -391,8 +336,8 @@ describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", ()
       makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
     ];
     const advances = new Map<string, number>([["c1", 50_000]]); // huge unpaid but settled
-    const contributed = new Map<string, number>([["c1", LEGACY_CONTRIB]]);
-    expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c2")).toBe(0);
+    const contributed = new Map<string, number>([["c1", CONTRIB]]);
+    expect(computeOpeningBalance(cycles, advances, contributed, "c2")).toBe(0);
   });
 
   it("previous cycle had no debt (positive final balance) → 0", () => {
@@ -400,10 +345,10 @@ describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", ()
       makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
       makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
     ];
-    // contrib(15_000) − daily(500) − advances(1_000) = 13_500 > 0 → no debt.
+    // contrib(15_000) − advances(1_000) = 14_000 > 0 → no debt.
     const advances = new Map<string, number>([["c1", 1_000]]);
-    const contributed = new Map<string, number>([["c1", LEGACY_CONTRIB]]);
-    expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c2")).toBe(0);
+    const contributed = new Map<string, number>([["c1", CONTRIB]]);
+    expect(computeOpeningBalance(cycles, advances, contributed, "c2")).toBe(0);
   });
 
   it("previous cycle ended with debt → positive carry-over", () => {
@@ -411,10 +356,10 @@ describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", ()
       makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
       makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
     ];
-    // contrib(15_000) − daily(500) − advances(20_000) = −5_500 → carry-over 5_500.
+    // contrib(15_000) − advances(20_000) = −5_000 → carry-over 5_000.
     const advances = new Map<string, number>([["c1", 20_000]]);
-    const contributed = new Map<string, number>([["c1", LEGACY_CONTRIB]]);
-    expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c2")).toBe(5_500);
+    const contributed = new Map<string, number>([["c1", CONTRIB]]);
+    expect(computeOpeningBalance(cycles, advances, contributed, "c2")).toBe(5_000);
   });
 
   it("3-cycle chain, c1 settled → c3 sees only c2's debt", () => {
@@ -423,11 +368,11 @@ describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", ()
       makeCycle("c2", 2, "2026-04-01", "2026-04-30", "completed"),
       makeCycle("c3", 3, "2026-05-01", "2026-05-30", "active"),
     ];
-    // c2: opening = 0 (c1 settled). contrib(15_000) − daily(500) − advances(17_000) = −2_500.
-    // c3 carries 2_500 (c2's debt).
+    // c2: opening = 0 (c1 settled). contrib(15_000) − advances(17_000) = −2_000.
+    // c3 carries 2_000 (c2's debt).
     const advances = new Map<string, number>([["c2", 17_000]]);
-    const contributed = new Map<string, number>([["c2", LEGACY_CONTRIB]]);
-    expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c3")).toBe(2_500);
+    const contributed = new Map<string, number>([["c2", CONTRIB]]);
+    expect(computeOpeningBalance(cycles, advances, contributed, "c3")).toBe(2_000);
   });
 
   it("3-cycle chain, none settled → debt accumulates", () => {
@@ -436,18 +381,18 @@ describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", ()
       makeCycle("c2", 2, "2026-04-01", "2026-04-30", "completed"),
       makeCycle("c3", 3, "2026-05-01", "2026-05-30", "active"),
     ];
-    // c1: opening=0. contrib(15_000) − 500 − adv(16_000) = −1_500 → c2 opening = 1_500.
-    // c2: opening=1_500. contrib(15_000) − 500 − adv(14_500) − 1_500 = −1_500 → c3 opening = 1_500.
+    // c1: opening=0. contrib(15_000) − adv(16_000) = −1_000 → c2 opening = 1_000.
+    // c2: opening=1_000. contrib(15_000) − adv(14_500) − 1_000 = −500 → c3 opening = 500.
     const advances = new Map<string, number>([
       ["c1", 16_000],
       ["c2", 14_500],
     ]);
     const contributed = new Map<string, number>([
-      ["c1", LEGACY_CONTRIB],
-      ["c2", LEGACY_CONTRIB],
+      ["c1", CONTRIB],
+      ["c2", CONTRIB],
     ]);
-    expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c2")).toBe(1_500);
-    expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c3")).toBe(1_500);
+    expect(computeOpeningBalance(cycles, advances, contributed, "c2")).toBe(1_000);
+    expect(computeOpeningBalance(cycles, advances, contributed, "c3")).toBe(500);
   });
 
   it("3-cycle chain, c2 repays past debt and contributes more → c3 opening = 0", () => {
@@ -456,22 +401,22 @@ describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", ()
       makeCycle("c2", 2, "2026-04-01", "2026-04-30", "completed"),
       makeCycle("c3", 3, "2026-05-01", "2026-05-30", "active"),
     ];
-    // c1 debt = 5_000 → c2 opening = 5_000.
-    // c2: contrib(15_000) − 500 − advances(0) − 5_000 = 9_500 → no debt to carry → c3 opening = 0.
+    // c1 debt: contrib(15_000) − adv(19_500) = −4_500 → c2 opening = 4_500.
+    // c2: contrib(15_000) − advances(0) − 4_500 = 10_500 → no debt → c3 opening = 0.
     const advances = new Map<string, number>([["c1", 19_500]]);
     const contributed = new Map<string, number>([
-      ["c1", LEGACY_CONTRIB],
-      ["c2", LEGACY_CONTRIB],
+      ["c1", CONTRIB],
+      ["c2", CONTRIB],
     ]);
-    expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c2")).toBe(5_000);
-    expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c3")).toBe(0);
+    expect(computeOpeningBalance(cycles, advances, contributed, "c2")).toBe(4_500);
+    expect(computeOpeningBalance(cycles, advances, contributed, "c3")).toBe(0);
   });
 
   it("unknown cycle id → 0 (defensive)", () => {
     const cycles: OpeningBalanceCycle[] = [
       makeCycle("c1", 1, "2026-05-01", "2026-05-30", "active"),
     ];
-    expect(computeOpeningBalance(cycles, new Map(), new Map(), DAILY, "does-not-exist")).toBe(0);
+    expect(computeOpeningBalance(cycles, new Map(), new Map(), "does-not-exist")).toBe(0);
   });
 
   it("missing previous cycle in array → 0 (gap in chain)", () => {
@@ -479,7 +424,7 @@ describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", ()
       makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
       // c1 missing (cycle_number = 1 absent from the array)
     ];
-    expect(computeOpeningBalance(cycles, new Map(), new Map(), DAILY, "c2")).toBe(0);
+    expect(computeOpeningBalance(cycles, new Map(), new Map(), "c2")).toBe(0);
   });
 
   it("equality boundary: prev balance exactly 0 → no carry-over", () => {
@@ -487,36 +432,30 @@ describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", ()
       makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
       makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
     ];
-    // contrib(15_000) − daily(500) − advances(14_500) = 0 → 0 carry-over.
-    const advances = new Map<string, number>([["c1", 14_500]]);
-    const contributed = new Map<string, number>([["c1", LEGACY_CONTRIB]]);
-    expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c2")).toBe(0);
+    // contrib(15_000) − advances(15_000) = 0 → 0 carry-over.
+    const advances = new Map<string, number>([["c1", 15_000]]);
+    const contributed = new Map<string, number>([["c1", CONTRIB]]);
+    expect(computeOpeningBalance(cycles, advances, contributed, "c2")).toBe(0);
   });
 
-  // 2026-06-07 — commission capped at min(prevContributed, daily): a cycle
-  // with zero / sub-day cotisation must NOT carry a phantom day of
-  // commission. Regression for the "Report : <1 day>" seen on members who
-  // had not versé anything (BOBO / Baye Mot / Mame Mor).
-  it("prev cycle with ZERO cotisation and no advance → 0 (no phantom commission debt)", () => {
+  it("prev cycle with ZERO cotisation and no advance → 0 (no debt)", () => {
     const cycles: OpeningBalanceCycle[] = [
       makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
       makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
     ];
-    // contrib 0 → commission min(0,500)=0 → prevBalance 0 → no debt.
-    // Pre-fix this returned DAILY (500) — the bug.
+    // contrib 0, no advance → prevBalance 0 → no debt.
     const contributed = new Map<string, number>([["c1", 0]]);
-    expect(computeOpeningBalance(cycles, new Map(), contributed, DAILY, "c2")).toBe(0);
+    expect(computeOpeningBalance(cycles, new Map(), contributed, "c2")).toBe(0);
   });
 
-  it("prev cycle cotisation below one full day → commission capped → 0", () => {
+  it("prev cycle with small cotisation and no advance → 0 (positive balance)", () => {
     const cycles: OpeningBalanceCycle[] = [
       makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
       makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
     ];
-    // contrib 300, daily 500 → commission min(300,500)=300 → prevBalance
-    // 300 − 300 − 0 = 0. Pre-fix: 300 − 500 = −200 → phantom 200.
+    // contrib 300, no advance → prevBalance 300 > 0 → no debt.
     const contributed = new Map<string, number>([["c1", 300]]);
-    expect(computeOpeningBalance(cycles, new Map(), contributed, DAILY, "c2")).toBe(0);
+    expect(computeOpeningBalance(cycles, new Map(), contributed, "c2")).toBe(0);
   });
 
   it("prev cycle with real uncovered advance still carries that debt", () => {
@@ -524,11 +463,24 @@ describe("computeOpeningBalance (Story 12.3, rewritten for Story 12.5 PR D)", ()
       makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
       makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
     ];
-    // contrib 2_000, advances 5_000 → commission min(2_000,500)=500 →
-    // prevBalance 2_000 − 500 − 5_000 = −3_500 → carry-over 3_500.
+    // contrib 2_000, advances 5_000 → prevBalance 2_000 − 5_000 = −3_000 →
+    // carry-over 3_000.
     const advances = new Map<string, number>([["c1", 5_000]]);
     const contributed = new Map<string, number>([["c1", 2_000]]);
-    expect(computeOpeningBalance(cycles, advances, contributed, DAILY, "c2")).toBe(3_500);
+    expect(computeOpeningBalance(cycles, advances, contributed, "c2")).toBe(3_000);
+  });
+
+  it("prev cycle advance but contributed map has no entry → prevContributed defaults to 0", () => {
+    // Covers the `contributedByCycleId.get(prev.id) ?? 0` fallback branch:
+    // a previous cycle with an advance but NO contribution key in the map
+    // (nothing was ever cotisé) → prevContributed = 0, prevBalance =
+    // 0 − 4_000 = −4_000 → carry-over 4_000.
+    const cycles: OpeningBalanceCycle[] = [
+      makeCycle("c1", 1, "2026-04-01", "2026-04-30", "completed"),
+      makeCycle("c2", 2, "2026-05-01", "2026-05-30", "active"),
+    ];
+    const advances = new Map<string, number>([["c1", 4_000]]);
+    expect(computeOpeningBalance(cycles, advances, new Map(), "c2")).toBe(4_000);
   });
 });
 
@@ -684,118 +636,74 @@ describe("cycleEngine — example tests", () => {
     });
   });
 
-  describe("computeCurrentBalance (Story 12.5 PR C — replaces computeProjectedFinalBalance)", () => {
-    it("contributedTotal=15_000, daily=500, no advances → 14_500 (collector owes the saver this much)", () => {
-      expect(computeCurrentBalance(15_000, 500, 0)).toBe(14_500);
+  describe("computeCurrentBalance (Story 12.5 PR C; commission removed 2026-07-28)", () => {
+    it("contributedTotal=15_000, no advances → 15_000 (saver gets back 100 %)", () => {
+      expect(computeCurrentBalance(15_000, 0)).toBe(15_000);
     });
 
-    it("contributedTotal=14_500, daily=500, advances=3000 → 11_000", () => {
-      expect(computeCurrentBalance(14_500, 500, 3000)).toBe(11_000);
+    it("contributedTotal=14_500, advances=3000 → 11_500", () => {
+      expect(computeCurrentBalance(14_500, 3000)).toBe(11_500);
     });
 
     it("openingBalance argument is subtracted (carry-over from previous cycle)", () => {
-      expect(computeCurrentBalance(15_000, 500, 0, 5_000)).toBe(9_500);
+      expect(computeCurrentBalance(15_000, 0, 5_000)).toBe(10_000);
     });
 
-    it("returns a negative value when advances + commission > contributedTotal (saver owes — carry-over candidate)", () => {
-      expect(computeCurrentBalance(5_000, 1_000, 5_000)).toBe(-1_000);
+    it("returns a negative value when advances > contributedTotal (saver owes — carry-over candidate)", () => {
+      expect(computeCurrentBalance(5_000, 6_000)).toBe(-1_000);
     });
 
-    it("2026-05-24 — contributedTotal=0 → balance=0 (no cotisation ⇒ no commission, no debt)", () => {
-      // Pilot UX bug: pre-change formula returned −dailyAmount on a
-      // brand-new cycle, alarming the collector. New rule: commission
-      // capped at what was actually cotisé.
-      expect(computeCurrentBalance(0, 2_000, 0)).toBe(0);
-      expect(computeCurrentBalance(0, 7_000, 0)).toBe(0);
+    it("contributedTotal=0 → balance=0 (nothing versed, nothing owed)", () => {
+      expect(computeCurrentBalance(0, 0)).toBe(0);
     });
 
-    it("2026-05-24 — partial cotisation (contributed < daily) → commission = contributed (saver gets 0, owes 0)", () => {
-      // Cotisé 500 with daily=2000: collector keeps the 500 as partial
-      // commission, saver gets 0. No debt either way.
-      expect(computeCurrentBalance(500, 2_000, 0)).toBe(0);
-      expect(computeCurrentBalance(1_999, 2_000, 0)).toBe(0);
+    it("small cotisation with no advance → full amount returned (no fee)", () => {
+      expect(computeCurrentBalance(500, 0)).toBe(500);
+      expect(computeCurrentBalance(1_999, 0)).toBe(1_999);
     });
 
-    it("2026-05-24 — partial cotisation + opening balance: only the opening is owed (no extra commission debt)", () => {
-      // Cotisé 500, daily 2000, opening 300 → balance = 0 − 300 = −300.
-      // Pre-change: 500 − 2000 − 0 − 300 = −1800 (overstated debt).
-      expect(computeCurrentBalance(500, 2_000, 0, 300)).toBe(-300);
+    it("small cotisation + opening balance: full amount minus the opening", () => {
+      // Cotisé 500, opening 300 → balance = 500 − 0 − 300 = 200.
+      expect(computeCurrentBalance(500, 0, 300)).toBe(200);
     });
   });
 
-  describe("settle (Story 12.5 — cotisation libre)", () => {
-    it("contributedTotal=29_000, daily=1000, no advances → 28_000 payout", () => {
-      // Saver versed 29 000, collector keeps 1 000 commission → saver
-      // receives 28 000. Same numeric output the legacy formula gave
-      // (1000 × 29 = 29 000 - 1 000 = 28 000 ≡ contributedTotal − daily).
-      expect(settle(29_000, 1000, [])).toBe(28_000);
+  describe("settle (cotisation libre; commission removed 2026-07-28)", () => {
+    it("contributedTotal=29_000, no advances → 29_000 payout (saver gets 100 %)", () => {
+      expect(settle(29_000, [])).toBe(29_000);
     });
 
-    it("contributedTotal=14_500, daily=500, advances [3000, 2000] → 9_000", () => {
-      // 14 500 - 500(commission) - 5 000(advances) = 9 000.
-      expect(settle(14_500, 500, [3000, 2000])).toBe(9_000);
+    it("contributedTotal=14_500, advances [3000, 2000] → 9_500", () => {
+      // 14 500 − 5 000(advances) = 9 500.
+      expect(settle(14_500, [3000, 2000])).toBe(9_500);
     });
 
-    it("Khadim repro — contributedTotal=66_000, daily=7000, no advances → 59_000", () => {
-      // The pilot-flagged case from the UX feedback session 2026-05-21:
-      // saver versed only 66 000 (not the full 210 000 the contract
-      // projected). Old formula returned 203 000 — completely wrong.
-      // New formula: 66 000 − 7 000 − 0 = 59 000.
-      expect(settle(66_000, 7000, [])).toBe(59_000);
+    it("Khadim repro — contributedTotal=66_000, no advances → 66_000", () => {
+      // The pilot-flagged case: saver versed only 66 000. Under the
+      // commission-free model the saver is paid back the full 66 000.
+      expect(settle(66_000, [])).toBe(66_000);
     });
 
     it("openingBalance argument is subtracted from the payout", () => {
-      expect(settle(50_000, 1000, [], 5_000)).toBe(44_000);
+      expect(settle(50_000, [], 5_000)).toBe(45_000);
     });
 
-    it("negative payout when advances + commission exceed contributedTotal (saver owes)", () => {
-      // contributedTotal 5_000, daily 1_000, advances 5_000 → −1_000.
-      // The UI / commit_cycle_settlement decide what to do with debts
-      // (carry to next cycle via opening_balance, or reject).
-      expect(settle(5_000, 1_000, [5_000])).toBe(-1_000);
+    it("negative payout when advances exceed contributedTotal (saver owes)", () => {
+      // contributedTotal 5_000, advances 6_000 → −1_000. The UI /
+      // commit_cycle_settlement decide what to do with debts (carry to
+      // next cycle via opening_balance, or reject).
+      expect(settle(5_000, [6_000])).toBe(-1_000);
     });
 
-    it("2026-05-24 — contributedTotal=0 with no advances/opening → payout=0 (no commission billed)", () => {
-      // Settling a cycle the saver never cotised in: payout is 0, NOT
-      // −dailyAmount. The collector takes no commission they didn't earn.
-      expect(settle(0, 2_000, [])).toBe(0);
-      expect(settle(0, 7_000, [], 0)).toBe(0);
+    it("contributedTotal=0 with no advances/opening → payout=0", () => {
+      expect(settle(0, [])).toBe(0);
+      expect(settle(0, [], 0)).toBe(0);
     });
 
-    it("2026-05-24 — partial cotisation (contrib < daily) caps commission at contrib", () => {
-      // Cotisé 500 with daily 2 000: commission = 500 (the full cotisation
-      // goes to commission), payout = 0. Pre-change: payout = −1500.
-      expect(settle(500, 2_000, [])).toBe(0);
-      // Same with an advance: 500 − 500(commission) − 200(advance) = −200.
-      // Pre-change: 500 − 2000 − 200 = −1700.
-      expect(settle(500, 2_000, [200])).toBe(-200);
-    });
-  });
-
-  describe("commission (INV-4 — unchanged)", () => {
-    it("is exactly 1 × dailyAmount", () => {
-      expect(commission(500)).toBe(500);
-      expect(commission(100_000)).toBe(100_000);
-    });
-
-    it("COMMISSION_DAYS is 1", () => {
-      expect(COMMISSION_DAYS).toBe(1);
-    });
-  });
-
-  describe("earnedCommission (2026-06-07 — real commission = min(cotisé, daily))", () => {
-    it("caps at one day when cotisé ≥ daily", () => {
-      expect(earnedCommission(14_000, 2000)).toBe(2000);
-      expect(earnedCommission(2000, 2000)).toBe(2000);
-    });
-
-    it("equals what was versed when cotisé < one day", () => {
-      expect(earnedCommission(600, 1000)).toBe(600);
-      expect(earnedCommission(300, 500)).toBe(300);
-    });
-
-    it("is 0 when nothing cotisé", () => {
-      expect(earnedCommission(0, 5000)).toBe(0);
+    it("small cotisation returns the full amount (no fee), minus advances", () => {
+      expect(settle(500, [])).toBe(500);
+      // With an advance: 500 − 200 = 300.
+      expect(settle(500, [200])).toBe(300);
     });
   });
 
@@ -994,7 +902,7 @@ describe("cycleEngine — example tests", () => {
     const CYCLE = { startDate: "2026-04-01", endDate: "2026-04-30" };
 
     it("returns zeros for cycle fields when currentCycle is null", () => {
-      const stats = computeMemberStats([], { dailyAmount: 500 }, null, NOW);
+      const stats = computeMemberStats([], null, NOW);
       expect(stats).toEqual({
         cycleDay: 0,
         cycleLength: 0,
@@ -1007,13 +915,13 @@ describe("cycleEngine — example tests", () => {
     });
 
     it("exposes cycleLength (Story 11.4) — 30-day cycle", () => {
-      const stats = computeMemberStats([], { dailyAmount: 500 }, CYCLE, NOW);
+      const stats = computeMemberStats([], CYCLE, NOW);
       expect(stats.cycleLength).toBe(30);
     });
 
     it("exposes cycleLength (Story 11.4) — 24-day partial cycle", () => {
       const partial = { startDate: "2026-04-07", endDate: "2026-04-30" };
-      const stats = computeMemberStats([], { dailyAmount: 500 }, partial, NOW);
+      const stats = computeMemberStats([], partial, NOW);
       expect(stats.cycleLength).toBe(24);
     });
 
@@ -1023,7 +931,6 @@ describe("cycleEngine — example tests", () => {
           { kind: "contribution", amount: 500 },
           { kind: "advance", amount: 3000 },
         ],
-        { dailyAmount: 500 },
         null,
         NOW,
       );
@@ -1038,7 +945,6 @@ describe("cycleEngine — example tests", () => {
           { kind: "rattrapage", amount: 1000 },
           { kind: "advance", amount: 3000 },
         ],
-        { dailyAmount: 500 },
         CYCLE,
         NOW,
       );
@@ -1046,22 +952,20 @@ describe("cycleEngine — example tests", () => {
       expect(stats.outstandingAdvances).toBe(3000);
       expect(stats.cycleDay).toBe(15);
       expect(stats.daysRemaining).toBe(15); // 30-day cycle, day 15
-      // Story 12.5 PR C — currentBalance = contributedTotal − daily − advances − opening.
-      //                                  = 1500 − 500 − 3000 − 0 = −2000 (saver owes).
-      expect(stats.currentBalance).toBe(1500 - 500 - 3000);
+      // 2026-07-28 — currentBalance = contributedTotal − advances − opening.
+      //                            = 1500 − 3000 − 0 = −1500 (saver owes).
+      expect(stats.currentBalance).toBe(1500 - 3000);
     });
 
-    it("a 24-day partial cycle with 0 contribs gives currentBalance=0 (no cotisation ⇒ no commission)", () => {
+    it("a 24-day partial cycle with 0 contribs gives currentBalance=0", () => {
       const partial = { startDate: "2026-04-07", endDate: "2026-04-30" };
-      const stats = computeMemberStats([], { dailyAmount: 500 }, partial, NOW);
-      // 2026-05-24 — commission = min(0, 500) = 0. Saver hasn't cotisé,
-      // so the collector takes no commission and the saver owes nothing.
-      // Pre-change: returned −500 (alarming on the members-list card).
+      const stats = computeMemberStats([], partial, NOW);
+      // Nothing versed, no advance → nothing owed either way.
       expect(stats.currentBalance).toBe(0);
     });
 
     it("uses the parameter default for `now` when omitted (boundary safety)", () => {
-      const stats = computeMemberStats([], { dailyAmount: 500 }, CYCLE);
+      const stats = computeMemberStats([], CYCLE);
       expect(Number.isFinite(stats.cycleDay)).toBe(true);
       expect(stats.cycleDay).toBeGreaterThanOrEqual(1);
       expect(stats.cycleDay).toBeLessThanOrEqual(30);

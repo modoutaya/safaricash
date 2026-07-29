@@ -88,7 +88,6 @@ export function deriveMembersWithMeta(
           openingBalanceCycles,
           data.advancesByCycle,
           data.contributedByCycle,
-          row.daily_amount,
           currentCycle.id,
         )
       : 0;
@@ -108,13 +107,11 @@ export function deriveMembersWithMeta(
           cycleId: awaitingCycle.id,
           payout: settle(
             data.contributedByCycle.get(awaitingCycle.id) ?? 0,
-            row.daily_amount,
             [data.advancesByCycle.get(awaitingCycle.id) ?? 0],
             computeOpeningBalance(
               openingBalanceCycles,
               data.advancesByCycle,
               data.contributedByCycle,
-              row.daily_amount,
               awaitingCycle.id,
             ),
           ),
@@ -156,14 +153,13 @@ export function deriveMembersWithMeta(
       awaitingSettlement,
       lastSettlementAt,
       // Story 12.5 PR C — MemberWithMeta.projectedBalance is now the
-      // current cumul (contributedTotal − daily − advances − opening),
-      // not the contract projection. Field name kept for back-compat
-      // with the existing UI consumers (MemberCard's "Solde à reverser"
-      // row reads this).
+      // current cumul (contributedTotal − advances − opening), not the
+      // contract projection. 2026-07-28 — commission removed. Field name
+      // kept for back-compat with the existing UI consumers (MemberCard's
+      // "Solde à reverser" row reads this).
       projectedBalance: currentCycle
         ? computeCurrentBalance(
             data.contributedByCycle.get(currentCycle.id) ?? 0,
-            row.daily_amount,
             cycleAdvancesTotal,
             openingBalance,
           )

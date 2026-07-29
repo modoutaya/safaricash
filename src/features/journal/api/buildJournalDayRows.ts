@@ -131,9 +131,9 @@ export function buildJournalDayRows(input: BuildJournalDayRowsInput): DayRow[] {
     if (!cycle) continue;
     const cycleLength = cycleLengthDays(cycle.startDate, cycle.endDate);
     if (tx.cycleDay < 1 || tx.cycleDay > cycleLength) continue;
-    // Commission day never carries a transaction in practice (the server
-    // trigger blocks it). Defensive skip.
-    if (tx.cycleDay === cycleLength) continue;
+    // 2026-07-28 — commission removed: every day of the cycle is a normal
+    // contribution day, including the last one. The former
+    // `cycleDay === cycleLength` skip (the old "commission day") is gone.
     const txDateIso = cycleDayToDate(cycle, tx.cycleDay);
     if (txDateIso > todayIso) continue;
     // last_seven_days: only emit tx rows whose date is in the rolling window.
@@ -163,8 +163,8 @@ export function buildJournalDayRows(input: BuildJournalDayRowsInput): DayRow[] {
     const cycle = cycles.find((c) => dateIsInCycle(dateIso, c));
     if (!cycle) continue;
     const cycleDay = cycleDayOf(dateIso, cycle);
-    const cycleLength = cycleLengthDays(cycle.startDate, cycle.endDate);
-    if (cycleDay === cycleLength) continue;
+    // 2026-07-28 — commission removed: the last day is a normal
+    // contribution day, so it can now emit a "missing" row like any other.
     if (dateIso > todayIso) continue;
     const key = `${cycle.id}#${cycleDay}`;
     if (suppressed.has(key)) continue;
@@ -219,7 +219,10 @@ function enumerateDates(
   const [cycle] = cycles;
   if (!cycle) return [];
   const cycleLength = cycleLengthDays(cycle.startDate, cycle.endDate);
-  const lastContribDateMs = utcEpoch(cycle.startDate) + (cycleLength - 2) * MS_PER_DAY;
+  // 2026-07-28 — commission removed: the last day (day cycleLength) is now a
+  // normal contribution day, so enumeration runs through it (was
+  // `cycleLength - 2`, capping at the old commission day cycleLength − 1).
+  const lastContribDateMs = utcEpoch(cycle.startDate) + (cycleLength - 1) * MS_PER_DAY;
   const lastContribDateIso = isoDateAt(lastContribDateMs);
   const upperIso = todayIso < lastContribDateIso ? todayIso : lastContribDateIso;
   if (upperIso < cycle.startDate) return [];

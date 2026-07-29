@@ -8,6 +8,7 @@
 - **Superseded by:** —
 - **Amended:** 2026-05-19 — Amendment A1 (Story 11.1), calendar-month variable-length cycles. See `## Amendment A1` at the end of this document.
 - **Amended:** 2026-05-20 — Amendment A1.8 (Story 11.5), `MAX_CYCLE_END_DAY = 30` cap (collectors don't work the 31st).
+- **Amended:** 2026-07-28 — Amendment A2 (commission removed). **Retires INV-4** and re-states INV-2. Every reference to a "commission day", a `commission()` deduction, or `dailyAmount × (cycleLength − 1)` in the Sections and Amendment A1 below is **superseded** — see `## Amendment A2` at the end. The historical text is preserved as the record of what shipped.
 
 ## Context
 
@@ -596,3 +597,39 @@ A legacy row's `end_date` is **not** a month-end, so legacy rows do **not** sati
 - **PRD (amended under v1.4):** `_bmad-output/planning-artifacts/prd.md` — FR15-FR17, FR19 (lines 495-499), NFR-R3 (line 565).
 - **Engine to refactor (Story 11.2):** `src/domain/cycle/cycleEngine.ts`.
 - **RPCs to refactor (Story 11.3):** `supabase/migrations/*create_member_with_cycle*.sql`, `*restart_member_cycle*.sql`, `*commit_cycle_settlement*.sql`.
+
+---
+
+## Amendment A2 — Commission removed (2026-07-28)
+
+> **Status:** Accepted. **Amends:** retires **INV-4**, re-states **INV-2**. Every "commission day" / `commission()` deduction / `dailyAmount × (cycleLength − 1)` in the Sections above and in Amendment A1 is **superseded by this amendment.** The historical text is preserved as the record of what shipped.
+
+### Context
+
+Product decision (2026-07-28): the collector no longer retains a commission. The former model kept exactly one day of contribution per cycle (`commission = min(contributedTotal, dailyAmount)` after the 2026-05-24 cotisation-libre cap). That deduction is **removed** from the calculation and from every display surface. The saver is paid back **100 %** of what was versed, minus advances and any carry-over debt.
+
+The `commission()` / `earnedCommission()` primitives and the `COMMISSION_DAYS` constant are **deleted** from `cycleEngine.ts`. `dailyAmount` survives only as the member's objective and the advance-capacity base (INV-3, unchanged).
+
+### A2.1 — INV-4 retired
+
+INV-4 (Commission invariance) is **removed** — there is no commission term to be invariant. Its property-test skeleton `propCommissionInvariance` is deleted from the test suite (it has no subject). Amendment A1's "INV-4 — UNCHANGED" note and its partial-cycle carve-out no longer apply.
+
+### A2.2 — INV-2 re-stated (NFR-R3 gate, still zero-tolerance)
+
+Settlement determinism still holds; only the formula changes. For a cycle with contributions `Σc`, advances `Σa`, and carry-over `openingBalance`:
+
+```text
+settle(Σc, advances, openingBalance) ≡ Σc − Σ(advances) − openingBalance
+```
+
+The settled amount must equal `computeCurrentBalance` evaluated with the same inputs, byte-for-byte, and must equal the SQL `commit_cycle_settlement` result (NFR-R3). No `× cycleLength` / `× (cycleLength − 1)` / `× 29` term appears — the payout keys off the **actual** `contributedTotal`, never a projection. INV-8 (integer FCFA) is trivially preserved: subtraction of integers, no division.
+
+### A2.3 — Affected signatures
+
+`settle`, `computeCurrentBalance`, and `computeOpeningBalance` **drop the now-dead `dailyAmount` parameter**; `computeMemberStats` drops its `member` argument. `computeAdvanceCapacity` / `canAcceptAdvance` (INV-3) are unchanged — capacity was already `dailyAmount × cycleLength`, commission never reserved.
+
+### A2.4 — Mirrors updated in lockstep (NFR-R3)
+
+- TS: `src/domain/cycle/cycleEngine.ts` (+ `cycleEngine.test.ts`, `compute-opening-balance.contract.test.ts`).
+- SQL: `commit_cycle_settlement`, `format_sms_body`, `get_receipt_payload` (projected balance), `compute_opening_balance` — migration `*_remove_commission.sql` drops the `LEAST(contributed, daily)` term in all four.
+- Journal: the last day of the cycle is no longer skipped as a "commission day" (`buildJournalDayRows.ts`).

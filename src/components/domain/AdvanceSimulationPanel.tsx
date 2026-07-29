@@ -1,6 +1,6 @@
 // Story 5.1 / FR24 — pure presentation component for the advance simulation.
 //
-// 4-row card driven by Story 3.2's cycle-engine primitives. Computes the
+// 3-row card driven by Story 3.2's cycle-engine primitives. Computes the
 // state once at the top (empty / valid / over-limit) and renders three
 // branches off it. No internal state, no hooks, no side effects — every
 // output derives synchronously from props.
@@ -10,7 +10,7 @@
 // ux-design-specification.md:509-510 (warning + destructive palettes),
 // docs/ADR/004-cycle-invariants.md (INV-1 — projection independent of cycleDay).
 
-import { canAcceptAdvance, commission } from "@/domain/cycle";
+import { canAcceptAdvance } from "@/domain/cycle";
 import { formatFcfaAmount } from "@/features/member/api/formatAmount";
 import { useT } from "@/i18n/useT";
 import { cn } from "@/lib/utils";
@@ -82,18 +82,13 @@ export function AdvanceSimulationPanel({
   );
 
   const totalProjected = dailyAmount * cycleLength;
-  const commissionAmount = commission(dailyAmount);
-  // 2026-06-19 — projected final balance = projected total minus the
-  // (flat 1-day) commission, all advances and any carry-over. Consistent
-  // with the displayed rows (projected − commission − advance) and with
-  // the projected-monthly-contribution cap. Clamped at 0: the saver-facing
-  // amount can't be < 0 (borrowing the full projection silently absorbs
-  // the commission, which then carries over as next cycle's opening_balance).
-  const finalRaw =
-    totalProjected -
-    commissionAmount -
-    sumAdvances(existingAdvances, candidateAmount) -
-    openingBalance;
+  // 2026-07-28 — commission removed. Projected final balance = projected
+  // total minus all advances and any carry-over. Consistent with the
+  // displayed rows (projected − advance) and with the projected-monthly-
+  // contribution cap. Clamped at 0: the saver-facing amount can't be < 0
+  // (borrowing the full projection carries over as next cycle's
+  // opening_balance).
+  const finalRaw = totalProjected - sumAdvances(existingAdvances, candidateAmount) - openingBalance;
   const finalBalance = Math.max(0, finalRaw);
 
   return (
@@ -117,20 +112,7 @@ export function AdvanceSimulationPanel({
         </span>
       </div>
 
-      {/* Row 2 — Commission (subtraction). */}
-      <div className="flex items-baseline justify-between">
-        <span className="text-body-2 text-text-secondary">
-          {t("advance.simulation.row_commission")}
-        </span>
-        <span
-          className="text-body-1 text-text-primary"
-          style={{ fontVariantNumeric: "tabular-nums" }}
-        >
-          − {formatFcfaAmount(commissionAmount)} FCFA
-        </span>
-      </div>
-
-      {/* Row 3 — Advance candidate (destructive when valid; warning when over-limit). */}
+      {/* Row 2 — Advance candidate (destructive when valid; warning when over-limit). */}
       <div className="flex flex-col gap-1">
         <div className="flex items-baseline justify-between">
           <span
@@ -162,7 +144,7 @@ export function AdvanceSimulationPanel({
         ) : null}
       </div>
 
-      {/* Row 4 — Projected final balance (large + primary green; aria-live for SR). */}
+      {/* Row 3 — Projected final balance (large + primary green; aria-live for SR). */}
       <div
         aria-live="polite"
         className={cn(

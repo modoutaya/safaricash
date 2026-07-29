@@ -1,14 +1,15 @@
-// Story 9.1 / FR34 — the three numeric dashboard stats.
+// Story 9.1 / FR34 — the two numeric dashboard stats.
 //
-// Rendered inside the green DashboardHero as a compact 3-up row of glass
+// Rendered inside the green DashboardHero as a compact row of glass
 // tiles: white value on top, small uppercase label below. Always a row —
 // never stacks — sized to fit a ~320 px hero content width.
 //
-// 2026-05-24 — the two monetary tiles (Collecté + Commission) are
-// masked by default and toggle individually on tap. State is in-memory
-// per tile, so navigating away and back to the dashboard re-masks both
-// (privacy default: someone glancing at the phone never sees money).
-// Active-members count stays static (it's a count, not money).
+// 2026-05-24 — the monetary tile (Collecté) is masked by default and
+// toggles on tap. State is in-memory, so navigating away and back to the
+// dashboard re-masks it (privacy default: someone glancing at the phone
+// never sees money). Active-members count stays static (it's a count, not
+// money).
+// 2026-07-28 — the Commission tile was removed (commission dropped).
 //
 // Pure presentation — the route owns the data hook.
 // Visual reference: 03-mockups.html .dash-stats / .dash-stat.
@@ -22,7 +23,6 @@ import type { TranslationKey } from "@/i18n/keys";
 export interface DashboardStatCardsProps {
   activeMembersCount: number;
   cycleCollected: number;
-  commissionThisCycle: number;
 }
 
 const MASKED_DISPLAY = "*******";
@@ -78,7 +78,6 @@ function MaskedStatTile({
 export function DashboardStatCards({
   activeMembersCount,
   cycleCollected,
-  commissionThisCycle,
 }: DashboardStatCardsProps): JSX.Element {
   const t = useT();
   return (
@@ -92,12 +91,6 @@ export function DashboardStatCards({
         value={formatFcfaAmount(cycleCollected)}
         revealAriaKey="dashboard.stat.collected_reveal_aria"
         hideAriaKey="dashboard.stat.collected_hide_aria"
-      />
-      <MaskedStatTile
-        label={t("dashboard.stat.commission")}
-        value={formatFcfaAmount(commissionThisCycle)}
-        revealAriaKey="dashboard.stat.commission_reveal_aria"
-        hideAriaKey="dashboard.stat.commission_hide_aria"
       />
     </div>
   );

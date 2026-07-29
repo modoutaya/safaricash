@@ -75,16 +75,15 @@ describe("deriveMembersWithMeta", () => {
       NOW,
     );
     expect(out[0]!.cycleAdvancesTotal).toBe(3000);
-    // Story 12.5 PR C — projectedBalance = currentBalance =
-    //   contributedTotal(14_500) − daily(500) − advances(3_000) − 0 = 11_000.
-    expect(out[0]!.projectedBalance).toBe(11_000);
+    // 2026-07-28 — commission removed. projectedBalance = currentBalance =
+    //   contributedTotal(14_500) − advances(3_000) − 0 = 11_500.
+    expect(out[0]!.projectedBalance).toBe(11_500);
   });
 
-  it("projectedBalance with empty contributedByCycle = 0 (2026-05-24 — commission capped at contributed)", () => {
+  it("projectedBalance with empty contributedByCycle = 0 (nothing versed)", () => {
     const out = deriveMembersWithMeta(makeData(), NOW);
     expect(out[0]!.cycleAdvancesTotal).toBe(0);
-    // 2026-05-24 — commission = min(contributed=0, daily=500) = 0.
-    // currentBalance = 0 − 0 − 0 − 0 = 0. Pre-change returned −500.
+    // currentBalance = 0 − 0 − 0 = 0.
     expect(out[0]!.projectedBalance).toBe(0);
   });
 

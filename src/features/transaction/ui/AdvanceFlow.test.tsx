@@ -143,9 +143,11 @@ describe("AdvanceFlow", () => {
     expect(screen.getByRole("button", { name: /^150K$/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/montant du prêt/i)).toBeInTheDocument();
     // Simulation panel — row 1 (total cycle, GROSS) = dailyAmount × cycleLength
-    // = 5000 × 30 = 150_000 (fixture cycle is 30 days).
+    // = 5000 × 30 = 150_000 (fixture cycle is 30 days). 2026-07-28 —
+    // commission removed: in the empty state the final-balance row also shows
+    // 150 000 (total − 0 advances), so the amount appears twice.
     expect(screen.getByText(/impact sur le solde final/i)).toBeInTheDocument();
-    expect(screen.getByText(/150\s000 FCFA/)).toBeInTheDocument();
+    expect(screen.getAllByText(/150\s000 FCFA/)).toHaveLength(2);
   });
 
   it("renders the amber security notice", () => {
@@ -233,7 +235,9 @@ describe("AdvanceFlow", () => {
     useMemberProfileMock.mockReturnValue(mkProfile());
     renderWithRouter();
     fireEvent.change(screen.getByLabelText(/montant du prêt/i), { target: { value: "75000" } });
-    expect(screen.getByText(/75\s000 FCFA/)).toBeInTheDocument();
+    // 2026-07-28 — commission removed: final balance = 150 000 − 75 000 =
+    // 75 000, which matches the advance row (− 75 000 FCFA) too → 2 matches.
+    expect(screen.getAllByText(/75\s000 FCFA/)).toHaveLength(2);
   });
 
   it("over-limit chip is disabled when N would exceed capacity", () => {

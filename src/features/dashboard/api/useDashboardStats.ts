@@ -1,19 +1,19 @@
 // Story 9.1 / FR34 — dashboard stats hook.
 //
-// Composes the existing `useMembers()` (active-count + commission — already
+// Composes the existing `useMembers()` (active-count — already
 // offline-persisted by Story 8.6) with a `["dashboard", …]`-keyed query for
 // the cycle's collected total + the 5 most recent activities. The
 // transaction query polls every 60 s (architecture Q-ARCH6 — polling, NOT
 // Supabase Realtime); `refetchIntervalInBackground` stays false and the
 // default networkMode no-ops the interval while offline.
 //
-// 2026-06-08 — "Collected" + "commission" aggregate over the CURRENT
-// CALENDAR MONTH (1st of the month → now), NOT the cycle: the query filters
+// 2026-06-08 — "Collected" aggregates over the CURRENT CALENDAR MONTH
+// (1st of the month → now), NOT the cycle: the query filters
 // transactions_decrypted by `created_at >= <1st of month>`. This is robust
 // to the monthly cycle-restart not having run — the dashboard always shows
 // this month's real figures regardless of each member's cycle state.
 //
-// The four-stat math lives in the pure `deriveDashboardStats` module.
+// The stat math lives in the pure `deriveDashboardStats` module.
 
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";

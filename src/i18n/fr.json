@@ -105,11 +105,8 @@
     "stat": {
       "active_members": "Membres actifs",
       "collected": "Collecté",
-      "commission": "Commission",
       "collected_reveal_aria": "Afficher le montant collecté",
-      "collected_hide_aria": "Masquer le montant collecté",
-      "commission_reveal_aria": "Afficher la commission",
-      "commission_hide_aria": "Masquer la commission"
+      "collected_hide_aria": "Masquer le montant collecté"
     },
     "activity": {
       "title": "Activité récente",
@@ -206,7 +203,6 @@
         "row_member": "Membre",
         "row_contribution": "Cotisation quotidienne",
         "row_total": "Total du cycle",
-        "row_commission": "Commission",
         "row_repayment": "Remboursement au membre",
         "amount": "{amount} F CFA"
       },
@@ -411,7 +407,6 @@
     "simulation": {
       "title": "🔮 Impact sur le solde final",
       "row_total": "Total cycle projeté",
-      "row_commission": "Commission",
       "row_advance": "Prêt",
       "row_final_balance": "Solde final projeté",
       "amount_placeholder": "— FCFA",
@@ -472,7 +467,6 @@
     "summary": {
       "cycle_range": "Cycle du {start} au {end}",
       "row_contributions": "Cotisations versées",
-      "row_commission": "Commission collecteur",
       "row_advances_label": "Avances accordées",
       "row_advances_none": "Aucune avance",
       "advances_detail_item": "Avance {n} : {amount} FCFA",

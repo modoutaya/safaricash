@@ -19,7 +19,7 @@ import type { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { commission, cycleLengthDays, deriveCycleBounds } from "@/domain/cycle";
+import { cycleLengthDays, deriveCycleBounds } from "@/domain/cycle";
 import type { TranslationKey } from "@/i18n/keys";
 import { useT } from "@/i18n/useT";
 
@@ -101,16 +101,15 @@ function CycleRecap({ name, dailyAmount }: { name: string; dailyAmount: number }
     { label: t("members.create.recap.row_member"), value: name },
     { label: t("members.create.recap.row_contribution"), value: amount(dailyAmount) },
     { label: t("members.create.recap.row_total"), value: amount(dailyAmount * cycleLength) },
-    { label: t("members.create.recap.row_commission"), value: amount(commission(dailyAmount)) },
     {
       label: t("members.create.recap.row_repayment"),
       // Story 12.5 PR C — the create-member recap is a theoretical
       // teaser ("si le saver cotise daily × cycleLength chaque jour,
-      // il recevra ce montant à la fin"). The new currentBalance is
-      // a runtime value (contributedTotal − …) and is meaningless
-      // before the first contribution, so we keep the legacy
-      // `daily × (cycleLength − 1)` math inline as the teaser.
-      value: amount(dailyAmount * (cycleLength - 1)),
+      // il recevra ce montant à la fin"). 2026-07-28 — commission
+      // removed: the saver gets back 100 % of the projected total, so
+      // the teaser is `daily × cycleLength` (was `daily × (cycleLength −
+      // 1)`, the − 1 being the old commission day).
+      value: amount(dailyAmount * cycleLength),
     },
   ];
   return (

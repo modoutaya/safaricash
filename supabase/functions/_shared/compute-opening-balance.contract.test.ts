@@ -265,13 +265,7 @@ if (env) {
           [{ cycleNumber: 1, status: "active" }],
           [{ cycleNumber: 1, advances: 5000 }],
         );
-        const ts = computeOpeningBalance(
-          cycles,
-          advancesByCycleId,
-          contributedByCycleId,
-          DAILY,
-          cycleId,
-        );
+        const ts = computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, cycleId);
         assertEquals(sql, 0n);
         assertEquals(BigInt(ts), sql, "SQL/TS mismatch on first-cycle case");
       } finally {
@@ -312,13 +306,7 @@ if (env) {
           ],
           [{ cycleNumber: 1, advances: 50_000 }],
         );
-        const ts = computeOpeningBalance(
-          cycles,
-          advancesByCycleId,
-          contributedByCycleId,
-          DAILY,
-          cycle2Id,
-        );
+        const ts = computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, cycle2Id);
         assertEquals(sql, 0n);
         assertEquals(BigInt(ts), sql);
       } finally {
@@ -339,7 +327,7 @@ if (env) {
             startDate: "2026-04-01",
             endDate: "2026-04-30",
             status: "completed",
-            advancesTotal: 20_000, // daily × 29 = 14_500, debt = 5_500
+            advancesTotal: 20_000, // 2026-07-28 — commission removed. debt = 15_000 − 20_000 = 5_000
           },
           {
             cycleNumber: 2,
@@ -359,14 +347,8 @@ if (env) {
           ],
           [{ cycleNumber: 1, advances: 20_000 }],
         );
-        const ts = computeOpeningBalance(
-          cycles,
-          advancesByCycleId,
-          contributedByCycleId,
-          DAILY,
-          cycle2Id,
-        );
-        assertEquals(sql, 5_500n);
+        const ts = computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, cycle2Id);
+        assertEquals(sql, 5_000n);
         assertEquals(BigInt(ts), sql, "SQL/TS mismatch on simple-debt case");
         assert(Number(sql) === ts, "Cross-cast TS=SQL");
       } finally {
@@ -387,14 +369,14 @@ if (env) {
             startDate: "2026-03-01",
             endDate: "2026-03-30",
             status: "completed",
-            advancesTotal: 16_000, // c1 debt = 1_500
+            advancesTotal: 16_000, // 2026-07-28 — commission removed. c1 debt = 15_000 − 16_000 = 1_000
           },
           {
             cycleNumber: 2,
             startDate: "2026-04-01",
             endDate: "2026-04-30",
             status: "completed",
-            advancesTotal: 14_500, // c2 final = 14_500 − 14_500 − 1_500 = -1_500 → c3 opening = 1_500
+            advancesTotal: 14_500, // c2 final = 15_000 − 14_500 − 1_000 = −500 → c3 opening = 500
           },
           {
             cycleNumber: 3,
@@ -408,8 +390,8 @@ if (env) {
         const cycle3Id = seeded.cycles[2]!.id;
         const sqlC2 = await callSql(c, seeded.memberId, cycle2Id);
         const sqlC3 = await callSql(c, seeded.memberId, cycle3Id);
-        assertEquals(sqlC2, 1_500n, "c2 opening from c1 debt");
-        assertEquals(sqlC3, 1_500n, "c3 opening = c2 debt (recursive)");
+        assertEquals(sqlC2, 1_000n, "c2 opening from c1 debt");
+        assertEquals(sqlC3, 500n, "c3 opening = c2 debt (recursive)");
 
         const { cycles, advancesByCycleId, contributedByCycleId } = tsInputs(
           seeded,
@@ -424,15 +406,11 @@ if (env) {
           ],
         );
         assertEquals(
-          BigInt(
-            computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, DAILY, cycle2Id),
-          ),
+          BigInt(computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, cycle2Id)),
           sqlC2,
         );
         assertEquals(
-          BigInt(
-            computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, DAILY, cycle3Id),
-          ),
+          BigInt(computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, cycle3Id)),
           sqlC3,
         );
       } finally {
@@ -453,14 +431,14 @@ if (env) {
             startDate: "2026-03-01",
             endDate: "2026-03-30",
             status: "completed",
-            advancesTotal: 19_500, // c1 debt = 5_000
+            advancesTotal: 19_500, // 2026-07-28 — commission removed. c1 debt = 15_000 − 19_500 = 4_500
           },
           {
             cycleNumber: 2,
             startDate: "2026-04-01",
             endDate: "2026-04-30",
             status: "completed",
-            advancesTotal: 0, // c2 balance = 14_500 − 0 − 5_000 = 9_500 → no debt
+            advancesTotal: 0, // c2 balance = 15_000 − 0 − 4_500 = 10_500 → no debt
           },
           {
             cycleNumber: 3,
@@ -484,9 +462,7 @@ if (env) {
           [{ cycleNumber: 1, advances: 19_500 }],
         );
         assertEquals(
-          BigInt(
-            computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, DAILY, cycle3Id),
-          ),
+          BigInt(computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, cycle3Id)),
           sql,
         );
       } finally {
@@ -533,13 +509,7 @@ if (env) {
             { cycleNumber: 2, contributed: 0 },
           ],
         );
-        const ts = computeOpeningBalance(
-          cycles,
-          advancesByCycleId,
-          contributedByCycleId,
-          DAILY,
-          cycle2Id,
-        );
+        const ts = computeOpeningBalance(cycles, advancesByCycleId, contributedByCycleId, cycle2Id);
         assertEquals(sql, 0n, "zero-cotisation cycle must carry no commission debt");
         assertEquals(BigInt(ts), sql, "SQL/TS mismatch on zero-cotisation case");
       } finally {
